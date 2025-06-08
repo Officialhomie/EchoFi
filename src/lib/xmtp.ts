@@ -5,11 +5,8 @@ import {
     type Signer,
     type ClientOptions,
     type SafeCreateGroupOptions,
-    GroupPermissionsOptions,
-    PermissionPolicy
+    GroupPermissionsOptions
 } from '@xmtp/browser-sdk';
-import { ContentTypeReaction } from '@xmtp/content-type-reaction';
-import { ContentTypeReply } from '@xmtp/content-type-reply';
 
 export interface XMTPConfig {
 env?: 'dev' | 'production' | 'local';

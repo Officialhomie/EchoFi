@@ -18,7 +18,7 @@ type ViewMode = 'dashboard' | 'groups' | 'group-detail' | 'welcome';
 
 export default function HomePage() {
   const { isConnected, address } = useWallet();
-  const { client, createGroup, conversations, isInitialized: xmtpInitialized } = useXMTP();
+  const { client, createGroup, isInitialized: xmtpInitialized } = useXMTP();
   const { isInitialized, error, clearError } = useApp();
   
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
@@ -68,11 +68,6 @@ export default function HomePage() {
   const handleBackToDashboard = () => {
     setCurrentGroup(null);
     setViewMode('dashboard');
-  };
-
-  const handleBackToGroups = () => {
-    setCurrentGroup(null);
-    setViewMode('groups');
   };
 
   // Show loading screen during initialization

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/ui/button';
@@ -36,15 +36,7 @@ export function GroupManager({ onCreateGroup, onJoinGroup, isLoading }: GroupMan
   const [memberValidation, setMemberValidation] = useState<Record<string, boolean>>({});
 
   // Validate member addresses as user types
-  useEffect(() => {
-    if (groupData.members.trim()) {
-      validateMembers();
-    } else {
-      setMemberValidation({});
-    }
-  }, [groupData.members]);
-
-  const validateMembers = async () => {
+  const validateMembers = useCallback(async () => {
     const addresses = groupData.members
       .split(',')
       .map(addr => addr.trim())
@@ -78,7 +70,15 @@ export function GroupManager({ onCreateGroup, onJoinGroup, isLoading }: GroupMan
     } finally {
       setValidatingMembers(false);
     }
-  };
+  }, [groupData.members, canMessage]);
+
+  useEffect(() => {
+    if (groupData.members.trim()) {
+      validateMembers();
+    } else {
+      setMemberValidation({});
+    }
+  }, [groupData.members, validateMembers]);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};

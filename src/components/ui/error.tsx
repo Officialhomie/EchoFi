@@ -1,7 +1,7 @@
-// src/components/ui/error.tsx
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { AlertTriangleIcon, RefreshCwIcon, XCircleIcon, InfoIcon } from 'lucide-react';
 import { Button } from './button';
 import { Card, CardContent, CardHeader, CardTitle } from './card';
@@ -250,7 +250,7 @@ interface ApiErrorProps {
   error: {
     status?: number;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   onRetry?: () => void;
   endpoint?: string;
@@ -293,7 +293,7 @@ export function ApiError({ error, onRetry, endpoint }: ApiErrorProps) {
           <p className="text-xs text-gray-600 mb-4">Endpoint: {endpoint}</p>
         )}
 
-        {error.details && (
+        {typeof error.details !== 'undefined' && (
           <details className="mb-4">
             <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
               Error details
@@ -354,15 +354,15 @@ export function NotFound() {
         <h1 className="text-9xl font-bold text-gray-300">404</h1>
         <h2 className="text-2xl font-semibold text-gray-900 mb-4">Page not found</h2>
         <p className="text-gray-600 mb-8">
-          The page you're looking for doesn't exist or has been moved.
+          The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <a
+        <Link
           href="/"
           className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4"
           style={{ minHeight: '2.5rem', padding: '0.5rem 1rem' }}
         >
           Go back home
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -380,7 +380,7 @@ export function MaintenanceMode() {
         </CardHeader>
         <CardContent className="text-center">
           <p className="text-gray-600 mb-4">
-            We're currently performing scheduled maintenance to improve your experience.
+            We&apos;re currently performing scheduled maintenance to improve your experience.
           </p>
           <p className="text-sm text-gray-500">
             Please check back in a few minutes.

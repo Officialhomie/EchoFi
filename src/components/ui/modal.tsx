@@ -1,4 +1,3 @@
-// src/components/ui/modal.tsx
 'use client';
 
 import React, { useEffect, useRef } from 'react';
@@ -264,19 +263,6 @@ export function AlertDialog({
         return '❌';
       default:
         return 'ℹ️';
-    }
-  };
-
-  const getColor = () => {
-    switch (type) {
-      case 'success':
-        return 'text-green-600';
-      case 'warning':
-        return 'text-yellow-600';
-      case 'error':
-        return 'text-red-600';
-      default:
-        return 'text-blue-600';
     }
   };
 

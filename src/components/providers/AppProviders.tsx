@@ -1,7 +1,6 @@
-// src/components/providers/AppProviders.tsx
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
@@ -34,8 +33,12 @@ export function useApp() {
   return context;
 }
 
-// App Provider
-export function AppProvider({ children }: { children: React.ReactNode }) {
+// App Provider Props
+interface AppProviderProps {
+  children: React.ReactNode;
+}
+
+export function AppProvider({ children }: AppProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -43,15 +46,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const xmtp = useXMTP();
   const agent = useInvestmentAgent({ autoInitialize: false });
 
-  useEffect(() => {
-    // Initialize agent when wallet is connected
+  const initializeAgent = useCallback(async () => {
     if (wallet.isConnected && !agent.isInitialized) {
-      agent.initializeAgent().catch((err) => {
+      try {
+        await agent.initializeAgent();
+      } catch (err) {
         console.error('Failed to initialize agent:', err);
         setError('Failed to initialize investment agent');
-      });
+      }
     }
-  }, [wallet.isConnected, agent.isInitialized]);
+  }, [wallet.isConnected, agent.isInitialized, agent]);
+
+  useEffect(() => {
+    // Initialize agent when wallet is connected
+    initializeAgent();
+  }, [initializeAgent]);
 
   useEffect(() => {
     // Mark app as initialized when all components are ready
@@ -65,11 +74,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (agent.error) setError(agent.error);
   }, [xmtp.error, agent.error]);
 
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setError(null);
-    xmtp.clearError?.();
+    if (xmtp.clearError) xmtp.clearError();
     agent.clearError();
-  };
+  }, [xmtp, agent]);
 
   const value: AppContextType = {
     isInitialized,
@@ -84,8 +93,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Main Providers Component
-export function AppProviders({ children }: { children: React.ReactNode }) {
+// Main Providers Component Props
+interface AppProvidersProps {
+  children: React.ReactNode;
+}
+
+export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
@@ -101,11 +114,15 @@ interface ErrorBoundaryState {
   error?: Error;
 }
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
 export class AppErrorBoundary extends React.Component<
-  React.PropsWithChildren<{}>,
+  ErrorBoundaryProps,
   ErrorBoundaryState
 > {
-  constructor(props: React.PropsWithChildren<{}>) {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
   }
@@ -158,7 +175,11 @@ export class AppErrorBoundary extends React.Component<
 }
 
 // Loading Spinner Component
-export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+interface LoadingSpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
+}
+
+export function LoadingSpinner({ size = 'md' }: LoadingSpinnerProps) {
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',

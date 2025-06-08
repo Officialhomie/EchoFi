@@ -1,7 +1,7 @@
 // src/components/dashboard/Dashboard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
@@ -53,30 +53,10 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [performanceAnalysis, setPerformanceAnalysis] = useState<string>('');
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [isInitialized]);
-
-  const loadDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      await Promise.all([
-        loadPortfolio(),
-        loadGroups(),
-        loadPerformanceAnalysis(),
-      ]);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadPortfolio = async () => {
+  const loadPortfolio = useCallback(async () => {
     if (!isInitialized) return;
 
     try {
@@ -88,7 +68,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       const portfolioData: PortfolioData = {
         totalValue: balance.totalUsdValue || '0',
         change24h: 2.3, // Mock 24h change
-        assets: balance.balances.map((asset: any, index: number) => ({
+        assets: balance.balances.map((asset: { asset: string; amount: string; usdValue?: string }, index: number) => ({
           symbol: asset.asset,
           amount: asset.amount,
           value: asset.usdValue || '0',
@@ -100,9 +80,9 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     } catch (error) {
       console.error('Failed to load portfolio:', error);
     }
-  };
+  }, [isInitialized, getBalance]);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     try {
       // Transform conversations into group summaries
       const groupSummaries: GroupSummary[] = conversations.map(conv => ({
@@ -118,9 +98,9 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     } catch (error) {
       console.error('Failed to load groups:', error);
     }
-  };
+  }, [conversations]);
 
-  const loadPerformanceAnalysis = async () => {
+  const loadPerformanceAnalysis = useCallback(async () => {
     if (!isInitialized) return;
 
     try {
@@ -129,7 +109,26 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     } catch (error) {
       console.error('Failed to load performance analysis:', error);
     }
-  };
+  }, [isInitialized, analyzePerformance]);
+
+  const loadDashboardData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadPortfolio(),
+        loadGroups(),
+        loadPerformanceAnalysis(),
+      ]);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loadPortfolio, loadGroups, loadPerformanceAnalysis]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   if (isLoading) {
     return (
@@ -150,7 +149,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
           Welcome back!
         </h1>
         <p className="text-gray-600">
-          Here's an overview of your investment activity and portfolio performance
+          Here&apos;s an overview of your investment activity and portfolio performance
         </p>
       </div>
 

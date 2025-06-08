@@ -113,7 +113,7 @@ export function ConnectWallet({ onConnected, className }: ConnectWalletProps) {
 
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">
-            Don't have a wallet?
+            Don&apos;t have a wallet?
           </p>
           <div className="space-y-2">
             <a

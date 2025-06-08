@@ -1,4 +1,4 @@
-import { ContentTypeId, ContentCodec, EncodedContent, CodecRegistry } from '@xmtp/content-type-primitives';
+import { ContentTypeId, ContentCodec, EncodedContent } from '@xmtp/content-type-primitives';
 
 export interface InvestmentProposal {
   id: string;
@@ -40,7 +40,7 @@ export class InvestmentProposalCodec implements ContentCodec<InvestmentProposal>
     return ContentTypeInvestmentProposal;
   }
 
-  encode(content: InvestmentProposal, registry: CodecRegistry): EncodedContent {
+  encode(content: InvestmentProposal): EncodedContent {
     const bytes = new TextEncoder().encode(JSON.stringify(content));
     return {
       type: this.contentType,
@@ -49,7 +49,7 @@ export class InvestmentProposalCodec implements ContentCodec<InvestmentProposal>
     };
   }
 
-  decode(encoded: EncodedContent, registry: CodecRegistry): InvestmentProposal {
+  decode(encoded: EncodedContent): InvestmentProposal {
     const decoded = JSON.parse(new TextDecoder().decode(encoded.content));
     if (!this.isValidProposal(decoded)) {
       throw new Error('Invalid investment proposal format');
@@ -65,18 +65,20 @@ export class InvestmentProposalCodec implements ContentCodec<InvestmentProposal>
     return true;
   }
 
-  private isValidProposal(obj: any): obj is InvestmentProposal {
+  private isValidProposal(obj: unknown): obj is InvestmentProposal {
+    if (!obj || typeof obj !== 'object') return false;
+    
+    const proposal = obj as Record<string, unknown>;
     return (
-      obj &&
-      typeof obj.id === 'string' &&
-      typeof obj.title === 'string' &&
-      typeof obj.description === 'string' &&
-      typeof obj.amount === 'string' &&
-      typeof obj.strategy === 'string' &&
-      typeof obj.deadline === 'number' &&
-      typeof obj.requiredVotes === 'number' &&
-      typeof obj.proposedBy === 'string' &&
-      typeof obj.timestamp === 'number'
+      typeof proposal.id === 'string' &&
+      typeof proposal.title === 'string' &&
+      typeof proposal.description === 'string' &&
+      typeof proposal.amount === 'string' &&
+      typeof proposal.strategy === 'string' &&
+      typeof proposal.deadline === 'number' &&
+      typeof proposal.requiredVotes === 'number' &&
+      typeof proposal.proposedBy === 'string' &&
+      typeof proposal.timestamp === 'number'
     );
   }
 }
@@ -86,7 +88,7 @@ export class InvestmentVoteCodec implements ContentCodec<InvestmentVote> {
     return ContentTypeInvestmentVote;
   }
 
-  encode(content: InvestmentVote, registry: CodecRegistry): EncodedContent {
+  encode(content: InvestmentVote): EncodedContent {
     const bytes = new TextEncoder().encode(JSON.stringify(content));
     return {
       type: this.contentType,
@@ -95,7 +97,7 @@ export class InvestmentVoteCodec implements ContentCodec<InvestmentVote> {
     };
   }
 
-  decode(encoded: EncodedContent, registry: CodecRegistry): InvestmentVote {
+  decode(encoded: EncodedContent): InvestmentVote {
     const decoded = JSON.parse(new TextDecoder().decode(encoded.content));
     if (!this.isValidVote(decoded)) {
       throw new Error('Invalid investment vote format');
@@ -111,14 +113,16 @@ export class InvestmentVoteCodec implements ContentCodec<InvestmentVote> {
     return true;
   }
 
-  private isValidVote(obj: any): obj is InvestmentVote {
+  private isValidVote(obj: unknown): obj is InvestmentVote {
+    if (!obj || typeof obj !== 'object') return false;
+    
+    const vote = obj as Record<string, unknown>;
     return (
-      obj &&
-      typeof obj.proposalId === 'string' &&
-      ['approve', 'reject', 'abstain'].includes(obj.vote) &&
-      typeof obj.voterAddress === 'string' &&
-      typeof obj.timestamp === 'number' &&
-      (obj.votingPower === undefined || typeof obj.votingPower === 'number')
+      typeof vote.proposalId === 'string' &&
+      ['approve', 'reject', 'abstain'].includes(vote.vote as string) &&
+      typeof vote.voterAddress === 'string' &&
+      typeof vote.timestamp === 'number' &&
+      (vote.votingPower === undefined || typeof vote.votingPower === 'number')
     );
   }
 }

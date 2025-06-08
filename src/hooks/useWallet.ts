@@ -19,7 +19,11 @@ export interface UseWalletReturn extends WalletState {
 
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on: (event: string, callback: (accounts: string[]) => void) => void;
+      removeListener: (event: string, callback: (accounts: string[]) => void) => void;
+    };
   }
 }
 
@@ -34,12 +38,6 @@ export function useWallet(): UseWalletReturn {
   });
 
   const [isConnecting, setIsConnecting] = useState(false);
-
-  // Check if wallet is already connected on mount
-  useEffect(() => {
-    checkConnection();
-    setupEventListeners();
-  }, []);
 
   const checkConnection = useCallback(async () => {
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -80,7 +78,7 @@ export function useWallet(): UseWalletReturn {
       };
 
       // Chain change handler
-      const handleChainChanged = (chainId: string) => {
+      const handleChainChanged = () => {
         checkConnection();
       };
 
@@ -102,7 +100,15 @@ export function useWallet(): UseWalletReturn {
         }
       };
     }
-  }, []);
+    return () => {};
+  }, [checkConnection]);
+
+  // Check if wallet is already connected on mount
+  useEffect(() => {
+    checkConnection();
+    const cleanup = setupEventListeners();
+    return cleanup;
+  }, [checkConnection, setupEventListeners]);
 
   const connect = useCallback(async () => {
     if (isConnecting) return;
@@ -167,9 +173,9 @@ export function useWallet(): UseWalletReturn {
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${targetChainId.toString(16)}` }],
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If the chain hasn't been added to the wallet
-      if (error.code === 4902) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 4902) {
         // Add the chain (you may want to customize this based on your supported chains)
         const chainData = getChainData(targetChainId);
         if (chainData) {
@@ -211,7 +217,17 @@ export function useWallet(): UseWalletReturn {
 
 // Helper function to get chain data for adding new chains
 function getChainData(chainId: number) {
-  const chainConfigs: Record<number, any> = {
+  const chainConfigs: Record<number, {
+    chainId: string;
+    chainName: string;
+    nativeCurrency: {
+      name: string;
+      symbol: string;
+      decimals: number;
+    };
+    rpcUrls: string[];
+    blockExplorerUrls: string[];
+  }> = {
     8453: { // Base Mainnet
       chainId: '0x2105',
       chainName: 'Base',

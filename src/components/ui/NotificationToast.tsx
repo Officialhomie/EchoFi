@@ -1,9 +1,7 @@
-// src/components/ui/NotificationToast.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { CheckCircleIcon, XCircleIcon, XIcon } from 'lucide-react';
-import { Button } from './button';
 
 interface NotificationToastProps {
   type: 'success' | 'error' | 'info' | 'warning';
@@ -25,6 +23,13 @@ export function NotificationToast({
   const [isVisible, setIsVisible] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
 
+  const handleClose = useCallback(() => {
+    setIsRemoving(true);
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match the exit animation duration
+  }, [onClose]);
+
   useEffect(() => {
     // Trigger entrance animation
     const timer = setTimeout(() => setIsVisible(true), 10);
@@ -38,14 +43,7 @@ export function NotificationToast({
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [duration]);
-
-  const handleClose = () => {
-    setIsRemoving(true);
-    setTimeout(() => {
-      onClose();
-    }, 300); // Match the exit animation duration
-  };
+  }, [duration, handleClose]);
 
   const getTypeStyles = () => {
     switch (type) {
@@ -190,27 +188,27 @@ export function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = (toast: Omit<Toast, 'id'>) => {
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substr(2, 9);
     setToasts(prev => [...prev, { ...toast, id }]);
-  };
+  }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setToasts([]);
-  };
+  }, []);
 
   return {
     toasts,
     addToast,
     removeToast,
     clearAll,
-    success: (message: string, title?: string) => addToast({ type: 'success', message, title }),
-    error: (message: string, title?: string) => addToast({ type: 'error', message, title }),
-    info: (message: string, title?: string) => addToast({ type: 'info', message, title }),
-    warning: (message: string, title?: string) => addToast({ type: 'warning', message, title }),
+    success: useCallback((message: string, title?: string) => addToast({ type: 'success', message, title }), [addToast]),
+    error: useCallback((message: string, title?: string) => addToast({ type: 'error', message, title }), [addToast]),
+    info: useCallback((message: string, title?: string) => addToast({ type: 'info', message, title }), [addToast]),
+    warning: useCallback((message: string, title?: string) => addToast({ type: 'warning', message, title }), [addToast]),
   };
 }

@@ -2,10 +2,12 @@ import * as React from "react"
 import { clsx } from "clsx"
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+  extends React.InputHTMLAttributes<HTMLInputElement> {
+  error?: string;
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, error, ...props }, ref) => {
     return (
       <input
         type={type}
@@ -15,6 +17,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           "placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2",
           "focus-visible:ring-blue-500 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
+          error && "border-red-300 focus-visible:ring-red-500",
           className
         )}
         ref={ref}
@@ -27,10 +30,12 @@ Input.displayName = "Input"
 
 // Textarea Component
 export interface TextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  error?: string;
+}
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, error, ...props }, ref) => {
     return (
       <textarea
         className={clsx(
@@ -38,6 +43,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           "ring-offset-white placeholder:text-gray-500 focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
+          error && "border-red-300 focus-visible:ring-red-500",
           className
         )}
         ref={ref}
@@ -50,15 +56,18 @@ Textarea.displayName = "Textarea"
 
 // Label Component
 export interface LabelProps
-  extends React.LabelHTMLAttributes<HTMLLabelElement> {}
+  extends React.LabelHTMLAttributes<HTMLLabelElement> {
+  error?: boolean;
+}
 
 const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, error, ...props }, ref) => {
     return (
       <label
         ref={ref}
         className={clsx(
           "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+          error && "text-red-600",
           className
         )}
         {...props}
@@ -79,7 +88,7 @@ interface FormFieldProps {
 export function FormField({ label, error, children, required }: FormFieldProps) {
   return (
     <div className="space-y-2">
-      <Label className="text-gray-700">
+      <Label className="text-gray-700" error={!!error}>
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </Label>
@@ -96,10 +105,11 @@ export interface SelectProps
   extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
+  error?: string;
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, options, placeholder, ...props }, ref) => {
+  ({ className, options, placeholder, error, ...props }, ref) => {
     return (
       <select
         className={clsx(
@@ -107,6 +117,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           "ring-offset-white focus-visible:outline-none focus-visible:ring-2",
           "focus-visible:ring-blue-500 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
+          error && "border-red-300 focus-visible:ring-red-500",
           className
         )}
         ref={ref}

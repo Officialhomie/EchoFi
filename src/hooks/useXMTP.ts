@@ -3,8 +3,6 @@ import { Client, Conversation, DecodedMessage } from '@xmtp/browser-sdk';
 import { XMTPManager, type XMTPConfig, type GroupConfig } from '@/lib/xmtp';
 import { useWallet } from '@/hooks/useWallet';
 import { 
-  investmentProposalCodec, 
-  investmentVoteCodec,
   InvestmentProposal,
   InvestmentVote 
 } from '@/lib/content-types';
@@ -22,7 +20,7 @@ export interface UseXMTPReturn {
   initializeXMTP: () => Promise<void>;
   createGroup: (name: string, description: string, members: string[]) => Promise<Conversation>;
   createDM: (address: string) => Promise<Conversation>;
-  sendMessage: (conversationId: string, content: any, contentType?: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: unknown, contentType?: string) => Promise<void>;
   getMessages: (conversationId: string, limit?: number) => Promise<DecodedMessage[]>;
   streamMessages: (conversationId: string, onMessage: (message: DecodedMessage) => void) => Promise<() => void>;
   
@@ -34,7 +32,7 @@ export interface UseXMTPReturn {
   canMessage: (addresses: string[]) => Promise<Map<string, boolean>>;
   refreshConversations: () => Promise<void>;
   cleanup: () => Promise<void>;
-  clearError: () => void;
+  clearError?: () => void;
 }
 
 // Utility to wrap ethers.js JsonRpcSigner as XMTP Signer
@@ -61,20 +59,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   
   const xmtpManager = useRef<XMTPManager | null>(null);
   const messageStreams = useRef<Map<string, () => void>>(new Map());
-
-  // Initialize XMTP when wallet is connected
-  useEffect(() => {
-    if (isConnected && signer && !isInitialized && !isInitializing) {
-      initializeXMTP();
-    }
-  }, [isConnected, signer]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, []);
 
   const initializeXMTP = useCallback(async () => {
     if (!signer || isInitializing) return;
@@ -116,6 +100,31 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     }
   }, [signer, isInitializing, config]);
 
+  const refreshConversations = useCallback(async () => {
+    if (!xmtpManager.current) return;
+
+    try {
+      const convos = await xmtpManager.current.getConversations();
+      setConversations(convos);
+    } catch (error) {
+      console.error('Failed to refresh conversations:', error);
+    }
+  }, []);
+
+  // Initialize XMTP when wallet is connected
+  useEffect(() => {
+    if (isConnected && signer && !isInitialized && !isInitializing) {
+      initializeXMTP();
+    }
+  }, [isConnected, signer, isInitialized, isInitializing, initializeXMTP]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
+
   const createGroup = useCallback(async (
     name: string, 
     description: string, 
@@ -141,7 +150,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       console.error('Failed to create group:', error);
       throw error;
     }
-  }, []);
+  }, [refreshConversations]);
 
   const createDM = useCallback(async (address: string): Promise<Conversation> => {
     if (!xmtpManager.current) {
@@ -156,11 +165,11 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       console.error('Failed to create DM:', error);
       throw error;
     }
-  }, []);
+  }, [refreshConversations]);
 
   const sendMessage = useCallback(async (
     conversationId: string, 
-    content: any, 
+    content: unknown, 
     contentType: string = 'text'
   ) => {
     if (!xmtpManager.current) {
@@ -182,7 +191,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         messageContent = content as InvestmentVote;
       }
 
-      await xmtpManager.current.sendMessage(conversation, messageContent);
+      await xmtpManager.current.sendMessage(conversation, messageContent as string);
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
@@ -291,17 +300,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     } catch (error) {
       console.error('Failed to check message capability:', error);
       throw error;
-    }
-  }, []);
-
-  const refreshConversations = useCallback(async () => {
-    if (!xmtpManager.current) return;
-
-    try {
-      const convos = await xmtpManager.current.getConversations();
-      setConversations(convos);
-    } catch (error) {
-      console.error('Failed to refresh conversations:', error);
     }
   }, []);
 

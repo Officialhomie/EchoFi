@@ -17,7 +17,7 @@ export interface UseInvestmentAgentReturn {
   getBalance: () => Promise<PortfolioBalance>;
   rebalance: (targets: Record<string, number>) => Promise<InvestmentResult>;
   getRecommendations: (riskTolerance: 'conservative' | 'moderate' | 'aggressive', timeHorizon: 'short' | 'medium' | 'long', portfolioValue: string) => Promise<string>;
-  executeDeFiAction: (action: string, protocol: string, asset: string, amount: string, additionalParams?: Record<string, any>) => Promise<InvestmentResult>;
+  executeDeFiAction: (action: string, protocol: string, asset: string, amount: string, additionalParams?: Record<string, unknown>) => Promise<InvestmentResult>;
   analyzePerformance: (timeframe: '24h' | '7d' | '30d') => Promise<string>;
   getWalletAddress: () => Promise<string>;
   // Utility methods
@@ -173,7 +173,7 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}): Use
     protocol: string,
     asset: string,
     amount: string,
-    additionalParams?: Record<string, any>
+    additionalParams?: Record<string, unknown>
   ): Promise<InvestmentResult> => {
     try {
       const readyAgent = ensureAgent(agent);

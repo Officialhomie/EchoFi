@@ -4,7 +4,7 @@ import { cdpApiActionProvider, pythActionProvider } from '@coinbase/agentkit';
 import { getLangChainTools } from '@coinbase/agentkit-langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, BaseMessage } from '@langchain/core/messages';
 
 export interface InvestmentConfig {
   cdpApiKeyId: string;
@@ -38,9 +38,13 @@ export interface RebalanceTarget {
   action?: 'buy' | 'sell' | 'hold';
 }
 
+type LangChainAgent = {
+  invoke: (input: { messages: HumanMessage[] }) => Promise<{ messages: BaseMessage[] }>;
+};
+
 export class InvestmentAgent {
   private agentKit: AgentKit | null = null;
-  private llmAgent: any = null;
+  private llmAgent: LangChainAgent | null = null;
   private walletProvider: CdpWalletProvider | null = null;
   private config: InvestmentConfig;
 
@@ -155,8 +159,8 @@ export class InvestmentAgent {
       
       return {
         success: true,
-        summary: finalMessage.content,
-        transactionHashes: this.extractTransactionHashes(finalMessage.content),
+        summary: getMessageContentAsString(finalMessage.content),
+        transactionHashes: this.extractTransactionHashes(getMessageContentAsString(finalMessage.content)),
       };
     } catch (error) {
       console.error('Investment strategy execution failed:', error);
@@ -190,7 +194,7 @@ export class InvestmentAgent {
         - totalUsdValue: total portfolio value in USD
       `;
 
-      const result = await this.llmAgent.invoke({
+      const result = await this.llmAgent!.invoke({
         messages: [new HumanMessage(prompt)],
       });
 
@@ -198,7 +202,7 @@ export class InvestmentAgent {
       
       // Try to parse JSON from the response, fallback to structured format
       try {
-        const balanceData = this.extractJsonFromResponse(finalMessage.content);
+        const balanceData = this.extractJsonFromResponse(getMessageContentAsString(finalMessage.content));
         return balanceData as PortfolioBalance;
       } catch {
         // Fallback to basic format if JSON parsing fails
@@ -251,8 +255,8 @@ export class InvestmentAgent {
       
       return {
         success: true,
-        summary: finalMessage.content,
-        transactionHashes: this.extractTransactionHashes(finalMessage.content),
+        summary: getMessageContentAsString(finalMessage.content),
+        transactionHashes: this.extractTransactionHashes(getMessageContentAsString(finalMessage.content)),
       };
     } catch (error) {
       console.error('Portfolio rebalancing failed:', error);
@@ -298,7 +302,7 @@ export class InvestmentAgent {
       });
 
       const finalMessage = result.messages[result.messages.length - 1];
-      return finalMessage.content;
+      return getMessageContentAsString(finalMessage.content);
     } catch (error) {
       console.error('Failed to get investment recommendations:', error);
       throw new Error(`Failed to get recommendations: ${error}`);
@@ -337,7 +341,7 @@ export class InvestmentAgent {
       });
 
       const finalMessage = result.messages[result.messages.length - 1];
-      return finalMessage.content;
+      return getMessageContentAsString(finalMessage.content);
     } catch (error) {
       console.error('Portfolio analysis failed:', error);
       throw new Error(`Failed to analyze portfolio: ${error}`);
@@ -352,7 +356,7 @@ export class InvestmentAgent {
     protocol: string,
     asset: string,
     amount: string,
-    additionalParams?: Record<string, any>
+    additionalParams?: Record<string, unknown>
   ): Promise<InvestmentResult> {
     if (!this.llmAgent) {
       throw new Error('Agent not initialized');
@@ -385,8 +389,8 @@ export class InvestmentAgent {
       
       return {
         success: true,
-        summary: finalMessage.content,
-        transactionHashes: this.extractTransactionHashes(finalMessage.content),
+        summary: getMessageContentAsString(finalMessage.content),
+        transactionHashes: this.extractTransactionHashes(getMessageContentAsString(finalMessage.content)),
       };
     } catch (error) {
       console.error('DeFi action execution failed:', error);
@@ -433,7 +437,7 @@ export class InvestmentAgent {
     return matches || [];
   }
 
-  private extractJsonFromResponse(content: string): any {
+  private extractJsonFromResponse(content: string): unknown {
     // Try to extract JSON from agent response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -441,4 +445,12 @@ export class InvestmentAgent {
     }
     throw new Error('No JSON found in response');
   }
+}
+
+// Helper to extract string from BaseMessage.content
+function getMessageContentAsString(content: any): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(getMessageContentAsString).join(' ');
+  if (typeof content === 'object' && content !== null) return JSON.stringify(content);
+  return String(content);
 }

@@ -1,12 +1,12 @@
-// src/components/investment/EnhancedInvestmentGroup.tsx
-import { useState, useEffect } from 'react';
+// src/components/investment/InvestmentGroup.tsx
+import { useState, useEffect, useCallback } from 'react';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { useWallet } from '@/hooks/useWallet';
 import { InvestmentProposal, InvestmentVote, ContentTypeInvestmentProposal, ContentTypeInvestmentVote } from '../../lib/content-types';
 import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { Input, Textarea, Label, FormField } from '../ui/input';
+import { Input, Textarea, FormField } from '../ui/input';
 import { formatUSD, formatCrypto, getRelativeTime, formatAddress } from '../../lib/utils';
 import { LoadingSpinner } from '@/components/providers/AppProviders';
 
@@ -25,14 +25,22 @@ interface ProposalWithVotes extends InvestmentProposal {
   };
 }
 
+interface PortfolioBalance {
+  totalUsdValue?: string;
+  balances: Array<{
+    asset: string;
+    amount: string;
+    usdValue?: string;
+  }>;
+}
+
 export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
   const { address } = useWallet();
   const { client, sendMessage, streamMessages } = useXMTP();
   const { executeStrategy, getBalance, isInitialized } = useInvestmentAgent();
   const [proposals, setProposals] = useState<ProposalWithVotes[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [balance, setBalance] = useState<any>(null);
+  const [balance, setBalance] = useState<PortfolioBalance | null>(null);
   
   // Form states
   const [showProposalForm, setShowProposalForm] = useState(false);
@@ -44,32 +52,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (client) {
-      // Stream messages for real-time updates
-      streamMessages(groupId, (message) => {
-        setMessages(prev => [...prev, message]);
-        
-        // Handle different message types (compare using toString)
-        if (message.contentType?.toString?.() === ContentTypeInvestmentProposal.toString()) {
-          const proposal = message.content as InvestmentProposal;
-          setProposals(prev => [...prev, {
-            ...proposal,
-            votes: [],
-            voteCount: { approve: 0, reject: 0, abstain: 0 }
-          }]);
-        } else if (message.contentType?.toString?.() === ContentTypeInvestmentVote.toString()) {
-          const vote = message.content as InvestmentVote;
-          updateProposalVotes(vote);
-        }
-      });
-
-      // Load portfolio balance
-      loadBalance();
-    }
-  }, [client, groupId]);
-
-  const loadBalance = async () => {
+  const loadBalance = useCallback(async () => {
     if (isInitialized) {
       try {
         const portfolioBalance = await getBalance();
@@ -78,7 +61,38 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
         console.error('Failed to load balance:', error);
       }
     }
-  };
+  }, [isInitialized, getBalance]);
+
+  const streamMessageUpdates = useCallback(async () => {
+    if (client) {
+      try {
+        // Stream messages for real-time updates
+        await streamMessages(groupId, (message) => {
+          // Handle different message types (compare using toString)
+          if (message.contentType?.toString?.() === ContentTypeInvestmentProposal.toString()) {
+            const proposal = message.content as InvestmentProposal;
+            setProposals(prev => [...prev, {
+              ...proposal,
+              votes: [],
+              voteCount: { approve: 0, reject: 0, abstain: 0 }
+            }]);
+          } else if (message.contentType?.toString?.() === ContentTypeInvestmentVote.toString()) {
+            const vote = message.content as InvestmentVote;
+            updateProposalVotes(vote);
+          }
+        });
+
+        // Load portfolio balance
+        await loadBalance();
+      } catch (error) {
+        console.error('Failed to setup message streaming:', error);
+      }
+    }
+  }, [client, groupId, streamMessages, loadBalance]);
+
+  useEffect(() => {
+    streamMessageUpdates();
+  }, [streamMessageUpdates]);
 
   const validateProposal = () => {
     const errors: Record<string, string> = {};
@@ -251,7 +265,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {balance.balances.map((asset: any, index: number) => (
+              {balance.balances.map((asset, index) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-lg">
                   <p className="font-medium">{asset.asset}</p>
                   <p className="text-lg">{formatCrypto(asset.amount, asset.asset)}</p>
