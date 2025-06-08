@@ -38,8 +38,8 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}): Use
     // Get configuration from environment variables or props
     const config: InvestmentConfig = {
       cdpApiKeyId: options.config?.cdpApiKeyId || process.env.NEXT_PUBLIC_CDP_API_KEY_NAME || process.env.CDP_API_KEY_NAME || '',
-      cdpApiKeyPrivate: options.config?.cdpApiKeyPrivate || process.env.CDP_API_KEY_PRIVATE || '',
-      openaiApiKey: options.config?.openaiApiKey || process.env.OPENAI_API_KEY || '',
+      cdpApiKeyPrivate: options.config?.cdpApiKeyPrivate || process.env.NEXT_PUBLIC_CDP_API_KEY_PRIVATE || '',
+      openaiApiKey: options.config?.openaiApiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
       networkId: options.config?.networkId || process.env.NEXT_PUBLIC_NETWORK_ID || process.env.NETWORK_ID || 'base-sepolia',
     };
 
