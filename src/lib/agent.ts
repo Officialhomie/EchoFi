@@ -1,13 +1,11 @@
 import { AgentKit } from '@coinbase/agentkit';
-import { CdpWalletProvider } from '@coinbase/agentkit';
-import { cdpApiActionProvider, pythActionProvider } from '@coinbase/agentkit';
 import { getLangChainTools } from '@coinbase/agentkit-langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage, BaseMessage } from '@langchain/core/messages';
 
 export interface InvestmentConfig {
-  cdpApiKeyId: string;
+  cdpApiKeyName: string;
   cdpApiKeyPrivate: string;
   openaiApiKey: string;
   networkId?: string;
@@ -30,14 +28,6 @@ export interface InvestmentResult {
   error?: string;
 }
 
-export interface RebalanceTarget {
-  asset: string;
-  targetPercentage: number;
-  currentPercentage?: number;
-  targetAmount?: string;
-  action?: 'buy' | 'sell' | 'hold';
-}
-
 type LangChainAgent = {
   invoke: (input: { messages: HumanMessage[] }) => Promise<{ messages: BaseMessage[] }>;
 };
@@ -45,7 +35,6 @@ type LangChainAgent = {
 export class InvestmentAgent {
   private agentKit: AgentKit | null = null;
   private llmAgent: LangChainAgent | null = null;
-  private walletProvider: CdpWalletProvider | null = null;
   private config: InvestmentConfig;
 
   constructor(config: InvestmentConfig) {
@@ -53,30 +42,22 @@ export class InvestmentAgent {
   }
 
   /**
-   * Initialize the Investment Agent with AgentKit and LangChain
+   * Initialize the Investment Agent with the correct AgentKit pattern
    */
   async initialize(): Promise<AgentKit> {
     try {
-      console.log('Initializing Investment Agent...');
+      console.log('Initializing Investment Agent with AgentKit...');
 
-      // Initialize CDP Wallet Provider
-      this.walletProvider = await CdpWalletProvider.configureWithWallet({
-        apiKeyName: this.config.cdpApiKeyId,
-        apiKeyPrivateKey: this.config.cdpApiKeyPrivate,
-        networkId: this.config.networkId || 'base-mainnet',
-      });
+      // Validate configuration
+      this.validateConfig();
 
-      // Initialize AgentKit with proper configuration
+      // Initialize AgentKit using the correct pattern
       this.agentKit = await AgentKit.from({
-        walletProvider: this.walletProvider,
-        actionProviders: [
-          cdpApiActionProvider({
-            apiKeyName: this.config.cdpApiKeyId,
-            apiKeyPrivateKey: this.config.cdpApiKeyPrivate,
-          }),
-          pythActionProvider(), // For price feeds
-        ],
+        cdpApiKeyName: this.config.cdpApiKeyName,
+        cdpApiKeyPrivateKey: this.config.cdpApiKeyPrivate,
       });
+
+      console.log('AgentKit initialized successfully');
 
       // Initialize LangChain agent with AgentKit tools
       const tools = await getLangChainTools(this.agentKit);
@@ -84,7 +65,7 @@ export class InvestmentAgent {
       const llm = new ChatOpenAI({
         model: 'gpt-4o-mini',
         apiKey: this.config.openaiApiKey,
-        temperature: 0.1, // Lower temperature for more consistent financial decisions
+        temperature: 0.1,
       });
 
       this.llmAgent = createReactAgent({
@@ -101,7 +82,7 @@ export class InvestmentAgent {
 
       console.log('Investment Agent initialized successfully', {
         walletAddress: await this.getWalletAddress(),
-        networkId: this.config.networkId || 'base-mainnet'
+        networkId: this.config.networkId || 'base-sepolia'
       });
 
       return this.agentKit;
@@ -112,13 +93,41 @@ export class InvestmentAgent {
   }
 
   /**
+   * Validate configuration before initialization
+   */
+  private validateConfig(): void {
+    const { cdpApiKeyName, cdpApiKeyPrivate, openaiApiKey } = this.config;
+
+    // if (!cdpApiKeyName) {
+    //   throw new Error('CDP_API_KEY_NAME is required. Please set it in your environment variables.');
+    // }
+    if (!cdpApiKeyPrivate) {
+      throw new Error('CDP_API_KEY_PRIVATE is required. Please set it in your environment variables.');
+    }
+    if (!openaiApiKey) {
+      throw new Error('OPENAI_API_KEY is required. Please set it in your environment variables.');
+    }
+
+    // Validate API key format
+    if (!cdpApiKeyName.trim() || cdpApiKeyName.length < 10) {
+      throw new Error('Invalid CDP_API_KEY_NAME format');
+    }
+    if (!cdpApiKeyPrivate.trim() || cdpApiKeyPrivate.length < 50) {
+      throw new Error('Invalid CDP_API_KEY_PRIVATE format');
+    }
+  }
+
+  /**
    * Get the wallet address
    */
   async getWalletAddress(): Promise<string> {
-    if (!this.walletProvider) {
-      throw new Error('Wallet provider not initialized');
+    if (!this.agentKit) {
+      throw new Error('AgentKit not initialized');
     }
-    return this.walletProvider.getAddress();
+    if (!('walletProvider' in this.agentKit) || !this.agentKit['walletProvider']) {
+      throw new Error('AgentKit walletProvider not available');
+    }
+    return this.agentKit['walletProvider'].getAddress();
   }
 
   /**
@@ -154,7 +163,6 @@ export class InvestmentAgent {
         messages: [new HumanMessage(prompt)],
       });
 
-      // Extract the final message content
       const finalMessage = result.messages[result.messages.length - 1];
       
       return {
@@ -176,14 +184,13 @@ export class InvestmentAgent {
    * Get current portfolio balance
    */
   async getPortfolioBalance(): Promise<PortfolioBalance> {
-    if (!this.agentKit) {
-      throw new Error('AgentKit not initialized');
+    if (!this.llmAgent) {
+      throw new Error('Agent not initialized');
     }
 
     try {
       const walletAddress = await this.getWalletAddress();
       
-      // Use the LLM agent to fetch and format balance information
       const prompt = `
         Please check the current wallet balance and provide a detailed breakdown of all assets.
         Wallet address: ${walletAddress}
@@ -194,18 +201,16 @@ export class InvestmentAgent {
         - totalUsdValue: total portfolio value in USD
       `;
 
-      const result = await this.llmAgent!.invoke({
+      const result = await this.llmAgent.invoke({
         messages: [new HumanMessage(prompt)],
       });
 
       const finalMessage = result.messages[result.messages.length - 1];
       
-      // Try to parse JSON from the response, fallback to structured format
       try {
         const balanceData = this.extractJsonFromResponse(getMessageContentAsString(finalMessage.content));
         return balanceData as PortfolioBalance;
       } catch {
-        // Fallback to basic format if JSON parsing fails
         return {
           address: walletAddress,
           balances: [],
@@ -227,7 +232,6 @@ export class InvestmentAgent {
     }
 
     try {
-      // First get current portfolio
       const currentPortfolio = await this.getPortfolioBalance();
       
       const prompt = `
@@ -269,7 +273,7 @@ export class InvestmentAgent {
   }
 
   /**
-   * Get investment recommendations based on current market conditions
+   * Get investment recommendations
    */
   async getInvestmentRecommendations(
     riskTolerance: 'conservative' | 'moderate' | 'aggressive',
@@ -310,7 +314,7 @@ export class InvestmentAgent {
   }
 
   /**
-   * Monitor and analyze portfolio performance
+   * Analyze portfolio performance
    */
   async analyzePortfolioPerformance(timeframe: '24h' | '7d' | '30d'): Promise<string> {
     if (!this.llmAgent) {
@@ -349,7 +353,7 @@ export class InvestmentAgent {
   }
 
   /**
-   * Execute a specific DeFi action (stake, swap, lend, etc.)
+   * Execute a specific DeFi action
    */
   async executeDeFiAction(
     action: string,
@@ -408,8 +412,8 @@ export class InvestmentAgent {
   getAgentStatus() {
     return {
       isInitialized: !!this.agentKit && !!this.llmAgent,
-      walletProviderReady: !!this.walletProvider,
-      networkId: this.config.networkId || 'base-mainnet',
+      agentKitReady: !!this.agentKit,
+      networkId: this.config.networkId || 'base-sepolia',
     };
   }
 
@@ -418,10 +422,8 @@ export class InvestmentAgent {
    */
   async cleanup(): Promise<void> {
     try {
-      // Cleanup any active connections or resources
       this.agentKit = null;
       this.llmAgent = null;
-      this.walletProvider = null;
       console.log('Investment Agent cleanup completed');
     } catch (error) {
       console.error('Error during cleanup:', error);
@@ -429,16 +431,13 @@ export class InvestmentAgent {
   }
 
   // Helper methods
-
   private extractTransactionHashes(content: string): string[] {
-    // Extract transaction hashes from response content
     const hashRegex = /0x[a-fA-F0-9]{64}/g;
     const matches = content.match(hashRegex);
     return matches || [];
   }
 
   private extractJsonFromResponse(content: string): unknown {
-    // Try to extract JSON from agent response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
