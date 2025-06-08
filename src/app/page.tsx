@@ -1,100 +1,159 @@
+// src/app/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { ConnectWallet } from '@/components/wallet/ConnectWallet';
+import { useState, useEffect } from 'react';
+import { ConnectWallet, WalletStatus } from '@/components/wallet/ConnectWallet';
 import { InvestmentGroup } from '@/components/investment/InvestmentGroup';
+import { GroupManager } from '@/components/groups/GroupManager';
+import { Dashboard } from '@/components/dashboard/Dashboard';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
+import { useApp } from '@/components/providers/AppProviders';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { GlobalLoading, LoadingSpinner } from '@/components/providers/AppProviders';
+import { NotificationToast } from '@/components/ui/NotificationToast';
+
+type ViewMode = 'dashboard' | 'groups' | 'group-detail' | 'welcome';
 
 export default function HomePage() {
   const { isConnected, address } = useWallet();
-  const { client, createGroup } = useXMTP();
-  const [currentGroup, setCurrentGroup] = useState<string | null>(null);
-  const [groups, setGroups] = useState<any[]>([]);
+  const { client, createGroup, conversations, isInitialized: xmtpInitialized } = useXMTP();
+  const { isInitialized, error, clearError } = useApp();
+  
+  const [viewMode, setViewMode] = useState<ViewMode>('welcome');
+  const [currentGroup, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleCreateGroup = async () => {
-    if (!client) return;
+  // Update view mode based on connection status
+  useEffect(() => {
+    if (!isConnected) {
+      setViewMode('welcome');
+      setCurrentGroup(null);
+    } else if (isConnected && xmtpInitialized && viewMode === 'welcome') {
+      setViewMode('dashboard');
+    }
+  }, [isConnected, xmtpInitialized, viewMode]);
 
-    const groupName = prompt('Enter group name:');
-    if (!groupName) return;
+  // Show notification for errors
+  useEffect(() => {
+    if (error) {
+      setNotification({ type: 'error', message: error });
+    }
+  }, [error]);
 
-    const group = await createGroup(
-      groupName,
-      'Investment coordination group',
-      [address] // Start with just creator, add members later
-    );
+  const handleCreateGroup = async (groupData: { name: string; description: string; members: string[] }) => {
+    if (!client || !address) return;
 
-    setGroups(prev => [...prev, group]);
-    setCurrentGroup(group.id);
+    setIsLoading(true);
+    try {
+      const group = await createGroup(groupData.name, groupData.description, [address, ...groupData.members]);
+      setCurrentGroup({ id: group.id, name: groupData.name });
+      setViewMode('group-detail');
+      setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create group';
+      setNotification({ type: 'error', message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle className="text-center text-2xl">Welcome to EchoFi</CardTitle>
-            <p className="text-center text-gray-600">
-              Transform group chats into investment DAOs
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ConnectWallet />
-          </CardContent>
-        </Card>
-      </div>
-    );
+  const handleJoinGroup = (groupId: string, groupName: string) => {
+    setCurrentGroup({ id: groupId, name: groupName });
+    setViewMode('group-detail');
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentGroup(null);
+    setViewMode('dashboard');
+  };
+
+  const handleBackToGroups = () => {
+    setCurrentGroup(null);
+    setViewMode('groups');
+  };
+
+  // Show loading screen during initialization
+  if (isConnected && !isInitialized) {
+    return <GlobalLoading />;
   }
 
-  if (!currentGroup) {
+  // Welcome screen for non-connected users
+  if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">EchoFi Dashboard</h1>
-            <p className="text-xl text-gray-600">
-              Create or join investment groups to start coordinating with friends
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="container mx-auto px-4 py-16">
+          {/* Hero Section */}
+          <div className="text-center mb-16">
+            <div className="mb-8">
+              <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+                Welcome to <span className="text-blue-600">EchoFi</span>
+              </h1>
+              <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                Transform group chats into investment DAOs with AI-powered execution
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-12">
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">💬</span>
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Chat & Coordinate</h3>
+                <p className="text-gray-600">Create investment groups and coordinate with friends through XMTP messaging</p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🗳️</span>
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Propose & Vote</h3>
+                <p className="text-gray-600">Submit investment proposals and vote democratically on group decisions</p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🤖</span>
+                </div>
+                <h3 className="text-lg font-semibold mb-2">AI Execution</h3>
+                <p className="text-gray-600">Let AI agents execute approved strategies automatically on DeFi protocols</p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create New Group</CardTitle>
+          {/* Connection Card */}
+          <div className="max-w-md mx-auto">
+            <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl text-gray-900">Get Started</CardTitle>
+                <p className="text-gray-600">Connect your wallet to begin</p>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Start a new investment group and invite friends to coordinate investments together.
-                </p>
-                <Button onClick={handleCreateGroup} className="w-full">
-                  Create Investment Group
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>My Groups</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {groups.length === 0 ? (
-                  <p className="text-gray-500">No groups yet. Create your first group!</p>
-                ) : (
-                  <div className="space-y-2">
-                    {groups.map((group) => (
-                      <Button
-                        key={group.id}
-                        variant="outline"
-                        onClick={() => setCurrentGroup(group.id)}
-                        className="w-full justify-start"
-                      >
-                        {group.name}
-                      </Button>
-                    ))}
-                  </div>
-                )}
+                <ConnectWallet />
+                
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-3">Features</h4>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex items-center">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                      Decentralized group messaging
+                    </li>
+                    <li className="flex items-center">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                      Democratic investment voting
+                    </li>
+                    <li className="flex items-center">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                      AI-powered DeFi execution
+                    </li>
+                    <li className="flex items-center">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                      Portfolio tracking & analytics
+                    </li>
+                  </ul>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -102,25 +161,97 @@ export default function HomePage() {
       </div>
     );
   }
-
-  const selectedGroup = groups.find(g => g.id === currentGroup);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="p-6">
-        <div className="mb-4">
-          <Button 
-            variant="outline" 
-            onClick={() => setCurrentGroup(null)}
-          >
-            ← Back to Dashboard
-          </Button>
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <h1 
+                className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+                onClick={handleBackToDashboard}
+              >
+                EchoFi
+              </h1>
+              
+              {/* Navigation */}
+              <nav className="hidden md:flex items-center space-x-4">
+                <Button
+                  variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('dashboard')}
+                >
+                  Dashboard
+                </Button>
+                <Button
+                  variant={viewMode === 'groups' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('groups')}
+                >
+                  Groups
+                </Button>
+              </nav>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <WalletStatus />
+              {currentGroup && (
+                <Button variant="outline" onClick={handleBackToDashboard}>
+                  ← Back
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-        <InvestmentGroup 
-          groupId={currentGroup} 
-          groupName={selectedGroup?.name || 'Investment Group'} 
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {viewMode === 'dashboard' && (
+          <Dashboard 
+            onViewGroups={() => setViewMode('groups')}
+            onJoinGroup={handleJoinGroup}
+          />
+        )}
+
+        {viewMode === 'groups' && (
+          <GroupManager
+            onCreateGroup={handleCreateGroup}
+            onJoinGroup={handleJoinGroup}
+            isLoading={isLoading}
+          />
+        )}
+
+        {viewMode === 'group-detail' && currentGroup && (
+          <InvestmentGroup 
+            groupId={currentGroup.id}
+            groupName={currentGroup.name}
+          />
+        )}
+
+        {isLoading && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 flex items-center space-x-3">
+              <LoadingSpinner />
+              <span>Processing...</span>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Notifications */}
+      {notification && (
+        <NotificationToast
+          type={notification.type}
+          message={notification.message}
+          onClose={() => {
+            setNotification(null);
+            if (notification.type === 'error') {
+              clearError();
+            }
+          }}
         />
-      </div>
+      )}
     </div>
   );
 }

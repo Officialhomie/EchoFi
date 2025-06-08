@@ -25,7 +25,7 @@ interface ProposalWithVotes extends InvestmentProposal {
   };
 }
 
-export function EnhancedInvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
+export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
   const { address } = useWallet();
   const { client, sendMessage, streamMessages } = useXMTP();
   const { executeStrategy, getBalance, isInitialized } = useInvestmentAgent();
