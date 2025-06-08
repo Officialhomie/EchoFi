@@ -5,8 +5,8 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage, BaseMessage } from '@langchain/core/messages';
 
 export interface InvestmentConfig {
-  cdpApiKeyName: string;
-  cdpApiKeyPrivate: string;
+  cdpApiKeyId: string;
+  cdpApiKeySecret: string;
   openaiApiKey: string;
   networkId?: string;
 }
@@ -53,8 +53,8 @@ export class InvestmentAgent {
 
       // Initialize AgentKit using the correct pattern
       this.agentKit = await AgentKit.from({
-        cdpApiKeyName: this.config.cdpApiKeyName,
-        cdpApiKeyPrivateKey: this.config.cdpApiKeyPrivate,
+        cdpApiKeyId: this.config.cdpApiKeyId,
+        cdpApiKeySecret: this.config.cdpApiKeySecret,
       });
 
       console.log('AgentKit initialized successfully');
@@ -96,24 +96,24 @@ export class InvestmentAgent {
    * Validate configuration before initialization
    */
   private validateConfig(): void {
-    const { cdpApiKeyName, cdpApiKeyPrivate, openaiApiKey } = this.config;
+    const { cdpApiKeyId, cdpApiKeySecret, openaiApiKey } = this.config;
 
-    // if (!cdpApiKeyName) {
-    //   throw new Error('CDP_API_KEY_NAME is required. Please set it in your environment variables.');
-    // }
-    if (!cdpApiKeyPrivate) {
-      throw new Error('CDP_API_KEY_PRIVATE is required. Please set it in your environment variables.');
+    if (!cdpApiKeyId) {
+      throw new Error('CDP_API_KEY_ID is required. Please set it in your environment variables.');
+    }
+    if (!cdpApiKeySecret) {
+      throw new Error('CDP_API_KEY_SECRET is required. Please set it in your environment variables.');
     }
     if (!openaiApiKey) {
       throw new Error('OPENAI_API_KEY is required. Please set it in your environment variables.');
     }
 
     // Validate API key format
-    if (!cdpApiKeyName.trim() || cdpApiKeyName.length < 10) {
-      throw new Error('Invalid CDP_API_KEY_NAME format');
+    if (!cdpApiKeyId.trim() || cdpApiKeyId.length < 10) {
+      throw new Error('Invalid CDP_API_KEY_ID format');
     }
-    if (!cdpApiKeyPrivate.trim() || cdpApiKeyPrivate.length < 50) {
-      throw new Error('Invalid CDP_API_KEY_PRIVATE format');
+    if (!cdpApiKeySecret.trim() || cdpApiKeySecret.length < 50) {
+      throw new Error('Invalid CDP_API_KEY_SECRET format');
     }
   }
 

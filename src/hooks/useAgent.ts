@@ -58,43 +58,42 @@ export function useInvestmentAgent(
   const createConfig = useCallback((): InvestmentConfig => {
     // Get configuration from environment variables with correct naming
     const config: InvestmentConfig = {
-      cdpApiKeyName:
-        options.config?.cdpApiKeyName ||
-        process.env.NEXT_PUBLIC_CDP_API_KEY_NAME ||
-        process.env.CDP_API_KEY_NAME ||
-        "",
-      cdpApiKeyPrivate:
-        options.config?.cdpApiKeyPrivate ||
-        process.env.NEXT_PUBLIC_CDP_API_KEY_PRIVATE ||
-        process.env.CDP_API_KEY_PRIVATE_KEY ||
-        process.env.CDP_API_KEY_PRIVATE ||
-        "",
+      cdpApiKeyId:
+        options.config?.cdpApiKeyId ||
+        process.env.NEXT_PUBLIC_CDP_API_KEY_ID ||
+        process.env.CDP_API_KEY_ID ||
+        '',
+      cdpApiKeySecret:
+        options.config?.cdpApiKeySecret ||
+        process.env.NEXT_PUBLIC_CDP_API_KEY_SECRET ||
+        process.env.CDP_API_KEY_SECRET ||
+        '',
       openaiApiKey:
         options.config?.openaiApiKey ||
         process.env.NEXT_PUBLIC_OPENAI_API_KEY ||
         process.env.OPENAI_API_KEY ||
-        "",
+        '',
       networkId:
         options.config?.networkId ||
         process.env.NEXT_PUBLIC_NETWORK_ID ||
         process.env.NETWORK_ID ||
-        "base-sepolia",
+        'base-sepolia',
     };
 
     // Validate required configuration
-    if (!config.cdpApiKeyName) {
+    if (!config.cdpApiKeyId) {
       throw new Error(
-        "CDP_API_KEY_NAME is required. Please set it in your environment variables."
+        'CDP_API_KEY_ID is required. Please set it in your environment variables.'
       );
     }
-    if (!config.cdpApiKeyPrivate) {
+    if (!config.cdpApiKeySecret) {
       throw new Error(
-        "CDP_API_KEY_PRIVATE is required. Please set it in your environment variables."
+        'CDP_API_KEY_SECRET is required. Please set it in your environment variables.'
       );
     }
     if (!config.openaiApiKey) {
       throw new Error(
-        "OPENAI_API_KEY is required. Please set it in your environment variables."
+        'OPENAI_API_KEY is required. Please set it in your environment variables.'
       );
     }
 
