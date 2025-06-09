@@ -18,8 +18,13 @@ export interface InvestmentResult {
   error?: string;
 }
 
-export function useInvestmentAgent() {
-  const [isInitialized, setIsInitialized] = useState(true); // Always "initialized" since server-side
+interface UseInvestmentAgentOptions {
+  autoInitialize?: boolean;
+}
+
+export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
+  // Client-side state - no AgentKit initialization here!
+  const [isInitialized, setIsInitialized] = useState(true); // Always true since server handles initialization
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +68,6 @@ export function useInvestmentAgent() {
       try {
         return await callAgentAPI('executeStrategy', { strategy, amount, asset });
       } catch (error) {
-        // Return a proper InvestmentResult even on error
         return {
           success: false,
           summary: `Failed to execute strategy: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -95,9 +99,11 @@ export function useInvestmentAgent() {
     setError(null);
   }, []);
 
+  // No-op function since initialization happens on server-side
   const initializeAgent = useCallback(async () => {
-    // No-op since agent is initialized server-side
     setError(null);
+    // Server-side initialization - nothing to do here
+    return Promise.resolve();
   }, []);
 
   return {
@@ -110,7 +116,6 @@ export function useInvestmentAgent() {
     getBalance,
     getWalletAddress,
     analyzePerformance,
-    // Placeholder implementations for compatibility
     rebalance: async (targets: Record<string, number>) => {
       try {
         return await callAgentAPI('rebalance', { targets });

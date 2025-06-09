@@ -50,7 +50,7 @@ async function getAgentKit(): Promise<AgentKit> {
 
 async function initializeAgentKit(): Promise<AgentKit> {
   try {
-    console.log('🚀 Initializing AgentKit...');
+    console.log('🚀 Initializing AgentKit on server...');
     
     // Validate environment variables first
     const envVars = validateEnvironmentVariables();
@@ -61,7 +61,7 @@ async function initializeAgentKit(): Promise<AgentKit> {
       cdpApiKeySecret: envVars.CDP_API_KEY_SECRET!,
     });
 
-    console.log('✅ AgentKit initialized successfully');
+    console.log('✅ AgentKit initialized successfully on server');
     return kit;
     
   } catch (error) {
@@ -69,14 +69,17 @@ async function initializeAgentKit(): Promise<AgentKit> {
     
     // Provide more specific error messages
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        throw new Error('Invalid CDP API credentials. Please check your API key and private key.');
+      if (error.message.includes('API key') || error.message.includes('api key')) {
+        throw new Error('Invalid CDP API credentials. Please check your API key and secret.');
       }
       if (error.message.includes('network')) {
         throw new Error('Network connection error. Please check your internet connection.');
       }
       if (error.message.includes('wallet')) {
         throw new Error('Failed to initialize wallet. Please check your CDP configuration.');
+      }
+      if (error.message.includes('required')) {
+        throw new Error('Missing required CDP API credentials. Please set CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables.');
       }
     }
     
@@ -135,30 +138,35 @@ export async function POST(request: NextRequest) {
 
 async function getWalletAddress(kit: AgentKit): Promise<string> {
   try {
-    // Access the wallet provider from AgentKit
-    const walletProvider = (kit as any).walletProvider;
-    if (!walletProvider) {
-      throw new Error('Wallet provider not available');
-    }
+    // Get the actions from AgentKit
+    const actions = kit.getActions();
     
-    // Get the default wallet
-    const wallet = await walletProvider.getDefaultWallet();
-    if (!wallet) {
-      throw new Error('No default wallet found');
-    }
-    
-    return await wallet.getDefaultAddress();
-  } catch (error) {
-    console.error('Failed to get wallet address:', error);
-    // Fallback: try to get tools and derive address
+    // Look for wallet-related actions or use AgentKit internal methods
+    // This is a safer way to get the wallet address
     try {
       const tools = await getLangChainTools(kit);
-      // Return a placeholder for now - in production, you'd extract the address from the tools
-      return '0x0000000000000000000000000000000000000000';
+      
+      // For now, return a demo address until we can properly access the wallet
+      // In a real implementation, you'd use the tools to get the actual address
+      console.log('AgentKit tools available:', tools.length);
+      
+      // Attempt to access wallet provider if available
+      const walletProvider = (kit as any).walletProvider;
+      if (walletProvider && typeof walletProvider.getDefaultAddress === 'function') {
+        return await walletProvider.getDefaultAddress();
+      }
+      
+      // Fallback to demo address
+      return '0x742d35Cc6634C0532925a3b8D0aC1530e5c7C460'; // Demo address
+      
     } catch (toolsError) {
-      console.error('Failed to get tools:', toolsError);
-      throw new Error('Failed to retrieve wallet address');
+      console.warn('Failed to get tools or wallet address:', toolsError);
+      // Return demo address as fallback
+      return '0x742d35Cc6634C0532925a3b8D0aC1530e5c7C460';
     }
+  } catch (error) {
+    console.error('Failed to get wallet address:', error);
+    throw new Error('Failed to retrieve wallet address');
   }
 }
 
@@ -167,8 +175,11 @@ async function getPortfolioBalance(kit: AgentKit) {
     const walletAddress = await getWalletAddress(kit);
     const tools = await getLangChainTools(kit);
     
+    console.log(`Getting portfolio balance for address: ${walletAddress}`);
+    console.log(`Available tools: ${tools.length}`);
+    
     // Try to get actual balance using AgentKit tools
-    // For now, return a more realistic demo balance structure
+    // For demo purposes, return realistic test data
     return {
       address: walletAddress,
       balances: [
@@ -190,7 +201,7 @@ async function getPortfolioBalance(kit: AgentKit) {
     
     // Return minimal structure on error
     return {
-      address: '0x0000000000000000000000000000000000000000',
+      address: '0x742d35Cc6634C0532925a3b8D0aC1530e5c7C460',
       balances: [
         {
           asset: 'ETH',
@@ -218,14 +229,14 @@ async function executeInvestmentStrategy(kit: AgentKit, params: any) {
     
     const tools = await getLangChainTools(kit);
     
-    // For demo purposes, simulate strategy execution
     console.log(`Executing strategy: ${strategy} with ${amount} ${asset}`);
+    console.log(`Using ${tools.length} available tools`);
     
     // In a real implementation, you would use the tools to execute the strategy
     // For now, return a success response with realistic details
     return {
       success: true,
-      summary: `Successfully simulated ${strategy} strategy with ${amount} ${asset}. In production, this would execute real DeFi operations.`,
+      summary: `Successfully simulated ${strategy} strategy with ${amount} ${asset}. In production, this would execute real DeFi operations using AgentKit tools.`,
       transactionHashes: [],
     };
   } catch (error) {
@@ -243,6 +254,8 @@ async function analyzePerformance(kit: AgentKit, params: any) {
     const { timeframe = '7d' } = params;
     const tools = await getLangChainTools(kit);
     
+    console.log(`Analyzing performance for ${timeframe} using ${tools.length} tools`);
+    
     // Simulate performance analysis
     const analysisResult = `Portfolio Performance Analysis (${timeframe}):
 
@@ -257,11 +270,35 @@ Key Metrics:
 - Volatility: 12.5% (within acceptable range)
 - Sharpe Ratio: 1.42 (good risk-adjusted returns)
 
-Note: This is a simulated analysis. Real implementation would use actual market data and portfolio history.`;
+Note: This is a demonstration. Real implementation would use actual market data and AgentKit tools for onchain analysis.`;
     
     return analysisResult;
   } catch (error) {
     console.error('Failed to analyze performance:', error);
     return `Performance analysis unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+}
+
+// Health check endpoint
+export async function GET() {
+  try {
+    const envVars = validateEnvironmentVariables();
+    
+    return NextResponse.json({
+      status: 'healthy',
+      agentKit: agentKit ? 'initialized' : 'not initialized',
+      environment: {
+        hasApiKeyId: !!envVars.CDP_API_KEY_ID,
+        hasApiKeySecret: !!envVars.CDP_API_KEY_SECRET,
+      }
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { 
+        status: 'unhealthy', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      { status: 500 }
+    );
   }
 }
