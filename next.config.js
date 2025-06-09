@@ -18,7 +18,19 @@ const nextConfig = {
       },
     ];
   },
-  // Optimize for XMTP WebAssembly
+  
+  // Keep AgentKit server-side only
+  serverExternalPackages: [
+    '@coinbase/agentkit',
+    '@coinbase/agentkit-langchain',
+  ],
+
+  // Only transpile XMTP for browser compatibility
+  transpilePackages: [
+    '@xmtp/browser-sdk',
+  ],
+
+  // Minimal webpack config for XMTP
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
