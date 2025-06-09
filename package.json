@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@coinbase/agentkit": "0.8.0",
-    "@coinbase/agentkit-langchain": "^0.3.0",
+    "@coinbase/agentkit": "^0.8.0",
+    "@coinbase/agentkit-langchain": "latest",
     "@coinbase/wallet-sdk": "^4.3.2",
     "@langchain/core": "^0.3.57",
     "@langchain/langgraph": "^0.3.1",

@@ -23,7 +23,7 @@ interface UseInvestmentAgentOptions {
 }
 
 export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
-  // Client-side state - no AgentKit initialization here!
+  // Client-side state - server handles all AgentKit operations
   const [isInitialized, setIsInitialized] = useState(true); // Always true since server handles initialization
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +41,12 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
         body: JSON.stringify({ action, params }),
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
+
+      const result = await response.json();
 
       if (!result.success) {
         throw new Error(result.error || 'Agent operation failed');
@@ -99,6 +100,27 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
     setError(null);
   }, []);
 
+  // Health check function
+  const checkHealth = useCallback(async () => {
+    try {
+      const response = await fetch('/api/agent', {
+        method: 'GET',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Agent health check:', result);
+        return result;
+      } else {
+        throw new Error('Health check failed');
+      }
+    } catch (error) {
+      console.error('Health check error:', error);
+      setError(error instanceof Error ? error.message : 'Health check failed');
+      throw error;
+    }
+  }, []);
+
   // No-op function since initialization happens on server-side
   const initializeAgent = useCallback(async () => {
     setError(null);
@@ -116,6 +138,7 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
     getBalance,
     getWalletAddress,
     analyzePerformance,
+    checkHealth,
     rebalance: async (targets: Record<string, number>) => {
       try {
         return await callAgentAPI('rebalance', { targets });
