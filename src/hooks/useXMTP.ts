@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Client, Conversation, DecodedMessage } from '@xmtp/browser-sdk';
-import { XMTPManager, type XMTPConfig, type GroupConfig } from '@/lib/xmtp';
+import { XMTPManager, type XMTPConfig, type GroupConfig, type BrowserSigner } from '@/lib/xmtp';
 import { useWallet } from '@/hooks/useWallet';
 import { 
   InvestmentProposal,
-  InvestmentVote 
+  InvestmentVote,
+  ContentTypeInvestmentProposal,
+  ContentTypeInvestmentVote
 } from '@/lib/content-types';
 import type { JsonRpcSigner } from 'ethers';
-import type { Signer as XmtpSigner } from '@xmtp/browser-sdk';
 
 export interface UseXMTPReturn {
   client: Client | null;
@@ -35,22 +36,25 @@ export interface UseXMTPReturn {
   clearError?: () => void;
 }
 
-// Utility to wrap ethers.js JsonRpcSigner as XMTP Signer
-function createXmtpSigner(jsonRpcSigner: JsonRpcSigner): XmtpSigner {
-  // Only EOA supported for now
+/**
+ * Create XMTP-compatible signer from ethers JsonRpcSigner
+ */
+function createBrowserSigner(jsonRpcSigner: JsonRpcSigner): BrowserSigner {
   return {
-    walletType: 'EOA',
-    getAddress: async () => await jsonRpcSigner.getAddress(),
-    signMessage: async (message: string) => {
-      const sig = await jsonRpcSigner.signMessage(message);
-      // Convert hex signature to Uint8Array
-      return Uint8Array.from(Buffer.from(sig.replace(/^0x/, ''), 'hex'));
+    getAddress: async (): Promise<string> => {
+      return await jsonRpcSigner.getAddress();
     },
+    signMessage: async (message: string): Promise<Uint8Array> => {
+      const signature = await jsonRpcSigner.signMessage(message);
+      // Convert hex signature to Uint8Array
+      const hexSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
+      return new Uint8Array(Buffer.from(hexSignature, 'hex'));
+    }
   };
 }
 
 export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
-  const { signer, isConnected } = useWallet();
+  const { signer, isConnected, address } = useWallet();
   const [client, setClient] = useState<Client | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -72,17 +76,18 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       // Create XMTP manager
       xmtpManager.current = new XMTPManager();
       
-      // Wrap ethers signer as XMTP-compatible signer
-      const xmtpSigner = createXmtpSigner(signer);
+      // Create browser-compatible signer
+      const browserSigner = createBrowserSigner(signer);
       
-      // Initialize XMTP client
+      // Initialize XMTP client with browser SDK
       const xmtpConfig: XMTPConfig = {
         env: config?.env || 'dev',
         enableLogging: config?.enableLogging || true,
+        dbPath: config?.dbPath || 'echofi-xmtp',
         ...config,
       };
 
-      const xmtpClient = await xmtpManager.current.initializeClient(xmtpSigner, xmtpConfig);
+      const xmtpClient = await xmtpManager.current.initializeClient(browserSigner, xmtpConfig);
       
       setClient(xmtpClient);
       setIsInitialized(true);
@@ -184,14 +189,21 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
 
       // Handle different content types
       let messageContent = content;
-      // No need to register codecs here; they should be registered at the client level in XMTPManager
+      let messageContentType = undefined;
+
       if (contentType === 'investment-proposal') {
         messageContent = content as InvestmentProposal;
+        messageContentType = ContentTypeInvestmentProposal;
       } else if (contentType === 'investment-vote') {
         messageContent = content as InvestmentVote;
+        messageContentType = ContentTypeInvestmentVote;
       }
 
-      await xmtpManager.current.sendMessage(conversation, messageContent as string);
+      await xmtpManager.current.sendMessage(
+        conversation, 
+        messageContent as string, 
+        messageContentType
+      );
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
