@@ -1,6 +1,6 @@
 // src/app/api/agent/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { AgentKit, erc721ActionProvider, pythActionProvider } from '@coinbase/agentkit';
+import { AgentKit, erc20ActionProvider, erc721ActionProvider, pythActionProvider } from '@coinbase/agentkit';
 import { getLangChainTools } from '@coinbase/agentkit-langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
@@ -64,6 +64,7 @@ async function initializeAgentKit(): Promise<AgentKit> {
     const erc721 = erc721ActionProvider();
     const pyth = pythActionProvider();
     const wallet = walletActionProvider();
+    
 
     const cdp = cdpApiActionProvider({ // for providers that require API keys include them in their instantiation
       apiKeyId: process.env.CDP_API_KEY_NAME,
@@ -82,7 +83,7 @@ async function initializeAgentKit(): Promise<AgentKit> {
     // Initialize AgentKit with all 4 parameters
     const kit = await AgentKit.from({
       walletProvider,
-      actionProviders: [erc721, pyth, cdp, wallet],
+      actionProviders: [erc721ActionProvider(), pythActionProvider(), erc20ActionProvider(), walletActionProvider(), cdpApiActionProvider({apiKeyId: "organizations/c0e977a2-20d1-48d3-a8ff-1c224c502e22/apiKeys/67245f91-5c2c-4248-b937-861812c7ec7b", apiKeySecret: "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIlPWDnQ4zs8Y+zcxHzajUX9FCBIB02GHEV68pqFUIrtVoAoGCCqGSM49\nAwEHoUQDQgAErOZsj-ABfCQy8bDpwrfk3JcnXtUHBii4E0UemPdMhugczMNsNBOOgc\n5MhICOYAAspvWLISCWz1JSZvKkRSiBUUrw==\n-----END EC PRIVATE KEY-----"})],
     });
 
     console.log('✅ AgentKit initialized successfully on server');

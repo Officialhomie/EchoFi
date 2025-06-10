@@ -1,4 +1,3 @@
-// src/components/dashboard/Dashboard.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -43,6 +42,7 @@ interface GroupSummary {
   memberCount: number;
   totalFunds: string;
   activeProposals: number;
+  totalProposals: number;
   lastActivity: number;
 }
 
@@ -55,6 +55,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [performanceAnalysis, setPerformanceAnalysis] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
 
   const loadPortfolio = useCallback(async () => {
     if (!isInitialized) return;
@@ -79,26 +80,97 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       setPortfolio(portfolioData);
     } catch (error) {
       console.error('Failed to load portfolio:', error);
+      setError('Failed to load portfolio data');
     }
   }, [isInitialized, getBalance]);
 
+  // ✅ FIXED: Load actual groups with real proposal counts
   const loadGroups = useCallback(async () => {
-    try {
-      // Transform conversations into group summaries
-      const groupSummaries: GroupSummary[] = conversations.map(conv => ({
-        id: conv.id,
-        name: conv.name || 'Unnamed Group',
-        memberCount: 1, // Mock data - would come from group metadata
-        totalFunds: '0', // Mock data - would come from group analytics
-        activeProposals: Math.floor(Math.random() * 5), // Mock data
-        lastActivity: Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000, // Random within last week
-      }));
+    if (!address) return;
 
-      setGroups(groupSummaries);
+    try {
+      // Fetch user's groups from API
+      const groupsResponse = await fetch(`/api/groups?address=${address}`);
+      if (!groupsResponse.ok) {
+        throw new Error('Failed to fetch groups');
+      }
+      const { groups: userGroups } = await groupsResponse.json();
+
+      // Fetch proposal counts for each group
+      const groupSummaries: GroupSummary[] = await Promise.all(
+        userGroups.map(async (userGroup: any) => {
+          try {
+            // Get all proposals for this group
+            const proposalsResponse = await fetch(`/api/proposals?groupId=${userGroup.group.id}`);
+            if (!proposalsResponse.ok) {
+              console.warn(`Failed to fetch proposals for group ${userGroup.group.id}`);
+              return createFallbackGroupSummary(userGroup);
+            }
+
+            const { proposals } = await proposalsResponse.json();
+            
+            // Count active proposals
+            const activeProposals = proposals.filter((p: any) => 
+              p.status === 'active' && new Date(p.deadline) > new Date()
+            ).length;
+
+            return {
+              id: userGroup.group.id,
+              name: userGroup.group.name || 'Unnamed Group',
+              memberCount: userGroup.group.memberCount || 1,
+              totalFunds: userGroup.group.totalFunds || '0',
+              activeProposals,
+              totalProposals: proposals.length,
+              lastActivity: new Date(userGroup.member.joinedAt).getTime(),
+            };
+          } catch (error) {
+            console.error(`Error loading data for group ${userGroup.group.id}:`, error);
+            return createFallbackGroupSummary(userGroup);
+          }
+        })
+      );
+
+      // Also map XMTP conversations that might not be in database yet
+      const conversationGroups = conversations
+        .filter(conv => !groupSummaries.find(g => g.id === conv.id))
+        .map(conv => ({
+          id: conv.id,
+          name: conv.name || 'Unnamed Group',
+          memberCount: 1, // Will be updated when group is synced to database
+          totalFunds: '0',
+          activeProposals: 0,
+          totalProposals: 0,
+          lastActivity: conv.createdAtNs ? Number(conv.createdAtNs) : Date.now(),
+        }));
+
+      setGroups([...groupSummaries, ...conversationGroups]);
     } catch (error) {
       console.error('Failed to load groups:', error);
+      setError('Failed to load groups data');
+      
+      // Fallback to XMTP conversations only
+      const fallbackGroups = conversations.map(conv => ({
+        id: conv.id,
+        name: conv.name || 'Unnamed Group',
+        memberCount: 1,
+        totalFunds: '0',
+        activeProposals: 0,
+        totalProposals: 0,
+        lastActivity: conv.createdAtNs ? Number(conv.createdAtNs) : Date.now(),
+      }));
+      setGroups(fallbackGroups);
     }
-  }, [conversations]);
+  }, [address, conversations]);
+
+  const createFallbackGroupSummary = (userGroup: any): GroupSummary => ({
+    id: userGroup.group.id,
+    name: userGroup.group.name || 'Unnamed Group',
+    memberCount: userGroup.group.memberCount || 1,
+    totalFunds: userGroup.group.totalFunds || '0',
+    activeProposals: 0, // Safe fallback
+    totalProposals: 0,  // Safe fallback
+    lastActivity: new Date(userGroup.member.joinedAt).getTime(),
+  });
 
   const loadPerformanceAnalysis = useCallback(async () => {
     if (!isInitialized) return;
@@ -108,19 +180,23 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       setPerformanceAnalysis(analysis);
     } catch (error) {
       console.error('Failed to load performance analysis:', error);
+      setError('Failed to load performance analysis');
     }
   }, [isInitialized, analyzePerformance]);
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      await Promise.all([
+      await Promise.allSettled([
         loadPortfolio(),
         loadGroups(),
         loadPerformanceAnalysis(),
       ]);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      setError('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +205,17 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  // Refresh data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isLoading) {
+        loadGroups(); // Refresh group data for updated proposal counts
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [loadGroups, isLoading]);
 
   if (isLoading) {
     return (
@@ -140,6 +227,21 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={loadDashboardData}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ FIXED: Calculate totals from real data
+  const totalActiveProposals = groups.reduce((sum, group) => sum + group.activeProposals, 0);
+  const totalProposals = groups.reduce((sum, group) => sum + group.totalProposals, 0);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -200,10 +302,9 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
             <div className="flex items-center">
               <BarChartIcon className="h-8 w-8 text-purple-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Proposals</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {groups.reduce((sum, group) => sum + group.activeProposals, 0)}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Active Proposals</p>
+                <p className="text-2xl font-bold text-gray-900">{totalActiveProposals}</p>
+                <p className="text-xs text-gray-500">{totalProposals} total</p>
               </div>
             </div>
           </CardContent>
