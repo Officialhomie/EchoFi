@@ -1,10 +1,11 @@
 // src/app/api/agent/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { AgentKit } from '@coinbase/agentkit';
+import { AgentKit, erc721ActionProvider, pythActionProvider } from '@coinbase/agentkit';
 import { getLangChainTools } from '@coinbase/agentkit-langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage } from '@langchain/core/messages';
+import { CdpWalletProvider, CdpV2EvmWalletProvider, CdpV2WalletProvider,walletActionProvider, cdpWalletActionProvider, cdpApiActionProvider } from '@coinbase/agentkit';
 
 let agentKit: AgentKit | null = null;
 let agent: any = null;
@@ -58,11 +59,29 @@ async function initializeAgentKit(): Promise<AgentKit> {
     
     // Validate environment variables first
     const envVars = validateEnvironmentVariables();
+
+    const erc721 = erc721ActionProvider();
+    const pyth = pythActionProvider();
+    const wallet = walletActionProvider();
+
+    const cdp = cdpApiActionProvider({ // for providers that require API keys include them in their instantiation
+      apiKeyId: process.env.CDP_API_KEY_NAME,
+      apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    });
+
+    const cdpWalletConfig = {
+      apiKeyId: process.env.CDP_API_KEY_NAME, 
+      apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      walletSecret: process.env.CDP_WALLET_SECRET,
+      networkId: process.env.NETWORK_ID, // e.g. "base", "base-sepolia", "solana"
+    };
+
+    const walletProvider = await CdpV2WalletProvider.configureWithWallet(cdpWalletConfig);
     
-    // Initialize AgentKit with the current correct pattern
+    // Initialize AgentKit with all 4 parameters
     const kit = await AgentKit.from({
-      cdpApiKeyId: envVars.CDP_API_KEY_NAME!,
-      cdpApiKeySecret: envVars.CDP_API_KEY_PRIVATE_KEY!,
+      walletProvider,
+      actionProviders: [erc721, pyth, cdp, wallet],
     });
 
     console.log('✅ AgentKit initialized successfully on server');
@@ -74,20 +93,24 @@ async function initializeAgentKit(): Promise<AgentKit> {
     
   } catch (error) {
     console.error('❌ Failed to initialize AgentKit:', error);
-    
-    // Provide more specific error messages
     if (error instanceof Error) {
+      // Log the error message and stack trace explicitly
+      console.error('Original error message:', error.message);
+      if (error.stack) {
+        console.error('Original error stack:', error.stack);
+      }
       if (error.message.includes('API key') || error.message.includes('api key')) {
-        throw new Error('Invalid CDP API credentials. Please check your API key and secret.');
+        throw new Error(`Invalid CDP API credentials. Please check your API key and secret. (Original error: ${error.message})`);
       }
       if (error.message.includes('network')) {
-        throw new Error('Network connection error. Please check your internet connection.');
+        throw new Error(`Network connection error. Please check your internet connection. (Original error: ${error.message})`);
       }
       if (error.message.includes('wallet')) {
-        throw new Error('Failed to initialize wallet. Please check your CDP configuration.');
+        console.error(error.message);
+        throw new Error(`Failed to initialize wallet. Please check your CDP configuration. (Original error: ${error.message})`);
       }
       if (error.message.includes('required')) {
-        throw new Error('Missing required CDP API credentials. Please set CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE_KEY environment variables.');
+        throw new Error(`Missing required CDP API credentials. Please set CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE_KEY environment variables. (Original error: ${error.message})`);
       }
     }
     
@@ -166,7 +189,16 @@ export async function POST(request: NextRequest) {
     console.error('Agent API error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    const statusCode = errorMessage.includes('credentials') || errorMessage.includes('API key') ? 401 : 500;
+    
+    // Determine appropriate status code based on error type
+    let statusCode = 500;
+    if (errorMessage.includes('CDP API credentials') || errorMessage.includes('API key')) {
+      statusCode = 401;
+    } else if (errorMessage.includes('Network connection')) {
+      statusCode = 503;
+    } else if (errorMessage.includes('Missing required')) {
+      statusCode = 500;
+    }
     
     return NextResponse.json(
       { success: false, error: errorMessage },
@@ -336,7 +368,7 @@ async function executeInvestmentStrategy(kit: AgentKit, params: any) {
     // Fallback response if agent not available
     return {
       success: true,
-      summary: `Successfully simulated ${strategy} strategy with ${amount} ${asset}. Agent execution is now properly configured with CdpAgentkit.`,
+      summary: `Successfully simulated ${strategy} strategy with ${amount} ${asset}. Agent execution is now properly configured with AgentKit.`,
       transactionHashes: [],
     };
   } catch (error) {
