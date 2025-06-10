@@ -29,6 +29,9 @@ export interface UseXMTPReturn {
   addMembers: (conversationId: string, addresses: string[]) => Promise<void>;
   removeMembers: (conversationId: string, addresses: string[]) => Promise<void>;
   
+  // Database management
+  resetDatabase: () => Promise<void>;
+  
   // Utility functions
   canMessage: (addresses: string[]) => Promise<Map<string, boolean>>;
   refreshConversations: () => Promise<void>;
@@ -64,6 +67,26 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   const xmtpManager = useRef<XMTPManager | null>(null);
   const messageStreams = useRef<Map<string, () => void>>(new Map());
 
+  const refreshConversations = useCallback(async () => {
+    if (!xmtpManager.current) return;
+
+    try {
+      console.log('🔄 Refreshing conversations...');
+      const convos = await xmtpManager.current.getConversations();
+      setConversations(convos);
+      console.log(`✅ Loaded ${convos.length} conversations`);
+    } catch (error) {
+      console.error('❌ Failed to refresh conversations:', error);
+      
+      // Check if it's a sequence ID error
+      if (error instanceof Error && error.message.includes('SequenceId')) {
+        setError('Database sync error. You may need to reset your chat database.');
+      } else {
+        setError('Failed to load conversations. Please try again.');
+      }
+    }
+  }, []);
+
   const initializeXMTP = useCallback(async () => {
     if (!signer || isInitializing) return;
     
@@ -92,29 +115,61 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       setClient(xmtpClient);
       setIsInitialized(true);
       
-      // Load existing conversations
-      await refreshConversations();
+      // Load existing conversations with retry logic
+      try {
+        await refreshConversations();
+      } catch (convError) {
+        console.warn('⚠️ Failed to load conversations during init, continuing anyway:', convError);
+        // Don't fail initialization just because conversation loading failed
+      }
       
       console.log('✅ XMTP initialized successfully');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize XMTP';
       console.error('❌ XMTP initialization failed:', errorMessage);
-      setError(errorMessage);
+      
+      // Check if it's a database corruption issue
+      if (errorMessage.includes('SequenceId') || errorMessage.includes('database') || errorMessage.includes('sync')) {
+        setError('Database sync error. Click "Reset Database" below if the problem persists.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsInitializing(false);
     }
-  }, [signer, isInitializing, config]);
+  }, [signer, isInitializing, config, refreshConversations]);
 
-  const refreshConversations = useCallback(async () => {
+
+
+  const resetDatabase = useCallback(async () => {
     if (!xmtpManager.current) return;
 
     try {
-      const convos = await xmtpManager.current.getConversations();
-      setConversations(convos);
+      setIsInitializing(true);
+      setError(null);
+      
+      console.log('🔄 Resetting XMTP database...');
+      await xmtpManager.current.resetDatabase();
+      
+      // Reset state
+      setClient(null);
+      setIsInitialized(false);
+      setConversations([]);
+      
+      console.log('✅ Database reset complete, reinitializing...');
+      
+      // Reinitialize XMTP
+      if (signer) {
+        await initializeXMTP();
+      }
+      
     } catch (error) {
-      console.error('Failed to refresh conversations:', error);
+      console.error('❌ Database reset failed:', error);
+      setError(`Reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsInitializing(false);
     }
-  }, []);
+  }, [signer, initializeXMTP]);
 
   // Initialize XMTP when wallet is connected
   useEffect(() => {
@@ -392,6 +447,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     streamMessages,
     addMembers,
     removeMembers,
+    resetDatabase,
     canMessage,
     refreshConversations,
     cleanup,

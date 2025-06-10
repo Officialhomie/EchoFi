@@ -208,16 +208,7 @@ export class XMTPManager {
      * Get all conversations (groups and DMs)
      */
     async getConversations(): Promise<Conversation[]> {
-        this.ensureClientReady();
-
-        try {
-            await this.client!.conversations.sync();
-            const conversations = await this.client!.conversations.list();
-            return conversations;
-        } catch (error) {
-            console.error('❌ Failed to fetch conversations:', error);
-            throw new Error(`Failed to fetch conversations: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        return await this.getConversationsWithRetry();
     }
 
     /**
@@ -431,6 +422,103 @@ export class XMTPManager {
      */
     get isClientInitialized(): boolean {
         return this.isInitialized && this.client !== null;
+    }
+
+    /**
+     * Reset local database to fix sync issues
+     */
+    async resetDatabase(): Promise<void> {
+        try {
+            console.log('🔄 Resetting XMTP local database...');
+            
+            // Cleanup current client
+            await this.cleanup();
+            
+            // Clear IndexedDB databases that XMTP might use
+            const databases = await indexedDB.databases();
+            for (const db of databases) {
+                if (db.name && (db.name.includes('xmtp') || db.name.includes('echofi'))) {
+                    console.log(`🗑️ Deleting database: ${db.name}`);
+                    const deleteReq = indexedDB.deleteDatabase(db.name);
+                    await new Promise((resolve, reject) => {
+                        deleteReq.onsuccess = () => resolve(undefined);
+                        deleteReq.onerror = () => reject(deleteReq.error);
+                        deleteReq.onblocked = () => {
+                            console.warn(`Database ${db.name} deletion blocked`);
+                            resolve(undefined);
+                        };
+                    });
+                }
+            }
+            
+            // Clear any localStorage items
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('xmtp') || key.includes('echofi'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            
+            console.log('✅ XMTP database reset completed');
+        } catch (error) {
+            console.error('❌ Error resetting database:', error);
+            throw new Error(`Failed to reset database: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Perform safe sync with error handling
+     */
+    async safeSyncConversations(): Promise<void> {
+        if (!this.client) return;
+        
+        try {
+            console.log('🔄 Syncing conversations...');
+            await this.client.conversations.sync();
+            console.log('✅ Conversations synced successfully');
+        } catch (error) {
+            console.warn('⚠️ Sync failed, continuing anyway:', error);
+            // Don't throw - sync failures shouldn't block the app
+        }
+    }
+
+    /**
+     * Enhanced conversation fetching with retry logic
+     */
+    async getConversationsWithRetry(maxRetries = 3): Promise<Conversation[]> {
+        this.ensureClientReady();
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`📡 Fetching conversations (attempt ${attempt}/${maxRetries})`);
+                
+                // Try to sync first, but don't fail if sync fails
+                await this.safeSyncConversations();
+                
+                const conversations = await this.client!.conversations.list();
+                console.log(`✅ Found ${conversations.length} conversations`);
+                return conversations;
+                
+            } catch (error) {
+                console.error(`❌ Attempt ${attempt} failed:`, error);
+                
+                if (attempt === maxRetries) {
+                    // On final attempt, check if it's a sequence ID issue
+                    if (error instanceof Error && error.message.includes('SequenceId')) {
+                        console.log('🔧 Sequence ID error detected, database reset may be needed');
+                        throw new Error('Database sync error. Please try resetting your chat database.');
+                    }
+                    throw error;
+                }
+                
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+        
+        return [];
     }
 
     /**
