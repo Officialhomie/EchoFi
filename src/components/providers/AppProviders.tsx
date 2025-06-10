@@ -37,6 +37,11 @@ interface AppContextType {
   errorDetails?: any;
   clearError: () => void;
   retryInitialization: () => Promise<void>;
+  initializationStatus: {
+    wallet: boolean;
+    xmtp: boolean;
+    agent: boolean;
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -60,10 +65,15 @@ export function AppProvider({ children }: AppProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [initializationAttempt, setInitializationAttempt] = useState(0);
+  const [initializationStatus, setInitializationStatus] = useState({
+    wallet: false,
+    xmtp: false,
+    agent: false,
+  });
   
   const wallet = useWallet();
   const xmtp = useXMTP();
-  const agent = useInvestmentAgent({ autoInitialize: false });
+  const agent = useInvestmentAgent({ autoInitialize: true, pollingInterval: 2000 });
 
   const clearError = useCallback(() => {
     setError(null);
@@ -73,56 +83,121 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [xmtp, agent]);
 
   const checkInitializationStatus = useCallback(() => {
+    console.log('🔍 Checking initialization status...', {
+      wallet: {
+        isConnected: wallet.isConnected,
+        address: wallet.address?.slice(0, 8) + '...'
+      },
+      xmtp: {
+        isInitialized: xmtp.isInitialized,
+        isInitializing: xmtp.isInitializing,
+        error: xmtp.error
+      },
+      agent: {
+        isInitialized: agent.isInitialized,
+        isInitializing: agent.isInitializing,
+        error: agent.error
+      }
+    });
+
     let progress = 0;
     let allReady = true;
     const errors = [];
+    const status = {
+      wallet: false,
+      xmtp: false,
+      agent: false,
+    };
 
     // Check wallet connection (25% of progress)
     if (wallet.isConnected) {
       progress += 25;
+      status.wallet = true;
+      console.log('✅ Wallet: Connected');
     } else {
       allReady = false;
+      console.log('❌ Wallet: Not connected');
     }
 
-    // Check XMTP initialization (50% of progress)
+    // Check XMTP initialization (35% of progress)
     if (xmtp.isInitialized) {
-      progress += 50;
+      progress += 35;
+      status.xmtp = true;
+      console.log('✅ XMTP: Initialized');
     } else if (xmtp.isInitializing) {
-      progress += 25; // Partial progress while initializing
+      progress += 15; // Partial progress while initializing
       allReady = false;
+      console.log('🔄 XMTP: Initializing...');
     } else if (wallet.isConnected) {
       allReady = false;
+      console.log('❌ XMTP: Not initialized');
     }
 
-    // Check agent initialization (25% of progress)
+    // Check agent initialization (40% of progress)
     if (agent.isInitialized) {
-      progress += 25;
+      progress += 40;
+      status.agent = true;
+      console.log('✅ Agent: Initialized');
     } else if (agent.isInitializing) {
-      progress += 12; // Partial progress while initializing
+      progress += 20; // Partial progress while initializing
       allReady = false;
+      console.log('🔄 Agent: Initializing...');
     } else {
       allReady = false;
+      console.log('❌ Agent: Not initialized');
     }
 
     // Collect errors
-    if (xmtp.error) errors.push(`XMTP: ${xmtp.error}`);
-    if (agent.error) errors.push(`Agent: ${agent.error}`);
+    if (xmtp.error) {
+      errors.push(`XMTP: ${xmtp.error}`);
+      console.error('❌ XMTP Error:', xmtp.error);
+    }
+    if (agent.error) {
+      errors.push(`Agent: ${agent.error}`);
+      console.error('❌ Agent Error:', agent.error);
+    }
 
     // Update state
     setInitializationProgress(progress);
-    setIsInitialized(allReady);
+    setInitializationStatus(status);
+    
+    // Only set as initialized if all components are ready
+    const shouldBeInitialized = wallet.isConnected && xmtp.isInitialized && agent.isInitialized;
+    setIsInitialized(shouldBeInitialized);
+
+    console.log('📊 Initialization Summary:', {
+      progress: `${progress}%`,
+      allReady: shouldBeInitialized,
+      status,
+      errors: errors.length > 0 ? errors : 'None'
+    });
 
     if (errors.length > 0 && !error) {
       setError(errors.join('; '));
       setErrorDetails({ xmtpError: xmtp.error, agentError: agent.error });
+    } else if (errors.length === 0 && error) {
+      // Clear error if all errors are resolved
+      setError(null);
+      setErrorDetails(null);
     }
-  }, [wallet.isConnected, xmtp.isInitialized, xmtp.isInitializing, xmtp.error, agent.isInitialized, agent.isInitializing, agent.error, error]);
+  }, [
+    wallet.isConnected, 
+    wallet.address,
+    xmtp.isInitialized, 
+    xmtp.isInitializing, 
+    xmtp.error, 
+    agent.isInitialized, 
+    agent.isInitializing, 
+    agent.error,
+    error
+  ]);
 
   useEffect(() => {
     checkInitializationStatus();
   }, [checkInitializationStatus]);
 
   const retryInitialization = useCallback(async () => {
+    console.log('🔄 Retrying initialization...');
     setInitializationAttempt(prev => prev + 1);
     clearError();
     setInitializationProgress(0);
@@ -130,18 +205,26 @@ export function AppProvider({ children }: AppProviderProps) {
     try {
       // Reset and retry XMTP if needed
       if (!xmtp.isInitialized && wallet.isConnected) {
+        console.log('🔄 Retrying XMTP initialization...');
         await xmtp.initializeXMTP();
       }
       
-      // Agent initialization happens server-side, so just clear any errors
+      // Agent initialization happens automatically, just clear errors
       if (agent.error) {
+        console.log('🔄 Clearing agent errors...');
         agent.clearError();
       }
+
+      // Force a status check
+      setTimeout(() => {
+        checkInitializationStatus();
+      }, 1000);
+
     } catch (err) {
-      console.error('Retry initialization failed:', err);
+      console.error('❌ Retry initialization failed:', err);
       setError(err instanceof Error ? err.message : 'Retry failed');
     }
-  }, [clearError, xmtp, agent, wallet.isConnected]);
+  }, [clearError, xmtp, agent, wallet.isConnected, checkInitializationStatus]);
 
   // Auto-retry logic for transient errors
   useEffect(() => {
@@ -153,11 +236,20 @@ export function AppProvider({ children }: AppProviderProps) {
       
       if (isTransientError) {
         const retryDelay = Math.pow(2, initializationAttempt) * 1000; // Exponential backoff
+        console.log(`⏰ Auto-retrying in ${retryDelay}ms (attempt ${initializationAttempt + 1}/3)`);
         const timer = setTimeout(retryInitialization, retryDelay);
         return () => clearTimeout(timer);
       }
     }
   }, [error, initializationAttempt, retryInitialization]);
+
+  // Debug logging for agent status changes
+  useEffect(() => {
+    if (agent.initializationMessages.length > 0) {
+      const lastMessage = agent.initializationMessages[agent.initializationMessages.length - 1];
+      console.log('🤖 Agent Status Update:', lastMessage);
+    }
+  }, [agent.initializationMessages]);
 
   const value: AppContextType = {
     isInitialized,
@@ -166,6 +258,7 @@ export function AppProvider({ children }: AppProviderProps) {
     errorDetails,
     clearError,
     retryInitialization,
+    initializationStatus,
   };
 
   return (
@@ -327,9 +420,15 @@ export function LoadingSpinner({
   );
 }
 
-// Global Loading with Progress
+// Enhanced Global Loading with detailed progress
 export function GlobalLoading() {
-  const { initializationProgress, error } = useApp();
+  const { initializationProgress, error, initializationStatus } = useApp();
+
+  const getStepStatus = (isComplete: boolean, isError: boolean) => {
+    if (isError) return '❌';
+    if (isComplete) return '✅';
+    return '🔄';
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -344,20 +443,37 @@ export function GlobalLoading() {
           </p>
           
           {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
             <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+              className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${initializationProgress}%` }}
             />
           </div>
           
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-4">
             {initializationProgress}% complete
           </p>
 
+          {/* Detailed Steps */}
+          <div className="text-left space-y-2 mb-4">
+            <div className="flex items-center text-sm">
+              <span className="mr-2">{getStepStatus(initializationStatus.wallet, false)}</span>
+              <span>Wallet Connection</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span className="mr-2">{getStepStatus(initializationStatus.xmtp, !!error?.includes('XMTP'))}</span>
+              <span>Secure Messaging (XMTP)</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span className="mr-2">{getStepStatus(initializationStatus.agent, !!error?.includes('Agent'))}</span>
+              <span>AI Investment Agent</span>
+            </div>
+          </div>
+
           {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-left">
+              <p className="text-sm text-red-700 font-medium">Error:</p>
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
         </div>

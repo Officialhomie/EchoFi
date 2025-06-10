@@ -1,9 +1,11 @@
+// src/components/dashboard/Dashboard.tsx - Updated with AgentKit Status
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
+import { AgentStatus, AgentStatusCompact } from '@/components/agent/AgentStatus';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/providers/AppProviders';
@@ -17,7 +19,8 @@ import {
   BarChartIcon,
   DollarSignIcon,
   ArrowUpIcon,
-  ArrowDownIcon
+  ArrowDownIcon,
+  BotIcon
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -49,16 +52,17 @@ interface GroupSummary {
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
   const { conversations } = useXMTP();
-  const { getBalance, analyzePerformance, isInitialized } = useInvestmentAgent();
+  const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [performanceAnalysis, setPerformanceAnalysis] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [showAgentDetails, setShowAgentDetails] = useState(false);
 
   const loadPortfolio = useCallback(async () => {
-    if (!isInitialized) return;
+    if (!agentInitialized) return;
 
     try {
       const balance = await getBalance();
@@ -82,9 +86,8 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       console.error('Failed to load portfolio:', error);
       setError('Failed to load portfolio data');
     }
-  }, [isInitialized, getBalance]);
+  }, [agentInitialized, getBalance]);
 
-  // ✅ FIXED: Load actual groups with real proposal counts
   const loadGroups = useCallback(async () => {
     if (!address) return;
 
@@ -173,7 +176,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   });
 
   const loadPerformanceAnalysis = useCallback(async () => {
-    if (!isInitialized) return;
+    if (!agentInitialized) return;
 
     try {
       const analysis = await analyzePerformance('7d');
@@ -182,7 +185,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       console.error('Failed to load performance analysis:', error);
       setError('Failed to load performance analysis');
     }
-  }, [isInitialized, analyzePerformance]);
+  }, [agentInitialized, analyzePerformance]);
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -205,6 +208,14 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  // Refresh data when agent becomes initialized
+  useEffect(() => {
+    if (agentInitialized && !isLoading) {
+      loadPortfolio();
+      loadPerformanceAnalysis();
+    }
+  }, [agentInitialized, loadPortfolio, loadPerformanceAnalysis, isLoading]);
 
   // Refresh data every 30 seconds
   useEffect(() => {
@@ -239,7 +250,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     );
   }
 
-  // ✅ FIXED: Calculate totals from real data
+  // Calculate totals from real data
   const totalActiveProposals = groups.reduce((sum, group) => sum + group.activeProposals, 0);
   const totalProposals = groups.reduce((sum, group) => sum + group.totalProposals, 0);
 
@@ -255,135 +266,54 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <DollarSignIcon className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Portfolio</p>
-                <div className="flex items-center">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatUSD(portfolio?.totalValue || '0')}
-                  </p>
-                  {portfolio && (
-                    <span className={`ml-2 flex items-center text-sm ${
-                      portfolio.change24h >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {portfolio.change24h >= 0 ? (
-                        <ArrowUpIcon className="w-3 h-3 mr-1" />
-                      ) : (
-                        <ArrowDownIcon className="w-3 h-3 mr-1" />
-                      )}
-                      {formatPercentage(Math.abs(portfolio.change24h))}
-                    </span>
-                  )}
-                </div>
+      {/* AgentKit Status Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <AgentStatus 
+            showDetails={showAgentDetails}
+            showMessages={true}
+            className="h-full"
+          />
+        </div>
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center text-blue-900">
+              <BotIcon className="w-5 h-5 mr-2" />
+              AI Agent Features
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-blue-800">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                Portfolio Analysis
+              </div>
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                Strategy Execution
+              </div>
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                Risk Management
+              </div>
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                Real-time Monitoring
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <UsersIcon className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Groups</p>
-                <p className="text-2xl font-bold text-gray-900">{groups.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <BarChartIcon className="h-8 w-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Proposals</p>
-                <p className="text-2xl font-bold text-gray-900">{totalActiveProposals}</p>
-                <p className="text-xs text-gray-500">{totalProposals} total</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center">
-              <WalletIcon className="h-8 w-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Connected Wallet</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {formatAddress(address || '')}
-                </p>
-              </div>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-4 w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+              onClick={() => setShowAgentDetails(!showAgentDetails)}
+            >
+              {showAgentDetails ? 'Hide Details' : 'Show Details'}
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Portfolio Overview */}
-      {portfolio && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <TrendingUpIcon className="w-5 h-5 mr-2" />
-              Portfolio Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {portfolio.assets.length === 0 ? (
-              // Empty portfolio state
-              <div className="text-center py-8">
-                <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
-                <p className="text-gray-600 mb-4">
-                  Your wallet is connected but doesn't have any tracked assets yet.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                  <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Add funds to your connected wallet</li>
-                    <li>• Create or join investment groups</li>
-                    <li>• Participate in group investment proposals</li>
-                    <li>• Track your portfolio performance over time</li>
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              // Portfolio with assets
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {portfolio.assets.map((asset, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-gray-900">{asset.symbol}</span>
-                      <span className={`text-sm flex items-center ${
-                        asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {asset.change24h >= 0 ? (
-                          <ArrowUpIcon className="w-3 h-3 mr-1" />
-                        ) : (
-                          <ArrowDownIcon className="w-3 h-3 mr-1" />
-                        )}
-                        {formatPercentage(Math.abs(asset.change24h))}
-                      </span>
-                    </div>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {formatCrypto(asset.amount, asset.symbol)}
-                    </p>
-                    <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Update the Quick Stats section to handle zero values */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
@@ -450,14 +380,72 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
                 <p className="text-lg font-bold text-gray-900">
                   {formatAddress(address || '')}
                 </p>
-                <p className="text-xs text-gray-500">
-                  {portfolio?.totalValue === '0' ? 'Ready for deposits' : 'Active portfolio'}
-                </p>
+                <div className="flex items-center mt-1">
+                  <AgentStatusCompact />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Portfolio Overview */}
+      {portfolio && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <TrendingUpIcon className="w-5 h-5 mr-2" />
+              Portfolio Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {portfolio.assets.length === 0 ? (
+              // Empty portfolio state
+              <div className="text-center py-8">
+                <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
+                <p className="text-gray-600 mb-4">
+                  Your wallet is connected but doesn't have any tracked assets yet.
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                  <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Add funds to your connected wallet</li>
+                    <li>• Create or join investment groups</li>
+                    <li>• Participate in group investment proposals</li>
+                    <li>• Track your portfolio performance over time</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              // Portfolio with assets
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {portfolio.assets.map((asset, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-900">{asset.symbol}</span>
+                      <span className={`text-sm flex items-center ${
+                        asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {asset.change24h >= 0 ? (
+                          <ArrowUpIcon className="w-3 h-3 mr-1" />
+                        ) : (
+                          <ArrowDownIcon className="w-3 h-3 mr-1" />
+                        )}
+                        {formatPercentage(Math.abs(asset.change24h))}
+                      </span>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {formatCrypto(asset.amount, asset.symbol)}
+                    </p>
+                    <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Investment Groups */}

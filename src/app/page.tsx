@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/page.tsx - Updated with debug component
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,6 +6,7 @@ import { ConnectWallet, WalletStatus } from '@/components/wallet/ConnectWallet';
 import { InvestmentGroup } from '@/components/investment/InvestmentGroup';
 import { GroupManager } from '@/components/groups/GroupManager';
 import { Dashboard } from '@/components/dashboard/Dashboard';
+import { InitializationDebug } from '@/components/debug/InitializationDebug';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useApp } from '@/components/providers/AppProviders';
@@ -19,22 +20,36 @@ type ViewMode = 'dashboard' | 'groups' | 'group-detail' | 'welcome';
 export default function HomePage() {
   const { isConnected, address } = useWallet();
   const { client, createGroup, isInitialized: xmtpInitialized } = useXMTP();
-  const { isInitialized, error, clearError } = useApp();
+  const { isInitialized, error, clearError, initializationProgress } = useApp();
   
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
   const [currentGroup, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Debug: Log initialization status changes
+  useEffect(() => {
+    console.log('📱 Page: Initialization status changed:', {
+      isConnected,
+      xmtpInitialized,
+      isInitialized,
+      initializationProgress: `${initializationProgress}%`,
+      error,
+      viewMode
+    });
+  }, [isConnected, xmtpInitialized, isInitialized, initializationProgress, error, viewMode]);
+
   // Update view mode based on connection status
   useEffect(() => {
     if (!isConnected) {
       setViewMode('welcome');
       setCurrentGroup(null);
-    } else if (isConnected && xmtpInitialized && viewMode === 'welcome') {
+      console.log('📱 Page: Switching to welcome (wallet not connected)');
+    } else if (isConnected && xmtpInitialized && isInitialized && viewMode === 'welcome') {
+      console.log('📱 Page: Switching to dashboard (all systems ready)');
       setViewMode('dashboard');
     }
-  }, [isConnected, xmtpInitialized, viewMode]);
+  }, [isConnected, xmtpInitialized, isInitialized, viewMode]);
 
   // Show notification for errors
   useEffect(() => {
@@ -81,9 +96,35 @@ export default function HomePage() {
     setViewMode('dashboard');
   };
 
+  // Force bypass loading screen for debugging (only in development)
+  const [debugBypass, setDebugBypass] = useState(false);
+  const shouldShowLoading = isConnected && !isInitialized && !debugBypass;
+
   // Show loading screen during initialization
-  if (isConnected && !isInitialized) {
-    return <GlobalLoading />;
+  if (shouldShowLoading) {
+    return (
+      <>
+        <GlobalLoading />
+        {/* Debug component overlay */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed top-4 left-4 z-50">
+            <Card className="bg-yellow-100 border-yellow-300">
+              <CardContent className="p-3">
+                <p className="text-xs text-yellow-800 mb-2">Debug Mode</p>
+                <Button 
+                  size="sm" 
+                  onClick={() => setDebugBypass(true)}
+                  className="text-xs"
+                >
+                  Skip Loading Screen
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        <InitializationDebug />
+      </>
+    );
   }
 
   // Welcome screen for non-connected users
@@ -164,6 +205,8 @@ export default function HomePage() {
             </Card>
           </div>
         </div>
+        {/* Debug component for welcome screen too */}
+        {process.env.NODE_ENV === 'development' && <InitializationDebug />}
       </div>
     );
   }
@@ -206,6 +249,13 @@ export default function HomePage() {
                   ← Back
                 </Button>
               )}
+              
+              {/* Show initialization status in header if not fully ready */}
+              {(debugBypass || !isInitialized) && (
+                <div className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded">
+                  Init: {initializationProgress}%
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -244,6 +294,9 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
+      {/* Debug Component (only in development) */}
+      {process.env.NODE_ENV === 'development' && <InitializationDebug />}
 
       {/* Notifications */}
       {notification && (
