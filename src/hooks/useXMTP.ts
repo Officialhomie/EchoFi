@@ -135,27 +135,62 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     description: string, 
     members: string[]
   ): Promise<Conversation> => {
+    console.log('🔄 Creating group:', { name, description, members, memberCount: members.length });
+    
     if (!xmtpManager.current) {
       throw new Error('XMTP not initialized');
     }
 
+    if (!address) {
+      throw new Error('Wallet address not available');
+    }
+
     try {
+      // Log current state for debugging
+      const clientInfo = xmtpManager.current.getClientInfo();
+      console.log('📊 XMTP Client Info:', clientInfo);
+
       const groupConfig: GroupConfig = {
         name,
         description,
       };
 
+      console.log('📝 Group config:', groupConfig);
+      console.log('👥 Member addresses to add:', members);
+
       const conversation = await xmtpManager.current.createInvestmentGroup(groupConfig, members);
+      
+      console.log('✅ Group created successfully:', {
+        id: conversation.id,
+        name: name,
+        memberCount: members.length + 1 // +1 for creator
+      });
       
       // Refresh conversations list
       await refreshConversations();
       
       return conversation;
     } catch (error) {
-      console.error('Failed to create group:', error);
-      throw error;
+      console.error('❌ Group creation failed:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to create group';
+      if (error instanceof Error) {
+        if (error.message.includes('Addresses not found')) {
+          errorMessage = 'Some member addresses are invalid or cannot receive XMTP messages. Please verify all addresses.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('permission')) {
+          errorMessage = 'Permission denied. Please ensure your wallet is properly connected.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
-  }, [refreshConversations]);
+  }, [refreshConversations, address]);
 
   const createDM = useCallback(async (address: string): Promise<Conversation> => {
     if (!xmtpManager.current) {

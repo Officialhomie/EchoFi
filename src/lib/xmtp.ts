@@ -134,11 +134,27 @@ export class XMTPManager {
         try {
             console.log('Creating investment group:', {
                 name: groupConfig.name,
-                memberCount: memberAddresses.length
+                memberCount: memberAddresses.length,
+                members: memberAddresses
             });
 
+            // Validate addresses before creating group
+            if (memberAddresses.length > 0) {
+                console.log('Validating member addresses...');
+                const canMessageMap = await this.canMessage(memberAddresses);
+                const invalidAddresses = Array.from(canMessageMap.entries())
+                    .filter(([address, canMsg]) => !canMsg)
+                    .map(([address]) => address);
+                
+                if (invalidAddresses.length > 0) {
+                    throw new Error(`Some addresses cannot receive XMTP messages: ${invalidAddresses.join(', ')}`);
+                }
+            }
+
+            // Create group - in XMTP v3, creator is automatically included
+            // Only pass additional member addresses
             const group = await this.client!.conversations.newGroup(
-                memberAddresses,
+                memberAddresses, // Don't include creator's address
                 {
                     name: groupConfig.name,
                     description: groupConfig.description,
@@ -150,13 +166,25 @@ export class XMTPManager {
             console.log('✅ Investment group created:', {
                 id: group.id,
                 name: groupConfig.name,
-                memberCount: memberAddresses.length
+                memberCount: memberAddresses.length + 1 // +1 for creator
             });
 
             return group;
         } catch (error) {
             console.error('❌ Failed to create investment group:', error);
-            throw new Error(`Failed to create group: ${error instanceof Error ? error.message : String(error)}`);
+            
+            // Provide more specific error messages
+            if (error instanceof Error) {
+                if (error.message.includes('Addresses not found')) {
+                    throw new Error('Some member addresses are not valid or cannot receive XMTP messages. Please verify all addresses are correct and have XMTP enabled.');
+                } else if (error.message.includes('network')) {
+                    throw new Error('Network error while creating group. Please check your connection and try again.');
+                } else {
+                    throw new Error(`Failed to create group: ${error.message}`);
+                }
+            } else {
+                throw new Error(`Failed to create group: ${String(error)}`);
+            }
         }
     }
 

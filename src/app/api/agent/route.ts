@@ -14,8 +14,9 @@ let initializationPromise: Promise<AgentKit> | null = null;
 // Validate environment variables
 function validateEnvironmentVariables() {
   const requiredVars = {
-    CDP_API_KEY_NAME: process.env.CDP_API_KEY_NAME,
-    CDP_API_KEY_PRIVATE_KEY: process.env.CDP_API_KEY_PRIVATE_KEY,
+    CDP_API_KEY_ID: process.env.CDP_API_KEY_NAME,
+    CDP_API_KEY_SECRET: process.env.CDP_API_KEY_PRIVATE_KEY,
+    CDP_WALLET_SECRET: process.env.CDP_WALLET_SECRET,
   };
 
   const missing = Object.entries(requiredVars)
@@ -73,7 +74,7 @@ async function initializeAgentKit(): Promise<AgentKit> {
       apiKeyId: process.env.CDP_API_KEY_NAME, 
       apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       walletSecret: process.env.CDP_WALLET_SECRET,
-      networkId: process.env.NETWORK_ID, // e.g. "base", "base-sepolia", "solana"
+      networkId: process.env.NETWORK_ID || 'base-sepolia'
     };
 
     const walletProvider = await CdpV2WalletProvider.configureWithWallet(cdpWalletConfig);
@@ -439,8 +440,8 @@ export async function GET() {
       agentKit: agentKit ? 'initialized' : 'not initialized',
       agent: agent ? 'ready' : 'not ready',
       environment: {
-        hasApiKeyName: !!envVars.CDP_API_KEY_NAME,
-        hasApiKeySecret: !!envVars.CDP_API_KEY_PRIVATE_KEY,
+        hasApiKeyName: !!envVars.CDP_API_KEY_ID,
+        hasApiKeySecret: !!envVars.CDP_API_KEY_SECRET,
         networkId: process.env.NETWORK_ID || 'base-sepolia'
       }
     });

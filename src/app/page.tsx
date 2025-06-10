@@ -48,11 +48,22 @@ export default function HomePage() {
 
     setIsLoading(true);
     try {
-      const group = await createGroup(groupData.name, groupData.description, [address, ...groupData.members]);
+      console.log('Creating group with data:', {
+        name: groupData.name,
+        description: groupData.description,
+        members: groupData.members,
+        memberCount: groupData.members.length
+      });
+
+      // In XMTP v3, don't include your own address - the creator is automatically included
+      // Only pass the additional members
+      const group = await createGroup(groupData.name, groupData.description, groupData.members);
+      
       setCurrentGroup({ id: group.id, name: groupData.name });
       setViewMode('group-detail');
       setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
     } catch (err) {
+      console.error('Group creation error:', err);
       const message = err instanceof Error ? err.message : 'Failed to create group';
       setNotification({ type: 'error', message });
     } finally {
