@@ -28,33 +28,51 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const callAgentAPI = useCallback(async (action: string, params?: any) => {
+    console.log(`🔄 [DEBUG] Calling agent API: ${action}`, params);
     setIsInitializing(true);
     setError(null);
     
     try {
+      const requestBody = { action, params };
+      console.log(`📤 [DEBUG] Request body:`, requestBody);
+      
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action, params }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log(`📥 [DEBUG] Response status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        console.error(`❌ [DEBUG] Error response:`, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+        
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log(`✅ [DEBUG] Success response:`, result);
 
       if (!result.success) {
+        console.error(`❌ [DEBUG] API returned success=false:`, result);
         throw new Error(result.error || 'Agent operation failed');
       }
 
+      console.log(`📊 [DEBUG] Final data:`, result.data);
       return result.data;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`Agent API call failed (${action}):`, errorMessage);
+      console.error(`❌ [DEBUG] Agent API call failed (${action}):`, errorMessage);
       setError(errorMessage);
       throw err;
     } finally {

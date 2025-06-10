@@ -326,7 +326,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       </div>
 
       {/* Portfolio Overview */}
-      {portfolio && portfolio.assets.length > 0 && (
+      {portfolio && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -335,32 +335,129 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {portfolio.assets.map((asset, index) => (
-                <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-gray-900">{asset.symbol}</span>
-                    <span className={`text-sm flex items-center ${
-                      asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
+            {portfolio.assets.length === 0 ? (
+              // Empty portfolio state
+              <div className="text-center py-8">
+                <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
+                <p className="text-gray-600 mb-4">
+                  Your wallet is connected but doesn't have any tracked assets yet.
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                  <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Add funds to your connected wallet</li>
+                    <li>• Create or join investment groups</li>
+                    <li>• Participate in group investment proposals</li>
+                    <li>• Track your portfolio performance over time</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              // Portfolio with assets
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {portfolio.assets.map((asset, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-900">{asset.symbol}</span>
+                      <span className={`text-sm flex items-center ${
+                        asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {asset.change24h >= 0 ? (
+                          <ArrowUpIcon className="w-3 h-3 mr-1" />
+                        ) : (
+                          <ArrowDownIcon className="w-3 h-3 mr-1" />
+                        )}
+                        {formatPercentage(Math.abs(asset.change24h))}
+                      </span>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {formatCrypto(asset.amount, asset.symbol)}
+                    </p>
+                    <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Update the Quick Stats section to handle zero values */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <DollarSignIcon className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Portfolio</p>
+                <div className="flex items-center">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatUSD(portfolio?.totalValue || '0')}
+                  </p>
+                  {portfolio && portfolio.totalValue !== '0' && (
+                    <span className={`ml-2 flex items-center text-sm ${
+                      portfolio.change24h >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {asset.change24h >= 0 ? (
+                      {portfolio.change24h >= 0 ? (
                         <ArrowUpIcon className="w-3 h-3 mr-1" />
                       ) : (
                         <ArrowDownIcon className="w-3 h-3 mr-1" />
                       )}
-                      {formatPercentage(Math.abs(asset.change24h))}
+                      {formatPercentage(Math.abs(portfolio.change24h))}
                     </span>
-                  </div>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatCrypto(asset.amount, asset.symbol)}
-                  </p>
-                  <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
+                  )}
                 </div>
-              ))}
+                {(!portfolio || portfolio.totalValue === '0') && (
+                  <p className="text-xs text-gray-500">Wallet connected, awaiting deposits</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <UsersIcon className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active Groups</p>
+                <p className="text-2xl font-bold text-gray-900">{groups.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <BarChartIcon className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active Proposals</p>
+                <p className="text-2xl font-bold text-gray-900">{totalActiveProposals}</p>
+                <p className="text-xs text-gray-500">{totalProposals} total</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <WalletIcon className="h-8 w-8 text-orange-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Connected Wallet</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {formatAddress(address || '')}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {portfolio?.totalValue === '0' ? 'Ready for deposits' : 'Active portfolio'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Investment Groups */}

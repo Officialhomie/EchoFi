@@ -2,12 +2,11 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { pgTable, text, timestamp, integer, decimal, boolean } from 'drizzle-orm/pg-core';
 
-// Supabase connection
 const connectionString = process.env.DATABASE_URL!;
 const client = postgres(connectionString);
 export const db = drizzle(client);
 
-// Schema definitions
+// Updated schema to match your current codebase expectations
 export const investmentGroups = pgTable('investment_groups', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -39,7 +38,7 @@ export const proposals = pgTable('proposals', {
   proposedBy: text('proposed_by').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   deadline: timestamp('deadline').notNull(),
-  status: text('status').default('active'), // active, approved, rejected, executed
+  status: text('status').default('active'),
   approvalVotes: integer('approval_votes').default(0),
   rejectionVotes: integer('rejection_votes').default(0),
   requiredVotes: integer('required_votes').notNull(),
@@ -49,7 +48,7 @@ export const votes = pgTable('votes', {
   id: text('id').primaryKey(),
   proposalId: text('proposal_id').references(() => proposals.id),
   voterAddress: text('voter_address').notNull(),
-  vote: text('vote').notNull(), // approve, reject, abstain
+  vote: text('vote').notNull(),
   votingPower: decimal('voting_power', { precision: 5, scale: 2 }).default('1.0'),
   votedAt: timestamp('voted_at').defaultNow(),
 });

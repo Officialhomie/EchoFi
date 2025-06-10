@@ -1,5 +1,5 @@
-import { eq, and, desc, sql, count } from 'drizzle-orm';
 import { db, investmentGroups, groupMembers, proposals, votes } from './db';
+import { eq, and, desc, sql, count } from 'drizzle-orm';
 import { generateId } from './utils';
 
 // Enhanced group analytics with accurate proposal counting
