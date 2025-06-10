@@ -6,9 +6,11 @@ import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage } from '@langchain/core/messages';
 import { CdpWalletProvider, CdpV2EvmWalletProvider, CdpV2WalletProvider,walletActionProvider, cdpWalletActionProvider, cdpApiActionProvider } from '@coinbase/agentkit';
+import { prepareAgentkitAndWalletProvider, WALLET_DATA_FILE, WalletData } from '@/lib/agentkit';
 
 let agentKit: AgentKit | null = null;
 let agent: any = null;
+let walletProvider: any = null;
 let initializationPromise: Promise<AgentKit> | null = null;
 
 // Validate environment variables
@@ -57,42 +59,10 @@ async function getAgentKit(): Promise<AgentKit> {
 async function initializeAgentKit(): Promise<AgentKit> {
   try {
     console.log('🚀 Initializing AgentKit on server...');
-    
-    // Validate environment variables first
-    const envVars = validateEnvironmentVariables();
-
-    const erc721 = erc721ActionProvider();
-    const pyth = pythActionProvider();
-    const wallet = walletActionProvider();
-    
-
-    const cdp = cdpApiActionProvider({ // for providers that require API keys include them in their instantiation
-      apiKeyId: process.env.CDP_API_KEY_NAME,
-      apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    });
-
-    const cdpWalletConfig = {
-      apiKeyId: process.env.CDP_API_KEY_NAME, 
-      apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      walletSecret: process.env.CDP_WALLET_SECRET,
-      networkId: process.env.NETWORK_ID || 'base-sepolia'
-    };
-
-    const walletProvider = await CdpV2WalletProvider.configureWithWallet(cdpWalletConfig);
-    
-    // Initialize AgentKit with all 4 parameters
-    const kit = await AgentKit.from({
-      walletProvider,
-      actionProviders: [erc721ActionProvider(), pythActionProvider(), erc20ActionProvider(), walletActionProvider(), cdpApiActionProvider({apiKeyId: "organizations/c0e977a2-20d1-48d3-a8ff-1c224c502e22/apiKeys/67245f91-5c2c-4248-b937-861812c7ec7b", apiKeySecret: "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIlPWDnQ4zs8Y+zcxHzajUX9FCBIB02GHEV68pqFUIrtVoAoGCCqGSM49\nAwEHoUQDQgAErOZsj-ABfCQy8bDpwrfk3JcnXtUHBii4E0UemPdMhugczMNsNBOOgc\n5MhICOYAAspvWLISCWz1JSZvKkRSiBUUrw==\n-----END EC PRIVATE KEY-----"})],
-    });
-
-    console.log('✅ AgentKit initialized successfully on server');
-    
-    // Initialize the LangChain agent
-    await initializeLangChainAgent(kit);
-    
-    return kit;
-    
+    const { agentkit, walletProvider: wp } = await prepareAgentkitAndWalletProvider();
+    walletProvider = wp;
+    await initializeLangChainAgent(agentkit);
+    return agentkit;
   } catch (error) {
     console.error('❌ Failed to initialize AgentKit:', error);
     if (error instanceof Error) {
