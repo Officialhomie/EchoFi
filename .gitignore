@@ -51,9 +51,7 @@ contracts/artifacts/
 # Common Solidity/Foundry ignores
 *.sol.json
 
-# Ignore local test and script outputs
-contracts/test/*.t.sol
-contracts/script/*.s.sol
+
 
 # Ignore OpenZeppelin and forge-std libraries if vendored
 contracts/lib/openzeppelin-contracts/

@@ -1,490 +1,394 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+
+interface IAavePool {
+    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
+    function getUserAccountData(address user) external view returns (
+        uint256 totalCollateralBase,
+        uint256 totalDebtBase,
+        uint256 availableBorrowsBase,
+        uint256 currentLiquidationThreshold,
+        uint256 ltv,
+        uint256 healthFactor
+    );
+}
+
+interface IAToken is IERC20 {
+    function UNDERLYING_ASSET_ADDRESS() external view returns (address);
+}
 
 /**
  * @title GroupFiTreasury
- * @dev Smart contract for managing group investment decisions and treasury
- * Integrates with XMTP messaging and AgentKit for automated execution
+ * @dev Multi-signature treasury contract with Aave V3 integration for group investment coordination
+ * @notice Manages group proposals, voting, and automated DeFi execution through Aave lending
  */
 contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
-    using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
 
     // Role definitions
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
+    bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
+    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
     bytes32 public constant AGENT_ROLE = keccak256("AGENT_ROLE");
-    bytes32 public constant MEMBER_ROLE = keccak256("MEMBER_ROLE");
 
-    // Proposal status enum
-    enum ProposalStatus {
-        Active,
-        Approved,
-        Rejected,
-        Executed,
-        Expired
-    }
+    // Aave V3 Pool address on Base
+    IAavePool public constant AAVE_POOL = IAavePool(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5);
+    
+    // USDC token addresses
+    address public constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // Base Mainnet
+    // address public constant USDC = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // Base Sepolia
+    
+    // aUSDC token (received from Aave when supplying)
+    address public immutable aUSDC;
 
-    // Investment strategy types
-    enum StrategyType {
-        Lending,      // Aave, Compound
-        Staking,      // Liquid staking
-        LP,           // Uniswap LPs
-        YieldFarm,    // Yield farming
-        Custom        // AI agent custom strategy
-    }
-
-    struct Member {
-        address wallet;
-        uint256 contributedAmount;
-        uint256 votingPower;
-        bool isActive;
-        uint256 joinedAt;
-        string xmtpAddress; // For XMTP integration
-    }
-
+    // Proposal structure
     struct Proposal {
-        string id;                    // Matches database ID
-        string xmtpGroupId;          // XMTP group ID for messaging
-        string title;
-        string description;
-        string strategy;             // Natural language strategy
-        StrategyType strategyType;
+        uint256 id;
         address proposer;
-        address targetToken;
+        ProposalType proposalType;
         uint256 amount;
+        address target;
+        bytes data;
+        string description;
+        uint256 votesFor;
+        uint256 votesAgainst;
         uint256 deadline;
-        uint256 requiredVotes;
-        uint256 approvalVotes;
-        uint256 rejectionVotes;
-        ProposalStatus status;
-        uint256 createdAt;
-        bytes32 strategyHash;        // Hash for strategy verification
-        address executionTarget;     // Contract to execute strategy
-        bytes executionData;         // Encoded function call
+        bool executed;
+        bool cancelled;
+        mapping(address => bool) hasVoted;
+        mapping(address => bool) voteChoice; // true = for, false = against
     }
 
-    struct GroupConfig {
-        string xmtpGroupId;
-        uint256 minVotingPower;
-        uint256 votingDuration;
-        uint256 executionDelay;
-        uint256 quorumPercentage;
-        bool autoExecute;
-        uint256 maxProposalAmount;
+    enum ProposalType {
+        DEPOSIT_AAVE,      // Supply USDC to Aave
+        WITHDRAW_AAVE,     // Withdraw USDC from Aave  
+        TRANSFER,          // Transfer tokens to address
+        EMERGENCY_WITHDRAW, // Emergency withdrawal
+        ADD_MEMBER,        // Add new member
+        REMOVE_MEMBER      // Remove member
     }
 
-    // State variables
-    string public groupId;           // Matches database group ID
-    GroupConfig public config;
-    uint256 public totalFunds;
-    uint256 public totalMembers;
+    // Storage
+    mapping(uint256 => Proposal) public proposals;
+    mapping(address => uint256) public memberVotingPower;
     
-    mapping(address => Member) public members;
-    mapping(string => Proposal) public proposals;
-    mapping(string => mapping(address => bool)) public hasVoted;
-    mapping(address => uint256) public tokenBalances;
-    mapping(address => bool) public approvedTokens;
-    
-    address[] public memberList;
-    string[] public proposalList;
-    address[] public approvedTokenList;
+    uint256 public proposalCount;
+    uint256 public totalVotingPower;
+    uint256 public quorumPercentage = 51; // 51% required for approval
+    uint256 public votingPeriod = 3 days;
+    uint256 public minProposalAmount = 10 * 1e6; // 10 USDC
+    uint256 public maxProposalAmount = 1_000_000 * 1e6; // 1M USDC
 
-    // Events for XMTP and frontend integration
-    event GroupInitialized(string indexed groupId, string xmtpGroupId, address creator);
-    event MemberAdded(address indexed member, uint256 votingPower, string xmtpAddress);
-    event MemberRemoved(address indexed member);
-    event FundsDeposited(address indexed member, address indexed token, uint256 amount);
-    event FundsWithdrawn(address indexed member, address indexed token, uint256 amount);
-    
+    // Events
     event ProposalCreated(
-        string indexed proposalId,
+        uint256 indexed proposalId,
         address indexed proposer,
-        string title,
+        ProposalType proposalType,
         uint256 amount,
-        uint256 deadline
+        string description
     );
     
     event VoteCast(
-        string indexed proposalId,
+        uint256 indexed proposalId,
         address indexed voter,
-        bool approval,
+        bool support,
         uint256 votingPower
     );
     
-    event ProposalStatusChanged(
-        string indexed proposalId,
-        ProposalStatus oldStatus,
-        ProposalStatus newStatus
-    );
-    
-    event ProposalExecuted(
-        string indexed proposalId,
-        bool success,
-        uint256 amount,
-        address executor
-    );
+    event ProposalExecuted(uint256 indexed proposalId, bool success);
+    event ProposalCancelled(uint256 indexed proposalId);
+    event MemberAdded(address indexed member, uint256 votingPower);
+    event MemberRemoved(address indexed member);
+    event SuppliedToAave(uint256 amount, uint256 aTokensReceived);
+    event WithdrawnFromAave(uint256 aTokenAmount, uint256 underlyingReceived);
 
-    event AgentExecutionRequested(
-        string indexed proposalId,
-        string strategy,
-        uint256 amount,
-        address token
-    );
-
-    modifier onlyMember() {
-        require(hasRole(MEMBER_ROLE, msg.sender), "Not a group member");
-        require(members[msg.sender].isActive, "Member not active");
-        _;
-    }
-
-    modifier proposalExists(string memory proposalId) {
-        require(bytes(proposals[proposalId].id).length > 0, "Proposal does not exist");
-        _;
-    }
-
-    modifier proposalActive(string memory proposalId) {
-        Proposal storage proposal = proposals[proposalId];
-        require(proposal.status == ProposalStatus.Active, "Proposal not active");
-        require(block.timestamp <= proposal.deadline, "Proposal expired");
-        _;
-    }
+    // Errors
+    error ProposalNotFound();
+    error ProposalAlreadyExecuted();
+    error ProposalDeadlinePassed();
+    error ProposalStillActive();
+    error InsufficientQuorum();
+    error AlreadyVoted();
+    error InvalidAmount();
+    error InvalidProposalType();
+    error UnauthorizedAccess();
+    error TransferFailed();
 
     constructor(
-        string memory _groupId,
-        string memory _xmtpGroupId,
-        address _creator,
-        string memory _creatorXmtpAddress,
-        GroupConfig memory _config
+        address[] memory _initialMembers,
+        uint256[] memory _votingPowers,
+        address _aUSDCAddress
     ) {
-        groupId = _groupId;
-        config = _config;
+        require(_initialMembers.length == _votingPowers.length, "Array length mismatch");
+        require(_initialMembers.length > 0, "No initial members");
+        require(_aUSDCAddress != address(0), "Invalid aUSDC address");
+
+        // Set up roles
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         
-        _grantRole(DEFAULT_ADMIN_ROLE, _creator);
-        _grantRole(ADMIN_ROLE, _creator);
-        _grantRole(MEMBER_ROLE, _creator);
+        // Add initial members
+        for (uint256 i = 0; i < _initialMembers.length; i++) {
+            _addMember(_initialMembers[i], _votingPowers[i]);
+        }
 
-        // Add creator as first member
-        members[_creator] = Member({
-            wallet: _creator,
-            contributedAmount: 0,
-            votingPower: 100, // Creator gets 100 voting power initially
-            isActive: true,
-            joinedAt: block.timestamp,
-            xmtpAddress: _creatorXmtpAddress
-        });
-        
-        memberList.push(_creator);
-        totalMembers = 1;
-
-        // Approve common tokens (USDC, USDT, WETH, DAI)
-        _approveToken(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913); // USDC on Base
-        _approveToken(0x4200000000000000000000000000000000000006); // WETH on Base
-
-        emit GroupInitialized(_groupId, _xmtpGroupId, _creator);
-        emit MemberAdded(_creator, 100, _creatorXmtpAddress);
+        aUSDC = _aUSDCAddress;
     }
 
     /**
      * @dev Add a new member to the group
      */
-    function addMember(
-        address memberAddress,
-        uint256 votingPower,
-        string memory xmtpAddress
-    ) external onlyRole(ADMIN_ROLE) {
-        require(!hasRole(MEMBER_ROLE, memberAddress), "Already a member");
+    function _addMember(address member, uint256 votingPower) internal {
+        require(member != address(0), "Invalid member address");
         require(votingPower > 0, "Voting power must be positive");
+        require(memberVotingPower[member] == 0, "Member already exists");
 
-        _grantRole(MEMBER_ROLE, memberAddress);
-        
-        members[memberAddress] = Member({
-            wallet: memberAddress,
-            contributedAmount: 0,
-            votingPower: votingPower,
-            isActive: true,
-            joinedAt: block.timestamp,
-            xmtpAddress: xmtpAddress
-        });
-        
-        memberList.push(memberAddress);
-        totalMembers++;
+        memberVotingPower[member] = votingPower;
+        totalVotingPower += votingPower;
 
-        emit MemberAdded(memberAddress, votingPower, xmtpAddress);
+        _grantRole(PROPOSER_ROLE, member);
+        _grantRole(VOTER_ROLE, member);
+        _grantRole(EXECUTOR_ROLE, member);
+
+        emit MemberAdded(member, votingPower);
     }
 
     /**
-     * @dev Remove a member from the group
-     */
-    function removeMember(address memberAddress) external onlyRole(ADMIN_ROLE) {
-        require(hasRole(MEMBER_ROLE, memberAddress), "Not a member");
-        require(memberAddress != getRoleMember(DEFAULT_ADMIN_ROLE, 0), "Cannot remove creator");
-
-        _revokeRole(MEMBER_ROLE, memberAddress);
-        members[memberAddress].isActive = false;
-        totalMembers--;
-
-        emit MemberRemoved(memberAddress);
-    }
-
-    /**
-     * @dev Deposit funds to the group treasury
-     */
-    function depositFunds(address token, uint256 amount) 
-        external 
-        onlyMember 
-        nonReentrant 
-    {
-        require(approvedTokens[token], "Token not approved");
-        require(amount > 0, "Amount must be positive");
-
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        
-        tokenBalances[token] += amount;
-        members[msg.sender].contributedAmount += amount;
-        totalFunds += amount;
-
-        emit FundsDeposited(msg.sender, token, amount);
-    }
-
-    /**
-     * @dev Create an investment proposal
+     * @dev Create a new proposal
      */
     function createProposal(
-        string memory proposalId,
-        string memory title,
-        string memory description,
-        string memory strategy,
-        StrategyType strategyType,
-        address targetToken,
-        uint256 amount,
-        uint256 votingDuration,
-        address executionTarget,
-        bytes memory executionData
-    ) external onlyMember {
-        require(bytes(proposals[proposalId].id).length == 0, "Proposal already exists");
-        require(amount <= tokenBalances[targetToken], "Insufficient funds");
-        require(amount <= config.maxProposalAmount, "Amount exceeds maximum");
-        require(votingDuration <= config.votingDuration, "Voting duration too long");
+        ProposalType _type,
+        uint256 _amount,
+        address _target,
+        bytes calldata _data,
+        string calldata _description
+    ) external onlyRole(PROPOSER_ROLE) whenNotPaused returns (uint256) {
+        require(_amount >= minProposalAmount && _amount <= maxProposalAmount, "Invalid amount");
+        
+        uint256 proposalId = proposalCount++;
+        Proposal storage proposal = proposals[proposalId];
+        
+        proposal.id = proposalId;
+        proposal.proposer = msg.sender;
+        proposal.proposalType = _type;
+        proposal.amount = _amount;
+        proposal.target = _target;
+        proposal.data = _data;
+        proposal.description = _description;
+        proposal.deadline = block.timestamp + votingPeriod;
 
-        uint256 deadline = block.timestamp + votingDuration;
-        bytes32 strategyHash = keccak256(abi.encodePacked(strategy, amount, targetToken));
-
-        proposals[proposalId] = Proposal({
-            id: proposalId,
-            xmtpGroupId: config.xmtpGroupId,
-            title: title,
-            description: description,
-            strategy: strategy,
-            strategyType: strategyType,
-            proposer: msg.sender,
-            targetToken: targetToken,
-            amount: amount,
-            deadline: deadline,
-            requiredVotes: _calculateRequiredVotes(),
-            approvalVotes: 0,
-            rejectionVotes: 0,
-            status: ProposalStatus.Active,
-            createdAt: block.timestamp,
-            strategyHash: strategyHash,
-            executionTarget: executionTarget,
-            executionData: executionData
-        });
-
-        proposalList.push(proposalId);
-
-        emit ProposalCreated(proposalId, msg.sender, title, amount, deadline);
+        emit ProposalCreated(proposalId, msg.sender, _type, _amount, _description);
+        return proposalId;
     }
 
     /**
-     * @dev Vote on a proposal
+     * @dev Cast a vote on a proposal
      */
-    function vote(string memory proposalId, bool approval) 
-        external 
-        onlyMember 
-        proposalExists(proposalId) 
-        proposalActive(proposalId) 
-    {
-        require(!hasVoted[proposalId][msg.sender], "Already voted");
-
-        uint256 votingPower = members[msg.sender].votingPower;
-        hasVoted[proposalId][msg.sender] = true;
-
-        Proposal storage proposal = proposals[proposalId];
+    function vote(uint256 _proposalId, bool _support) external onlyRole(VOTER_ROLE) whenNotPaused {
+        Proposal storage proposal = proposals[_proposalId];
         
-        if (approval) {
-            proposal.approvalVotes += votingPower;
+        if (proposal.proposer == address(0)) revert ProposalNotFound();
+        if (proposal.executed || proposal.cancelled) revert ProposalAlreadyExecuted();
+        if (block.timestamp > proposal.deadline) revert ProposalDeadlinePassed();
+        if (proposal.hasVoted[msg.sender]) revert AlreadyVoted();
+
+        uint256 votingPower = memberVotingPower[msg.sender];
+        require(votingPower > 0, "No voting power");
+
+        proposal.hasVoted[msg.sender] = true;
+        proposal.voteChoice[msg.sender] = _support;
+
+        if (_support) {
+            proposal.votesFor += votingPower;
         } else {
-            proposal.rejectionVotes += votingPower;
+            proposal.votesAgainst += votingPower;
         }
 
-        emit VoteCast(proposalId, msg.sender, approval, votingPower);
-
-        // Check if proposal should be executed
-        _checkProposalExecution(proposalId);
+        emit VoteCast(_proposalId, msg.sender, _support, votingPower);
     }
 
     /**
-     * @dev Execute a proposal (can be called by agent or admin)
+     * @dev Execute a proposal after voting period
      */
-    function executeProposal(string memory proposalId) 
-        external 
-        proposalExists(proposalId) 
-        nonReentrant 
-    {
-        require(
-            hasRole(AGENT_ROLE, msg.sender) || hasRole(ADMIN_ROLE, msg.sender),
-            "Not authorized to execute"
-        );
-
-        Proposal storage proposal = proposals[proposalId];
-        require(proposal.status == ProposalStatus.Approved, "Proposal not approved");
-
-        // Mark as executed first to prevent reentrancy
-        proposal.status = ProposalStatus.Executed;
-
-        bool success = false;
+    function executeProposal(uint256 _proposalId) external onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
+        Proposal storage proposal = proposals[_proposalId];
         
-        if (proposal.executionTarget != address(0) && proposal.executionData.length > 0) {
-            // Execute custom strategy through target contract
-            (success,) = proposal.executionTarget.call(proposal.executionData);
-        } else {
-            // For AgentKit integration - emit event for off-chain execution
-            emit AgentExecutionRequested(
-                proposalId,
-                proposal.strategy,
-                proposal.amount,
-                proposal.targetToken
-            );
-            success = true; // AgentKit will handle the actual execution
-        }
+        if (proposal.proposer == address(0)) revert ProposalNotFound();
+        if (proposal.executed || proposal.cancelled) revert ProposalAlreadyExecuted();
+        if (block.timestamp <= proposal.deadline) revert ProposalStillActive();
 
-        if (success) {
-            // Update balances
-            tokenBalances[proposal.targetToken] -= proposal.amount;
-            totalFunds -= proposal.amount;
-        }
-
-        emit ProposalExecuted(proposalId, success, proposal.amount, msg.sender);
-        emit ProposalStatusChanged(proposalId, ProposalStatus.Approved, ProposalStatus.Executed);
-    }
-
-    /**
-     * @dev Emergency withdraw function (admin only, when paused)
-     */
-    function emergencyWithdraw(address token, uint256 amount, address to) 
-        external 
-        onlyRole(ADMIN_ROLE) 
-        whenPaused 
-    {
-        IERC20(token).safeTransfer(to, amount);
-    }
-
-    /**
-     * @dev Approve a token for deposits
-     */
-    function approveToken(address token) external onlyRole(ADMIN_ROLE) {
-        _approveToken(token);
-    }
-
-    /**
-     * @dev Add agent address for automated execution
-     */
-    function addAgent(address agent) external onlyRole(ADMIN_ROLE) {
-        _grantRole(AGENT_ROLE, agent);
-    }
-
-    // Internal functions
-    function _calculateRequiredVotes() internal view returns (uint256) {
-        uint256 totalVotingPower = 0;
-        for (uint256 i = 0; i < memberList.length; i++) {
-            if (members[memberList[i]].isActive) {
-                totalVotingPower += members[memberList[i]].votingPower;
-            }
-        }
-        return (totalVotingPower * config.quorumPercentage) / 100;
-    }
-
-    function _checkProposalExecution(string memory proposalId) internal {
-        Proposal storage proposal = proposals[proposalId];
+        // Check quorum
+        uint256 totalVotes = proposal.votesFor + proposal.votesAgainst;
+        uint256 requiredQuorum = (totalVotingPower * quorumPercentage) / 100;
         
-        if (proposal.approvalVotes >= proposal.requiredVotes) {
-            proposal.status = ProposalStatus.Approved;
-            emit ProposalStatusChanged(proposalId, ProposalStatus.Active, ProposalStatus.Approved);
+        if (totalVotes < requiredQuorum || proposal.votesFor <= proposal.votesAgainst) {
+            revert InsufficientQuorum();
+        }
+
+        proposal.executed = true;
+        bool success = _executeProposalAction(proposal);
+
+        emit ProposalExecuted(_proposalId, success);
+    }
+
+    /**
+     * @dev Execute the actual proposal action
+     */
+    function _executeProposalAction(Proposal storage proposal) internal returns (bool) {
+        if (proposal.proposalType == ProposalType.DEPOSIT_AAVE) {
+            return _supplyToAave(proposal.amount);
+        } else if (proposal.proposalType == ProposalType.WITHDRAW_AAVE) {
+            return _withdrawFromAave(proposal.amount);
+        } else if (proposal.proposalType == ProposalType.TRANSFER) {
+            return _transferTokens(proposal.target, proposal.amount);
+        } else if (proposal.proposalType == ProposalType.EMERGENCY_WITHDRAW) {
+            return _emergencyWithdraw();
+        }
+        
+        return false;
+    }
+
+    /**
+     * @dev Supply USDC to Aave V3
+     */
+    function _supplyToAave(uint256 amount) internal returns (bool) {
+        try IERC20(USDC).safeApprove(address(AAVE_POOL), amount) {
+            uint256 balanceBefore = IERC20(aUSDC).balanceOf(address(this));
             
-            if (config.autoExecute) {
-                // Auto-execute if enabled
-                this.executeProposal(proposalId);
-            }
-        } else if (block.timestamp > proposal.deadline) {
-            if (proposal.approvalVotes >= proposal.requiredVotes) {
-                proposal.status = ProposalStatus.Approved;
-                emit ProposalStatusChanged(proposalId, ProposalStatus.Active, ProposalStatus.Approved);
-            } else {
-                proposal.status = ProposalStatus.Expired;
-                emit ProposalStatusChanged(proposalId, ProposalStatus.Active, ProposalStatus.Expired);
-            }
+            AAVE_POOL.supply(USDC, amount, address(this), 0);
+            
+            uint256 balanceAfter = IERC20(aUSDC).balanceOf(address(this));
+            uint256 aTokensReceived = balanceAfter - balanceBefore;
+            
+            emit SuppliedToAave(amount, aTokensReceived);
+            return true;
+        } catch {
+            return false;
         }
     }
 
-    function _approveToken(address token) internal {
-        if (!approvedTokens[token]) {
-            approvedTokens[token] = true;
-            approvedTokenList.push(token);
+    /**
+     * @dev Withdraw from Aave V3
+     */
+    function _withdrawFromAave(uint256 amount) internal returns (bool) {
+        try AAVE_POOL.withdraw(USDC, amount, address(this)) returns (uint256 withdrawn) {
+            emit WithdrawnFromAave(amount, withdrawn);
+            return true;
+        } catch {
+            return false;
         }
+    }
+
+    /**
+     * @dev Transfer tokens to specified address
+     */
+    function _transferTokens(address to, uint256 amount) internal returns (bool) {
+        try IERC20(USDC).safeTransfer(to, amount) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * @dev Emergency withdraw all funds from Aave
+     */
+    function _emergencyWithdraw() internal returns (bool) {
+        uint256 aTokenBalance = IERC20(aUSDC).balanceOf(address(this));
+        if (aTokenBalance > 0) {
+            try AAVE_POOL.withdraw(USDC, type(uint256).max, address(this)) {
+                return true;
+            } catch {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Agent role functions for automated execution
+    function agentExecuteProposal(uint256 _proposalId) external onlyRole(AGENT_ROLE) nonReentrant {
+        // Agents can execute pre-approved proposals with simplified requirements
+        Proposal storage proposal = proposals[_proposalId];
+        require(proposal.proposer != address(0), "Proposal not found");
+        require(!proposal.executed && !proposal.cancelled, "Proposal already processed");
+        require(proposal.votesFor > proposal.votesAgainst, "Proposal not approved");
+        
+        proposal.executed = true;
+        _executeProposalAction(proposal);
+        
+        emit ProposalExecuted(_proposalId, true);
     }
 
     // View functions
-    function getProposal(string memory proposalId) external view returns (Proposal memory) {
-        return proposals[proposalId];
+    function getProposal(uint256 _proposalId) external view returns (
+        uint256 id,
+        address proposer,
+        ProposalType proposalType,
+        uint256 amount,
+        address target,
+        string memory description,
+        uint256 votesFor,
+        uint256 votesAgainst,
+        uint256 deadline,
+        bool executed,
+        bool cancelled
+    ) {
+        Proposal storage proposal = proposals[_proposalId];
+        return (
+            proposal.id,
+            proposal.proposer,
+            proposal.proposalType,
+            proposal.amount,
+            proposal.target,
+            proposal.description,
+            proposal.votesFor,
+            proposal.votesAgainst,
+            proposal.deadline,
+            proposal.executed,
+            proposal.cancelled
+        );
     }
 
-    function getMember(address memberAddress) external view returns (Member memory) {
-        return members[memberAddress];
+    function getTreasuryBalance() external view returns (uint256 usdcBalance, uint256 aUsdcBalance) {
+        usdcBalance = IERC20(USDC).balanceOf(address(this));
+        aUsdcBalance = IERC20(aUSDC).balanceOf(address(this));
     }
 
-    function getAllMembers() external view returns (address[] memory) {
-        return memberList;
-    }
-
-    function getAllProposals() external view returns (string[] memory) {
-        return proposalList;
-    }
-
-    function getTokenBalance(address token) external view returns (uint256) {
-        return tokenBalances[token];
-    }
-
-    function getApprovedTokens() external view returns (address[] memory) {
-        return approvedTokenList;
-    }
-
-    function hasVotedOnProposal(string memory proposalId, address voter) 
-        external 
-        view 
-        returns (bool) 
-    {
-        return hasVoted[proposalId][voter];
+    function getAavePosition() external view returns (
+        uint256 totalCollateral,
+        uint256 availableLiquidity
+    ) {
+        (totalCollateral,,,,,) = AAVE_POOL.getUserAccountData(address(this));
+        availableLiquidity = IERC20(aUSDC).balanceOf(address(this));
     }
 
     // Admin functions
-    function pause() external onlyRole(ADMIN_ROLE) {
+    function updateQuorum(uint256 _newQuorum) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_newQuorum > 0 && _newQuorum <= 100, "Invalid quorum");
+        quorumPercentage = _newQuorum;
+    }
+
+    function updateVotingPeriod(uint256 _newPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_newPeriod >= 1 hours && _newPeriod <= 30 days, "Invalid period");
+        votingPeriod = _newPeriod;
+    }
+
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyRole(ADMIN_ROLE) {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
-    function updateConfig(GroupConfig memory newConfig) external onlyRole(ADMIN_ROLE) {
-        config = newConfig;
+    // Emergency function to recover any stuck tokens
+    function emergencyRecover(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IERC20(token).safeTransfer(msg.sender, amount);
     }
 }
