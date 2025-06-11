@@ -1,7 +1,5 @@
 import fs from 'fs';
 import { AgentKit, erc20ActionProvider, pythActionProvider, walletActionProvider, cdpApiActionProvider } from '@coinbase/agentkit';
-// The following imports may need to be adjusted based on the actual package structure
-// If these are not correct, please update them to match your node_modules
 import { SmartWalletProvider } from '@coinbase/agentkit';
 import { Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';

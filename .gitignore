@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/wallet-data.json
+/coinbase_cloud_api_key.json

@@ -1,3 +1,4 @@
+// debug-env.js - Run this to check your environment setup
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config({ path: '.env' });
 

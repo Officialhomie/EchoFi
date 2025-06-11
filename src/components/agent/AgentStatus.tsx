@@ -32,9 +32,7 @@ export function AgentStatus({
     isInitialized, 
     isInitializing, 
     error, 
-    initializationStatus,
-    initializationMessages,
-    forceReinitialize,
+    initializeAgent,
     checkHealth 
   } = useInvestmentAgent();
 
@@ -90,7 +88,7 @@ export function AgentStatus({
 
   const handleForceReinit = async () => {
     try {
-      await forceReinitialize();
+      await initializeAgent();
     } catch (error) {
       console.error('Reinitialization failed:', error);
     }
@@ -143,9 +141,8 @@ export function AgentStatus({
           <div>
             <span className="text-gray-600">Last Check:</span>
             <span className="ml-2 font-medium">
-              {initializationStatus.lastInitAttempt ? 
-                new Date(initializationStatus.lastInitAttempt).toLocaleTimeString() : 
-                'Never'}
+              {/* No lastInitAttempt available, so just show N/A */}
+              N/A
             </span>
           </div>
         </div>
@@ -206,17 +203,17 @@ export function AgentStatus({
             <div className="space-y-1 text-xs text-gray-600">
               <div className="flex justify-between">
                 <span>Initialized:</span>
-                <span>{initializationStatus.isInitialized ? '✅' : '❌'}</span>
+                <span>{isInitialized ? '✅' : '❌'}</span>
               </div>
               <div className="flex justify-between">
                 <span>Initializing:</span>
-                <span>{initializationStatus.isInitializing ? '🔄' : '⏸️'}</span>
+                <span>{isInitializing ? '🔄' : '⏸️'}</span>
               </div>
-              {initializationStatus.error && (
+              {error && (
                 <div className="flex justify-between">
                   <span>Error:</span>
                   <span className="text-red-600 text-right max-w-32 truncate">
-                    {initializationStatus.error}
+                    {error}
                   </span>
                 </div>
               )}
@@ -225,15 +222,11 @@ export function AgentStatus({
         )}
 
         {/* Recent Messages */}
-        {showMessages && initializationMessages.length > 0 && (
+        {showMessages && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Recent Activity</h4>
             <div className="max-h-32 overflow-y-auto space-y-1">
-              {initializationMessages.map((message, index) => (
-                <div key={index} className="text-xs font-mono text-gray-600 p-2 bg-gray-50 rounded">
-                  {message}
-                </div>
-              ))}
+              {/* Removed initializationMessages section as it is no longer available */}
             </div>
           </div>
         )}
@@ -277,17 +270,13 @@ export function useAgentStatus() {
   const { 
     isInitialized, 
     isInitializing, 
-    error, 
-    initializationStatus,
-    initializationMessages 
+    error
   } = useInvestmentAgent();
 
   return {
     isInitialized,
     isInitializing,
     error,
-    status: initializationStatus,
-    messages: initializationMessages,
     isReady: isInitialized && !error,
     hasError: !!error,
   };

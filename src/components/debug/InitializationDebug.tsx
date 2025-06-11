@@ -133,7 +133,7 @@ export function InitializationDebug() {
               </div>
               <div className="flex justify-between">
                 <span>Messages:</span>
-                <span>{agent.initializationMessages.length}</span>
+                <span>N/A</span>
               </div>
               {agent.error && (
                 <div className="text-red-400 text-xs break-words">
@@ -187,18 +187,7 @@ export function InitializationDebug() {
           )}
 
           {/* Recent Agent Messages */}
-          {agent.initializationMessages.length > 0 && (
-            <div>
-              <h4 className="font-medium text-green-400 mb-1">Recent Messages</h4>
-              <div className="max-h-20 overflow-y-auto space-y-0.5">
-                {agent.initializationMessages.slice(-3).map((msg, i) => (
-                  <div key={i} className="text-xs text-gray-300 font-mono break-words">
-                    {msg.split('] ')[1] || msg}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Removed agent.initializationMessages section as it is no longer available */}
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-2">
@@ -211,7 +200,7 @@ export function InitializationDebug() {
               🏥 Health
             </Button>
             <Button 
-              onClick={() => agent.forceReinitialize()}
+              onClick={() => agent.initializeAgent()}
               size="sm"
               variant="outline"
               className="flex-1 text-xs border-gray-600 text-gray-300 hover:bg-gray-800"

@@ -73,7 +73,7 @@ export function AppProvider({ children }: AppProviderProps) {
   
   const wallet = useWallet();
   const xmtp = useXMTP();
-  const agent = useInvestmentAgent({ autoInitialize: true, pollingInterval: 2000 });
+  const agent = useInvestmentAgent({ autoInitialize: true });
 
   const clearError = useCallback(() => {
     setError(null);
@@ -242,14 +242,6 @@ export function AppProvider({ children }: AppProviderProps) {
       }
     }
   }, [error, initializationAttempt, retryInitialization]);
-
-  // Debug logging for agent status changes
-  useEffect(() => {
-    if (agent.initializationMessages.length > 0) {
-      const lastMessage = agent.initializationMessages[agent.initializationMessages.length - 1];
-      console.log('🤖 Agent Status Update:', lastMessage);
-    }
-  }, [agent.initializationMessages]);
 
   const value: AppContextType = {
     isInitialized,
