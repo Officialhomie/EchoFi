@@ -42,3 +42,27 @@ next-env.d.ts
 
 /wallet-data.json
 /coinbase_cloud_api_key.json
+
+# Foundry/forge build artifacts (Solidity)
+contracts/out/
+contracts/cache/
+contracts/artifacts/
+
+# Common Solidity/Foundry ignores
+*.sol.json
+
+# Ignore local test and script outputs
+contracts/test/*.t.sol
+contracts/script/*.s.sol
+
+# Ignore OpenZeppelin and forge-std libraries if vendored
+contracts/lib/openzeppelin-contracts/
+contracts/lib/forge-std/
+
+# Ignore root build/test artifacts
+/build/
+/out/
+/coverage/
+
+# Ignore Mac system files
+.DS_Store

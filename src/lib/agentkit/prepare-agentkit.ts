@@ -5,29 +5,29 @@ import {
     cdpApiActionProvider,
     erc20ActionProvider,
     pythActionProvider,
-    ViemWalletProvider,
+    SmartWalletProvider,
     WalletProvider,
     walletActionProvider,
     wethActionProvider,
   } from "@coinbase/agentkit";
   import fs from "fs";
-  import { createWalletClient, http } from "viem";
   import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-  import { base, baseSepolia } from "viem/chains";
+  import { Hex } from "viem";
+  import { formatEther } from "viem";
   
   /**
    * WalletData type for persisting wallet information
    */
   export type WalletData = {
     privateKey: string;
-    address?: string;
+    smartWalletAddress?: string;
   };
   
-  // Path to store wallet data
-  const WALLET_DATA_FILE = "./wallet_data.json";
+  // Configure a file to persist a user's private key if none provided
+  const WALLET_DATA_FILE = "wallet_data.json";
   
   /**
-   * Prepares the AgentKit and WalletProvider following the official example pattern
+   * Prepares the AgentKit and WalletProvider with real values and configuration
    *
    * @returns {Promise<{ agentkit: AgentKit, walletProvider: WalletProvider }>} The initialized AI agent and wallet provider
    */
@@ -38,127 +38,149 @@ import {
     // Validate required environment variables
     if (!process.env.CDP_API_KEY_NAME || !process.env.CDP_API_KEY_PRIVATE_KEY) {
       throw new Error(
-        "CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE_KEY are required in environment variables"
+        "CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE_KEY are required in environment variables for AgentKit functionality"
       );
     }
   
     try {
-      // Initialize WalletProvider with proper private key handling
-      let privateKey: `0x${string}` | undefined;
-      
-      // First, try to get from environment variable
-      if (process.env.PRIVATE_KEY) {
-        const envKey = process.env.PRIVATE_KEY.trim();
-        // Ensure proper hex format
-        if (envKey.startsWith('0x') && envKey.length === 66) {
-          privateKey = envKey as `0x${string}`;
-          console.log("✅ Using private key from environment variable");
-        } else {
-          console.warn("⚠️ PRIVATE_KEY in environment is not in correct format (should be 0x... and 66 characters)");
-        }
-      }
-      
-      // If no valid private key from env, check wallet data file
-      if (!privateKey && fs.existsSync(WALLET_DATA_FILE)) {
+      console.log("🔐 Initializing EchoFi wallet provider...");
+  
+      let walletData: WalletData | null = null;
+      let privateKey: Hex | null = null;
+      let isExistingWallet = false;
+  
+      // Read existing wallet data if available
+      if (fs.existsSync(WALLET_DATA_FILE)) {
         try {
-          const walletData: WalletData = JSON.parse(fs.readFileSync(WALLET_DATA_FILE, "utf8"));
-          if (walletData.privateKey) {
-            const fileKey = walletData.privateKey.trim();
-            if (fileKey.startsWith('0x') && fileKey.length === 66) {
-              privateKey = fileKey as `0x${string}`;
-              console.log("✅ Using private key from wallet_data.json");
-            } else {
-              console.warn("⚠️ Private key in wallet_data.json is not in correct format");
-            }
+          walletData = JSON.parse(fs.readFileSync(WALLET_DATA_FILE, 'utf8')) as WalletData;
+          privateKey = walletData.privateKey as Hex;
+          isExistingWallet = true;
+          console.log("✅ Found existing wallet configuration");
+          console.log(`   Wallet file: ${WALLET_DATA_FILE}`);
+          if (walletData.smartWalletAddress) {
+            console.log(`   Smart wallet: ${walletData.smartWalletAddress}`);
           }
         } catch (error) {
-          console.warn("⚠️ Failed to read wallet_data.json:", error);
+          console.error('❌ Error reading wallet data:', error);
         }
       }
-      
-      // Generate new private key if none exists or is valid
+  
+      // Get private key from environment or generate new one
       if (!privateKey) {
-        privateKey = generatePrivateKey();
-        const walletData: WalletData = { 
-          privateKey,
-          address: undefined // Will be set after creating account
-        };
+        if (walletData?.smartWalletAddress) {
+          throw new Error(
+            `Found smart wallet ${walletData.smartWalletAddress} but cannot access private key. Please provide PRIVATE_KEY in your .env file or delete ${WALLET_DATA_FILE} to create a new wallet.`,
+          );
+        }
         
-        try {
-          fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(walletData, null, 2));
-          console.log("🔑 Generated new private key and saved to wallet_data.json");
-          console.log("💡 Consider saving this private key to your .env.local file as PRIVATE_KEY");
-          console.log(`   PRIVATE_KEY=${privateKey}`);
-        } catch (error) {
-          console.warn("⚠️ Could not save wallet data to file:", error);
+        if (process.env.PRIVATE_KEY) {
+          privateKey = process.env.PRIVATE_KEY as Hex;
+          console.log("🔑 Using private key from environment variable");
+        } else {
+          privateKey = generatePrivateKey();
+          console.log("🔑 Generated new private key for wallet");
+          console.log("💡 Tip: Save this private key to your .env file as PRIVATE_KEY for persistence");
         }
       }
   
-      // Validate private key format before using
-      if (!privateKey || !privateKey.startsWith('0x') || privateKey.length !== 66) {
-        throw new Error(`Invalid private key format. Expected 0x followed by 64 hex characters, got: ${privateKey ? privateKey.substring(0, 10) + '...' : 'undefined'}`);
-      }
+      // Create signer from private key
+      const signer = privateKeyToAccount(privateKey);
+      const signerAddress = signer.address;
+      console.log(`📝 Signer address: ${signerAddress}`);
   
-      // Create account from private key
-      let account;
-      try {
-        account = privateKeyToAccount(privateKey);
-        console.log(`✅ Created account: ${account.address}`);
-      } catch (error) {
-        throw new Error(`Failed to create account from private key: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      // Get network configuration
+      const networkId = process.env.NETWORK_ID || 'base-sepolia';
+      const isTestnet = networkId.includes('sepolia');
+      const networkDisplayName = isTestnet ? 'Base Sepolia (Testnet)' : 'Base Mainnet';
+      
+      console.log(`🌐 Target network: ${networkDisplayName} (${networkId})`);
   
-      // Determine chain based on environment
-      const networkId = process.env.NETWORK_ID || "base-sepolia";
-      const isMainnet = networkId === "base-mainnet";
-      const chain = isMainnet ? base : baseSepolia;
-      const rpcUrl = isMainnet 
-        ? "https://mainnet.base.org" 
-        : "https://sepolia.base.org";
-  
-      // Create wallet client
-      const client = createWalletClient({
-        account,
-        chain,
-        transport: http(rpcUrl),
+      // Initialize Smart Wallet Provider with real configuration
+      const walletProvider = await SmartWalletProvider.configureWithWallet({
+        networkId,
+        signer,
+        smartWalletAddress: walletData?.smartWalletAddress as `0x${string}`,
+        paymasterUrl: undefined, // Add paymaster URL for sponsored transactions if needed
       });
   
-      // Create wallet provider
-      const walletProvider = new ViemWalletProvider(client);
+      // Get real wallet information
+      const smartWalletAddress = walletProvider.getAddress();
+      const network = walletProvider.getNetwork();
+      
+      console.log("✅ Smart Wallet Provider initialized successfully");
+      console.log(`   Smart wallet address: ${smartWalletAddress}`);
+      console.log(`   Network ID: ${network.networkId}`);
+      console.log(`   Chain ID: ${network.chainId}`);
+    //   console.log(`   RPC URL: ${network.r}`);
   
-      // Initialize AgentKit with action providers
+      // Try to get wallet balance for display
+      try {
+        const balance = await walletProvider.getBalance();
+        const formattedBalance = formatEther(BigInt(balance));
+        console.log(`   Current balance: ${formattedBalance} ETH`);
+      } catch (error) {
+        console.log(`   Balance: Unable to fetch (${error instanceof Error ? error.message : 'Unknown error'})`);
+      }
+  
+      // Initialize AgentKit action providers with real configuration
+      console.log("🛠️ Configuring AgentKit action providers...");
+      
       const actionProviders: ActionProvider[] = [
-        wethActionProvider(),
         pythActionProvider(),
         walletActionProvider(),
         erc20ActionProvider(),
+        wethActionProvider(),
+        cdpApiActionProvider({
+          apiKeyId: process.env.CDP_API_KEY_NAME!,
+          apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY!,
+        }),
       ];
   
-      // Add CDP API action provider if credentials are available
-      const canUseCdpApi = process.env.CDP_API_KEY_NAME && process.env.CDP_API_KEY_PRIVATE_KEY;
-      if (canUseCdpApi) {
-        actionProviders.push(
-          cdpApiActionProvider({
-            apiKeyId: process.env.CDP_API_KEY_NAME,
-            apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY,
-          })
-        );
-      }
+      console.log(`📦 Configured ${actionProviders.length} action providers:`);
+      console.log(`   - Pyth (price feeds)`);
+      console.log(`   - Wallet (balance, transfers)`);
+      console.log(`   - ERC20 (token operations)`);
+      console.log(`   - WETH (wrapped ETH)`);
+      console.log(`   - CDP API (advanced operations)`);
   
       // Create AgentKit instance
+      console.log("🤖 Initializing AgentKit...");
       const agentkit = await AgentKit.from({
         walletProvider,
         actionProviders,
       });
   
-      console.log("✅ AgentKit initialized successfully");
-      console.log(`   Network: ${chain.name}`);
-      console.log(`   Address: ${account.address}`);
-      console.log(`   Action Providers: ${actionProviders.length}`);
+      // Save wallet data for future use
+      const walletDataToSave: WalletData = {
+        privateKey,
+        smartWalletAddress,
+      };
+      
+      fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(walletDataToSave, null, 2));
+      
+      if (!isExistingWallet) {
+        console.log(`💾 Wallet configuration saved to ${WALLET_DATA_FILE}`);
+      }
+  
+      console.log("✅ AgentKit initialization complete");
+      console.log(`   Total capabilities: ${actionProviders.length} action providers`);
+      console.log(`   Ready for ${isTestnet ? 'testing' : 'production'} operations`);
   
       return { agentkit, walletProvider };
     } catch (error) {
-      console.error("Error initializing AgentKit:", error);
+      console.error("❌ Error initializing AgentKit:", error);
+      
+      // Provide specific error context
+      if (error instanceof Error) {
+        if (error.message.includes('CDP_API_KEY')) {
+          throw new Error(`CDP API credentials error: ${error.message}. Please check your environment variables.`);
+        } else if (error.message.includes('network')) {
+          throw new Error(`Network configuration error: ${error.message}. Please verify NETWORK_ID setting.`);
+        } else if (error.message.includes('private key')) {
+          throw new Error(`Wallet configuration error: ${error.message}. Please check your private key setup.`);
+        }
+      }
+      
       throw new Error(`Failed to initialize AgentKit: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

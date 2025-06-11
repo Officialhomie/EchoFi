@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAgent, getAgentKit } from '@/lib/agentkit/create-agent';
+import { createAgent } from '@/lib/agentkit/create-agent';
+import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 
 /**
  * Health check endpoint - GET /api/agent
@@ -191,7 +192,7 @@ async function handleChatMessage(userMessage: string) {
  */
 async function handleGetBalance() {
   try {
-    const agentkit = getAgentKit();
+    const { agentkit } = await prepareAgentkitAndWalletProvider();
     if (!agentkit) {
       throw new Error('AgentKit not initialized');
     }
