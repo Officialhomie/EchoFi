@@ -4,6 +4,7 @@ pragma solidity ^0.8.25;
 import "@forge-std/Script.sol";
 import "@forge-std/console.sol";
 import "../src/GroupFiTreasury.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Deploy Script for GroupFiTreasury
@@ -134,7 +135,7 @@ contract DeployScript is Script {
             require(treasury.memberVotingPower(member) == config.votingPowers[i], "Voting power mismatch");
         }
         
-        console.log("✓ All deployment verifications passed");
+        console.log("All deployment verifications passed");
     }
 
     function _saveDeploymentInfo(uint256 chainId, address treasuryAddress, NetworkConfig memory config) internal {
@@ -265,7 +266,7 @@ contract VerifyScript is Script {
         bool isPaused = treasury.paused();
         console.log("Contract Paused:", isPaused);
         
-        console.log("✓ Verification complete");
+        console.log("Verification complete");
     }
     
     function _getChainName(uint256 chainId) internal pure returns (string memory) {
