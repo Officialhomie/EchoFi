@@ -36,81 +36,181 @@ export class XMTPManager {
     async initializeClient(
         signer: BrowserSigner, 
         config: XMTPConfig = {}
-    ): Promise<Client> {
+      ): Promise<Client> {
         try {
-            console.log('🚀 Initializing XMTP Browser Client...');
-            
-            // Generate or retrieve encryption key for local database
-            this.encryptionKey = this.getOrCreateEncryptionKey();
-            
-            const clientOptions: ClientOptions = {
-                env: config.env || 'dev',
-                apiUrl: config.apiUrl,
-                dbPath: config.dbPath || 'xmtp-db',
-                // Note: Browser SDK doesn't use structuredLogging
-                // logging is controlled via environment or client config
-            };
-
-            // Adapt BrowserSigner to XMTP Signer interface
-            const adaptedSigner = {
-                walletType: 'EOA' as const,
-                getAddress: () => signer.getAddress(),
-                signMessage: (message: string) => signer.signMessage(message),
-            };
-
-            // Browser SDK client creation pattern
-            this.client = await Client.create(adaptedSigner, this.encryptionKey, clientOptions);
-            this.isInitialized = true;
-
-            console.log('✅ XMTP Client initialized successfully', {
-                address: this.client.accountAddress,
-                inboxId: this.client.inboxId,
-                installationId: this.client.installationId
-            });
-
-            return this.client;
+          console.log('🚀 [FIXED] Initializing XMTP Browser Client with persistent encryption...');
+          
+          // Get key info for debugging
+          const keyInfo = this.getKeyInfo();
+          console.log('🔑 [FIXED] Encryption key info:', keyInfo);
+          
+          // Generate or retrieve encryption key with persistence
+          this.encryptionKey = this.getOrCreateEncryptionKey();
+          
+          const clientOptions: ClientOptions = {
+            env: config.env || 'dev',
+            apiUrl: config.apiUrl,
+            dbPath: config.dbPath || 'xmtp-db',
+            // Enhanced logging for buildathon demo
+          };
+      
+          // Adapt BrowserSigner to XMTP Signer interface
+          const adaptedSigner = {
+            walletType: 'EOA' as const,
+            getAddress: () => signer.getAddress(),
+            signMessage: (message: string) => signer.signMessage(message),
+          };
+      
+          console.log('🔧 [FIXED] Creating XMTP client with options:', {
+            env: clientOptions.env,
+            dbPath: clientOptions.dbPath,
+            hasEncryptionKey: !!this.encryptionKey,
+            keyLength: this.encryptionKey?.length
+          });
+      
+          // Browser SDK client creation with enhanced error handling
+          this.client = await Client.create(adaptedSigner, this.encryptionKey, clientOptions);
+          this.isInitialized = true;
+      
+          console.log('✅ [FIXED] XMTP Client initialized successfully with persistent key:', {
+            address: this.client.accountAddress,
+            inboxId: this.client.inboxId,
+            installationId: this.client.installationId,
+            keyPersistence: keyInfo.keySource
+          });
+      
+          return this.client;
         } catch (error) {
-            console.error('❌ XMTP Client initialization failed:', error);
-            this.isInitialized = false;
-            throw new Error(`Failed to initialize XMTP client: ${error instanceof Error ? error.message : String(error)}`);
+          console.error('❌ [FIXED] XMTP Client initialization failed:', error);
+          this.isInitialized = false;
+          
+          // Provide specific error guidance
+          if (error instanceof Error) {
+            if (error.message.includes('encryption')) {
+              throw new Error(`XMTP encryption error: ${error.message}. Try clearing stored keys.`);
+            } else if (error.message.includes('network')) {
+              throw new Error(`XMTP network error: ${error.message}. Check internet connection.`);
+            } else if (error.message.includes('signer')) {
+              throw new Error(`XMTP signer error: ${error.message}. Check wallet connection.`);
+            }
+          }
+          
+          throw new Error(`Failed to initialize XMTP client: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+    /**
+     * Get or create encryption key with proper persistence
+     * Now stores in localStorage for browser persistence instead of session-only generation
+     */
+    private getOrCreateEncryptionKey(): Uint8Array {
+        const STORAGE_KEY = 'xmtp_encryption_key_v1';
+        
+        // Try to get key from environment variables first (production)
+        const envKey = process.env.NEXT_PUBLIC_XMTP_ENCRYPTION_KEY;
+        
+        if (envKey) {
+        try {
+            console.log('🔑 [FIXED] Using XMTP encryption key from environment');
+            
+            // Convert hex string to Uint8Array
+            if (envKey.startsWith('0x')) {
+            const hexKey = envKey.slice(2);
+            if (hexKey.length === 64) { // 32 bytes = 64 hex chars
+                return new Uint8Array(Buffer.from(hexKey, 'hex'));
+            }
+            }
+            
+            // Try base64 format
+            const keyBytes = Buffer.from(envKey, 'base64');
+            if (keyBytes.length === 32) {
+            return new Uint8Array(keyBytes);
+            }
+            
+            console.warn('⚠️ [FIXED] Invalid XMTP_ENCRYPTION_KEY format in environment');
+        } catch (error) {
+            console.warn('⚠️ [FIXED] Failed to parse XMTP_ENCRYPTION_KEY from environment:', error);
+        }
+        }
+    
+        // Try to get existing key from localStorage (browser persistence)
+        if (typeof window !== 'undefined') {
+        try {
+            const storedKey = localStorage.getItem(STORAGE_KEY);
+            if (storedKey) {
+            console.log('🔑 [FIXED] Found existing XMTP encryption key in localStorage');
+            const keyBytes = Buffer.from(storedKey, 'base64');
+            if (keyBytes.length === 32) {
+                return new Uint8Array(keyBytes);
+            } else {
+                console.warn('⚠️ [FIXED] Stored key has invalid length, generating new one');
+                localStorage.removeItem(STORAGE_KEY);
+            }
+            }
+        } catch (error) {
+            console.warn('⚠️ [FIXED] Failed to read stored XMTP key:', error);
+            // Clear invalid stored key
+            try {
+            localStorage.removeItem(STORAGE_KEY);
+            } catch {}
+        }
+        }
+    
+        // Generate new key and store it for persistence
+        console.log('🔑 [FIXED] Generating new XMTP encryption key with localStorage persistence');
+        const newKey = crypto.getRandomValues(new Uint8Array(32));
+        
+        // Store in localStorage for persistence between sessions
+        if (typeof window !== 'undefined') {
+        try {
+            const keyBase64 = Buffer.from(newKey).toString('base64');
+            localStorage.setItem(STORAGE_KEY, keyBase64);
+            console.log('✅ [FIXED] XMTP encryption key saved to localStorage for persistence');
+        } catch (error) {
+            console.warn('⚠️ [FIXED] Failed to store XMTP key in localStorage:', error);
+            console.warn('🔄 [FIXED] Messages will only persist for this session');
+        }
+        }
+    
+        return newKey;
+    }
+
+    /**
+     * Clear stored encryption key (useful for testing or key rotation)
+     */
+    public clearStoredEncryptionKey(): void {
+        const STORAGE_KEY = 'xmtp_encryption_key_v1';
+        
+        if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            console.log('🗑️ [FIXED] Cleared stored XMTP encryption key');
+        } catch (error) {
+            console.warn('⚠️ [FIXED] Failed to clear stored XMTP key:', error);
+        }
         }
     }
 
     /**
-     * Get or create encryption key from environment variables
-     * Falls back to generating a session key if no env key provided
+     * Get key info for debugging
      */
-    private getOrCreateEncryptionKey(): Uint8Array {
-        // Try to get key from environment variables
-        const envKey = process.env.NEXT_PUBLIC_XMTP_ENCRYPTION_KEY;
+    public getKeyInfo(): { hasEnvKey: boolean; hasStoredKey: boolean; keySource: string } {
+        const hasEnvKey = !!process.env.NEXT_PUBLIC_XMTP_ENCRYPTION_KEY;
+        let hasStoredKey = false;
         
-        if (envKey) {
-            try {
-                // Convert hex string to Uint8Array
-                if (envKey.startsWith('0x')) {
-                    const hexKey = envKey.slice(2);
-                    if (hexKey.length === 64) { // 32 bytes = 64 hex chars
-                        return new Uint8Array(Buffer.from(hexKey, 'hex'));
-                    }
-                }
-                
-                // Try base64 format
-                const keyBytes = Buffer.from(envKey, 'base64');
-                if (keyBytes.length === 32) {
-                    return new Uint8Array(keyBytes);
-                }
-                
-                console.warn('Invalid XMTP_ENCRYPTION_KEY format. Expected 32-byte hex (0x...) or base64 string');
-            } catch (error) {
-                console.warn('Failed to parse XMTP_ENCRYPTION_KEY from environment:', error);
-            }
+        if (typeof window !== 'undefined') {
+        try {
+            const storedKey = localStorage.getItem('xmtp_encryption_key_v1');
+            hasStoredKey = !!storedKey;
+        } catch {}
         }
-
-        // Fallback: Generate session-specific key
-        console.warn('No valid XMTP_ENCRYPTION_KEY found in environment. Generating session key.');
-        console.warn('Note: Messages will not persist between sessions. Set NEXT_PUBLIC_XMTP_ENCRYPTION_KEY for persistence.');
         
-        return crypto.getRandomValues(new Uint8Array(32));
+        let keySource = 'none';
+        if (hasEnvKey) keySource = 'environment';
+        else if (hasStoredKey) keySource = 'localStorage';
+        else keySource = 'generated';
+        
+        return { hasEnvKey, hasStoredKey, keySource };
     }
 
     /**

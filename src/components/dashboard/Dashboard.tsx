@@ -49,6 +49,175 @@ interface GroupSummary {
   lastActivity: number;
 }
 
+interface BalanceAsset {
+  asset: string;
+  amount: string;
+  usdValue?: string;
+}
+
+interface BalanceResponse {
+  address: string;
+  balances: BalanceAsset[];
+  totalUsdValue?: string;
+}
+
+// Move these functions outside the Dashboard component for export
+const loadPortfolio = async (
+  agentInitialized: boolean,
+  getBalance: () => Promise<BalanceResponse>,
+  setPortfolio: (p: PortfolioData) => void,
+  setError: (e: string | null) => void,
+  error: string | null
+) => {
+  if (!agentInitialized) {
+    console.log('🔄 [FIXED] Agent not initialized, skipping portfolio load');
+    return;
+  }
+
+  try {
+    console.log('🔄 [FIXED] Loading portfolio with defensive programming...');
+    const balance: BalanceResponse = await getBalance();
+    if (!balance || typeof balance !== 'object') {
+      throw new Error('Invalid balance response: not an object');
+    }
+    if (!Array.isArray(balance.balances)) {
+      console.warn('⚠️ [FIXED] balance.balances is not an array:', typeof balance.balances);
+      throw new Error('Invalid balance response: balances is not an array');
+    }
+    console.log('✅ [FIXED] Balance validation passed:', {
+      hasBalances: Array.isArray(balance.balances),
+      balanceCount: balance.balances.length,
+      totalValue: balance.totalUsdValue || '0'
+    });
+    const mockChanges = [2.5, -1.2, 0.8, 3.1, -0.5];
+    const portfolioData: PortfolioData = {
+      totalValue: balance.totalUsdValue || '0',
+      change24h: 2.3,
+      assets: balance.balances.map((asset: BalanceAsset, index: number) => {
+        if (!asset || typeof asset !== 'object') {
+          console.warn('⚠️ [FIXED] Invalid asset object at index', index, asset);
+          return {
+            symbol: 'UNKNOWN',
+            amount: '0',
+            value: '0',
+            change24h: 0
+          };
+        }
+        const symbol = asset.asset || 'UNKNOWN';
+        const amount = asset.amount || '0';
+        const usdValue = asset.usdValue || '0';
+        const change24h = mockChanges[index % mockChanges.length] || 0;
+        return {
+          symbol,
+          amount,
+          value: usdValue,
+          change24h
+        };
+      })
+    };
+    console.log('✅ [FIXED] Portfolio data created successfully:', {
+      totalValue: portfolioData.totalValue,
+      assetCount: portfolioData.assets.length,
+      assets: portfolioData.assets.map(a => `${a.symbol}: ${a.amount}`)
+    });
+    setPortfolio(portfolioData);
+    if (error && error.includes('portfolio')) {
+      setError(null);
+    }
+  } catch (error: any) {
+    console.error('❌ [FIXED] Failed to load portfolio:', error);
+    const fallbackPortfolio: PortfolioData = {
+      totalValue: '0',
+      change24h: 0,
+      assets: []
+    };
+    setPortfolio(fallbackPortfolio);
+    setError(`Portfolio loading error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+const createSafePortfolioData = (balance: BalanceResponse | null): PortfolioData => {
+  if (!balance || !Array.isArray(balance.balances)) {
+    return {
+      totalValue: '0',
+      change24h: 0,
+      assets: []
+    };
+  }
+  const mockChanges = [2.5, -1.2, 0.8, 3.1, -0.5];
+  return {
+    totalValue: balance.totalUsdValue || '0',
+    change24h: 2.3,
+    assets: balance.balances
+      .filter(asset => asset && typeof asset === 'object')
+      .map((asset, index) => ({
+        symbol: asset.asset || 'UNKNOWN',
+        amount: asset.amount || '0',
+        value: asset.usdValue || '0',
+        change24h: mockChanges[index % mockChanges.length] || 0
+      }))
+  };
+};
+
+const renderPortfolioContent = (
+  portfolio: PortfolioData | null
+) => {
+  if (!portfolio) {
+    return (
+      <div className="text-center py-8">
+        <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Loading Portfolio...</h3>
+        <p className="text-gray-600">Fetching your wallet balance...</p>
+      </div>
+    );
+  }
+  if (portfolio.assets.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
+        <p className="text-gray-600 mb-4">
+          Your wallet is connected but doesn't have any tracked assets yet.
+        </p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+          <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• Add funds to your connected wallet</li>
+            <li>• Create or join investment groups</li>
+            <li>• Participate in group investment proposals</li>
+            <li>• Track your portfolio performance over time</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {portfolio.assets.map((asset, index) => (
+        <div key={`${asset.symbol}-${index}`} className="p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-medium text-gray-900">{asset.symbol}</span>
+            <span className={`text-sm flex items-center ${
+              asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {asset.change24h >= 0 ? (
+                <ArrowUpIcon className="w-3 h-3 mr-1" />
+              ) : (
+                <ArrowDownIcon className="w-3 h-3 mr-1" />
+              )}
+              {formatPercentage(Math.abs(asset.change24h))}
+            </span>
+          </div>
+          <p className="text-lg font-semibold text-gray-900">
+            {formatCrypto(asset.amount, asset.symbol)}
+          </p>
+          <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
   const { conversations } = useXMTP();
@@ -62,31 +231,96 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const [showAgentDetails, setShowAgentDetails] = useState(false);
 
   const loadPortfolio = useCallback(async () => {
-    if (!agentInitialized) return;
-
+    if (!agentInitialized) {
+      console.log('🔄 [FIXED] Agent not initialized, skipping portfolio load');
+      return;
+    }
+  
     try {
-      const balance = await getBalance();
+      console.log('🔄 [FIXED] Loading portfolio with defensive programming...');
       
-      // Mock price changes for demo (in real app, fetch from price API)
+      const balance: BalanceResponse = await getBalance();
+      
+      // Defensive check: ensure balance is valid object
+      if (!balance || typeof balance !== 'object') {
+        throw new Error('Invalid balance response: not an object');
+      }
+  
+      // Defensive check: ensure balances is an array
+      if (!Array.isArray(balance.balances)) {
+        console.warn('⚠️ [FIXED] balance.balances is not an array:', typeof balance.balances);
+        throw new Error('Invalid balance response: balances is not an array');
+      }
+  
+      console.log('✅ [FIXED] Balance validation passed:', {
+        hasBalances: Array.isArray(balance.balances),
+        balanceCount: balance.balances.length,
+        totalValue: balance.totalUsdValue || '0'
+      });
+  
+      // Mock price changes for demo (matches balance array length)
       const mockChanges = [2.5, -1.2, 0.8, 3.1, -0.5];
-      
+  
+      // Create portfolio data with proper error handling
       const portfolioData: PortfolioData = {
         totalValue: balance.totalUsdValue || '0',
-        change24h: 2.3, // Mock 24h change
-        assets: balance.balances.map((asset: { asset: string; amount: string; usdValue?: string }, index: number) => ({
-          symbol: asset.asset,
-          amount: asset.amount,
-          value: asset.usdValue || '0',
-          change24h: mockChanges[index % mockChanges.length],
-        })),
+        change24h: 2.3, // Mock 24h change for demo
+        assets: balance.balances.map((asset: BalanceAsset, index: number) => {
+          // Defensive checks for each asset
+          if (!asset || typeof asset !== 'object') {
+            console.warn('⚠️ [FIXED] Invalid asset object at index', index, asset);
+            return {
+              symbol: 'UNKNOWN',
+              amount: '0',
+              value: '0',
+              change24h: 0
+            };
+          }
+  
+          // Ensure all required properties exist
+          const symbol = asset.asset || 'UNKNOWN';
+          const amount = asset.amount || '0';
+          const usdValue = asset.usdValue || '0';
+          const change24h = mockChanges[index % mockChanges.length] || 0;
+  
+          return {
+            symbol,
+            amount,
+            value: usdValue,
+            change24h
+          };
+        })
       };
-
+  
+      console.log('✅ [FIXED] Portfolio data created successfully:', {
+        totalValue: portfolioData.totalValue,
+        assetCount: portfolioData.assets.length,
+        assets: portfolioData.assets.map(a => `${a.symbol}: ${a.amount}`)
+      });
+  
       setPortfolio(portfolioData);
+      
+      // Clear any previous errors
+      if (error && error.includes('portfolio')) {
+        setError(null);
+      }
+  
     } catch (error) {
-      console.error('Failed to load portfolio:', error);
-      setError('Failed to load portfolio data');
+      console.error('❌ [FIXED] Failed to load portfolio:', error);
+      
+      // Create safe fallback portfolio data
+      const fallbackPortfolio: PortfolioData = {
+        totalValue: '0',
+        change24h: 0,
+        assets: []
+      };
+      
+      setPortfolio(fallbackPortfolio);
+      setError(`Portfolio loading error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Don't throw - handle gracefully with fallback
     }
-  }, [agentInitialized, getBalance]);
+  }, [agentInitialized, getBalance, error]);
 
   const loadGroups = useCallback(async () => {
     if (!address) return;
@@ -254,7 +488,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const totalActiveProposals = groups.reduce((sum, group) => sum + group.activeProposals, 0);
   const totalProposals = groups.reduce((sum, group) => sum + group.totalProposals, 0);
 
-  return (
+      return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Welcome Header */}
       <div className="text-center mb-8">
@@ -299,8 +533,8 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
               <div className="flex items-center">
                 <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                 Real-time Monitoring
-              </div>
-            </div>
+          </div>
+        </div>
             <Button 
               variant="outline" 
               size="sm" 
@@ -330,12 +564,12 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
                       portfolio.change24h >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {portfolio.change24h >= 0 ? (
-                        <ArrowUpIcon className="w-3 h-3 mr-1" />
-                      ) : (
-                        <ArrowDownIcon className="w-3 h-3 mr-1" />
-                      )}
+                  <ArrowUpIcon className="w-3 h-3 mr-1" />
+                ) : (
+                  <ArrowDownIcon className="w-3 h-3 mr-1" />
+                )}
                       {formatPercentage(Math.abs(portfolio.change24h))}
-                    </span>
+              </span>
                   )}
                 </div>
                 {(!portfolio || portfolio.totalValue === '0') && (
@@ -399,50 +633,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {portfolio.assets.length === 0 ? (
-              // Empty portfolio state
-              <div className="text-center py-8">
-                <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
-                <p className="text-gray-600 mb-4">
-                  Your wallet is connected but doesn't have any tracked assets yet.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                  <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Add funds to your connected wallet</li>
-                    <li>• Create or join investment groups</li>
-                    <li>• Participate in group investment proposals</li>
-                    <li>• Track your portfolio performance over time</li>
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              // Portfolio with assets
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {portfolio.assets.map((asset, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-gray-900">{asset.symbol}</span>
-                      <span className={`text-sm flex items-center ${
-                        asset.change24h >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {asset.change24h >= 0 ? (
-                          <ArrowUpIcon className="w-3 h-3 mr-1" />
-                        ) : (
-                          <ArrowDownIcon className="w-3 h-3 mr-1" />
-                        )}
-                        {formatPercentage(Math.abs(asset.change24h))}
-                      </span>
-                    </div>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {formatCrypto(asset.amount, asset.symbol)}
-                    </p>
-                    <p className="text-sm text-gray-600">{formatUSD(asset.value)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            {renderPortfolioContent(portfolio)}
           </CardContent>
         </Card>
       )}
@@ -561,6 +752,8 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+      </div>
+    );
 }
+  
+  export { loadPortfolio, createSafePortfolioData, renderPortfolioContent };
