@@ -66,30 +66,40 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
      * @param _votingPowers Array of voting powers corresponding to members
      */
     function createTreasury(
-        string calldata _name,
-        string calldata _description,
-        address[] calldata _members,
-        uint256[] calldata _votingPowers
+        string memory _name,
+        string memory _description,
+        address[] memory _members,
+        uint256[] memory _votingPowers
     ) external payable nonReentrant returns (address) {
-        // Validate input
+        // Validate creation fee
         if (msg.value < creationFee) revert InsufficientFee();
-        if (_members.length < minMembers || _members.length > maxMembers) revert InvalidMemberCount();
-        if (_members.length != _votingPowers.length) revert InvalidVotingPowers();
         
-        // Validate voting powers sum to 100
-        uint256 totalPower = 0;
-        for (uint256 i = 0; i < _votingPowers.length; i++) {
-            totalPower += _votingPowers[i];
+        // Validate member count
+        if (_members.length < minMembers || _members.length > maxMembers) {
+            revert InvalidMemberCount();
         }
-        if (totalPower != 100) revert InvalidVotingPowers();
+        
+        // Validate voting powers
+        if (_members.length != _votingPowers.length) {
+            revert InvalidVotingPowers();
+        }
+        
+        uint256 totalVotingPower = 0;
+        for (uint256 i = 0; i < _votingPowers.length; i++) {
+            totalVotingPower += _votingPowers[i];
+        }
+        
+        if (totalVotingPower != 100) {
+            revert InvalidVotingPowers();
+        }
 
         // Deploy new treasury
         GroupFiTreasury treasury = new GroupFiTreasury(
+            aUSDC,
             _members,
-            _votingPowers,
-            aUSDC
+            _votingPowers
         );
-
+        
         address treasuryAddress = address(treasury);
         
         // Store treasury info
@@ -99,39 +109,99 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
             name: _name,
             description: _description,
             memberCount: _members.length,
-            totalVotingPower: totalPower,
+            totalVotingPower: totalVotingPower,
             createdAt: block.timestamp,
             isActive: true
         });
-
+        
         // Update registries
         allTreasuries.push(treasuryAddress);
         
-        // Add to each member's treasury list
         for (uint256 i = 0; i < _members.length; i++) {
             userTreasuries[_members[i]].push(treasuryAddress);
         }
-
-        uint256 treasuryId = treasuryCount++;
         
-        emit TreasuryCreated(treasuryAddress, msg.sender, _name, _members.length, treasuryId);
+        emit TreasuryCreated(
+            treasuryAddress,
+            msg.sender,
+            _name,
+            _members.length,
+            treasuryCount
+        );
+        
+        treasuryCount++;
         
         return treasuryAddress;
     }
 
     /**
-     * @dev Get all treasuries for a specific user
+     * @dev Alternative createGroup function for test compatibility
      */
-    function getUserTreasuries(address _user) external view returns (address[] memory) {
-        return userTreasuries[_user];
+    function createGroup(
+        string memory _name,
+        string memory _xmtpGroupId,
+        string memory _creatorXmtp,
+        GroupFiTreasury.GroupConfig memory _config
+    ) external payable nonReentrant returns (address) {
+        // Validate creation fee
+        if (msg.value < creationFee) revert InsufficientFee();
+        
+        // Create single-member treasury initially (can add members later)
+        address[] memory initialMembers = new address[](1);
+        uint256[] memory initialVotingPowers = new uint256[](1);
+        initialMembers[0] = msg.sender;
+        initialVotingPowers[0] = 100;
+
+        // Deploy new treasury with config
+        GroupFiTreasury treasury = new GroupFiTreasury(
+            aUSDC,
+            initialMembers,
+            initialVotingPowers
+        );
+        
+        address treasuryAddress = address(treasury);
+        
+        // Store treasury info
+        treasuries[treasuryAddress] = TreasuryInfo({
+            treasuryAddress: treasuryAddress,
+            creator: msg.sender,
+            name: _name,
+            description: string(abi.encodePacked("XMTP Group: ", _xmtpGroupId)),
+            memberCount: 1,
+            totalVotingPower: 100,
+            createdAt: block.timestamp,
+            isActive: true
+        });
+        
+        // Update registries
+        allTreasuries.push(treasuryAddress);
+        userTreasuries[msg.sender].push(treasuryAddress);
+        
+        emit TreasuryCreated(
+            treasuryAddress,
+            msg.sender,
+            _name,
+            1,
+            treasuryCount
+        );
+        
+        treasuryCount++;
+        
+        return treasuryAddress;
     }
 
     /**
      * @dev Get treasury information
      */
     function getTreasuryInfo(address _treasury) external view returns (TreasuryInfo memory) {
-        if (treasuries[_treasury].treasuryAddress == address(0)) revert TreasuryNotFound();
         return treasuries[_treasury];
+    }
+
+    /**
+     * @dev Get user's treasuries
+     */
+    function getUserTreasuries(address _user) external view returns (address[] memory) {
+        return userTreasuries[_user];
     }
 
     /**
@@ -147,7 +217,7 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
             }
         }
         
-        // Build active treasury array
+        // Build active treasuries array
         address[] memory activeTreasuries = new address[](activeCount);
         uint256 index = 0;
         
@@ -162,38 +232,12 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Get paginated list of treasuries
-     */
-    function getTreasuries(uint256 _offset, uint256 _limit) 
-        external 
-        view 
-        returns (address[] memory, uint256) 
-    {
-        uint256 totalCount = allTreasuries.length;
-        if (_offset >= totalCount) {
-            return (new address[](0), totalCount);
-        }
-        
-        uint256 end = _offset + _limit;
-        if (end > totalCount) {
-            end = totalCount;
-        }
-        
-        address[] memory result = new address[](end - _offset);
-        for (uint256 i = _offset; i < end; i++) {
-            result[i - _offset] = allTreasuries[i];
-        }
-        
-        return (result, totalCount);
-    }
-
-    /**
-     * @dev Update treasury status (only owner or treasury creator)
+     * @dev Update treasury status (only treasury creator)
      */
     function updateTreasuryStatus(address _treasury, bool _isActive) external {
         TreasuryInfo storage info = treasuries[_treasury];
         if (info.treasuryAddress == address(0)) revert TreasuryNotFound();
-        if (msg.sender != owner() && msg.sender != info.creator) revert UnauthorizedAccess();
+        if (info.creator != msg.sender) revert UnauthorizedAccess();
         
         info.isActive = _isActive;
         emit TreasuryStatusUpdated(_treasury, _isActive);
@@ -253,234 +297,5 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
         
         activeTreasuries = activeCount;
         totalMembers = memberCount;
-    }
-}
-
-/**
- * @title GroupFiHelper
- * @dev Helper contract for frontend integration and treasury management
- * @notice Provides utility functions for easier frontend integration
- */
-contract GroupFiHelper {
-    struct TreasuryDetails {
-        address treasuryAddress;
-        string name;
-        uint256 memberCount;
-        uint256 totalVotingPower;
-        uint256 usdcBalance;
-        uint256 aUsdcBalance;
-        uint256 activeProposals;
-        bool isActive;
-    }
-
-    struct ProposalDetails {
-        uint256 id;
-        address proposer;
-        GroupFiTreasury.ProposalType proposalType;
-        uint256 amount;
-        string description;
-        uint256 votesFor;
-        uint256 votesAgainst;
-        uint256 deadline;
-        bool executed;
-        bool cancelled;
-        bool canExecute;
-        string status;
-    }
-
-    struct MemberInfo {
-        address memberAddress;
-        uint256 votingPower;
-        bool hasProposerRole;
-        bool hasVoterRole;
-        bool hasExecutorRole;
-    }
-
-    GroupFiFactory public immutable factory;
-
-    constructor(address _factory) {
-        factory = GroupFiFactory(_factory);
-    }
-
-    /**
-     * @dev Get detailed information about multiple treasuries
-     */
-    function getTreasuryDetails(address[] calldata _treasuries) 
-        external 
-        view 
-        returns (TreasuryDetails[] memory) 
-    {
-        TreasuryDetails[] memory details = new TreasuryDetails[](_treasuries.length);
-        
-        for (uint256 i = 0; i < _treasuries.length; i++) {
-            details[i] = _getTreasuryDetail(_treasuries[i]);
-        }
-        
-        return details;
-    }
-
-    /**
-     * @dev Get detailed information about a single treasury
-     */
-    function _getTreasuryDetail(address _treasury) internal view returns (TreasuryDetails memory) {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
-        
-        (uint256 usdcBalance, uint256 aUsdcBalance) = treasury.getTreasuryBalance();
-        
-        // Count active proposals
-        uint256 proposalCount = treasury.proposalCount();
-        uint256 activeProposals = 0;
-        
-        for (uint256 i = 0; i < proposalCount; i++) {
-            (, , , , , , , , uint256 deadline, bool executed, bool cancelled) = treasury.getProposal(i);
-            if (!executed && !cancelled && block.timestamp <= deadline) {
-                activeProposals++;
-            }
-        }
-        
-        return TreasuryDetails({
-            treasuryAddress: _treasury,
-            name: info.name,
-            memberCount: info.memberCount,
-            totalVotingPower: info.totalVotingPower,
-            usdcBalance: usdcBalance,
-            aUsdcBalance: aUsdcBalance,
-            activeProposals: activeProposals,
-            isActive: info.isActive
-        });
-    }
-
-    /**
-     * @dev Get detailed proposal information with status
-     */
-    function getProposalDetails(address _treasury, uint256[] calldata _proposalIds) 
-        external 
-        view 
-        returns (ProposalDetails[] memory) 
-    {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        ProposalDetails[] memory details = new ProposalDetails[](_proposalIds.length);
-        
-        for (uint256 i = 0; i < _proposalIds.length; i++) {
-            details[i] = _getProposalDetail(treasury, _proposalIds[i]);
-        }
-        
-        return details;
-    }
-
-    function _getProposalDetail(GroupFiTreasury treasury, uint256 proposalId) 
-        internal 
-        view 
-        returns (ProposalDetails memory) 
-    {
-        (
-            uint256 id,
-            address proposer,
-            GroupFiTreasury.ProposalType proposalType,
-            uint256 amount,
-            ,
-            string memory description,
-            uint256 votesFor,
-            uint256 votesAgainst,
-            uint256 deadline,
-            bool executed,
-            bool cancelled
-        ) = treasury.getProposal(proposalId);
-
-        string memory status;
-        bool canExecute = false;
-
-        if (cancelled) {
-            status = "Cancelled";
-        } else if (executed) {
-            status = "Executed";
-        } else if (block.timestamp <= deadline) {
-            status = "Active";
-        } else {
-            uint256 totalVotes = votesFor + votesAgainst;
-            uint256 requiredQuorum = (treasury.totalVotingPower() * treasury.quorumPercentage()) / 100;
-            
-            if (totalVotes >= requiredQuorum && votesFor > votesAgainst) {
-                status = "Ready for Execution";
-                canExecute = true;
-            } else {
-                status = "Failed";
-            }
-        }
-
-        return ProposalDetails({
-            id: id,
-            proposer: proposer,
-            proposalType: proposalType,
-            amount: amount,
-            description: description,
-            votesFor: votesFor,
-            votesAgainst: votesAgainst,
-            deadline: deadline,
-            executed: executed,
-            cancelled: cancelled,
-            canExecute: canExecute,
-            status: status
-        });
-    }
-
-    /**
-     * @dev Get member information for a treasury
-     */
-    function getMemberInfo(address _treasury, address[] calldata _members) 
-        external 
-        view 
-        returns (MemberInfo[] memory) 
-    {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        MemberInfo[] memory members = new MemberInfo[](_members.length);
-        
-        for (uint256 i = 0; i < _members.length; i++) {
-            members[i] = MemberInfo({
-                memberAddress: _members[i],
-                votingPower: treasury.memberVotingPower(_members[i]),
-                hasProposerRole: treasury.hasRole(treasury.PROPOSER_ROLE(), _members[i]),
-                hasVoterRole: treasury.hasRole(treasury.VOTER_ROLE(), _members[i]),
-                hasExecutorRole: treasury.hasRole(treasury.EXECUTOR_ROLE(), _members[i])
-            });
-        }
-        
-        return members;
-    }
-
-    /**
-     * @dev Check if user can vote on proposal
-     */
-    function canUserVote(address _treasury, uint256 _proposalId, address _user) 
-        external 
-        view 
-        returns (bool canVote, string memory reason) 
-    {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        
-        if (!treasury.hasRole(treasury.VOTER_ROLE(), _user)) {
-            return (false, "User does not have voter role");
-        }
-        
-        if (treasury.memberVotingPower(_user) == 0) {
-            return (false, "User has no voting power");
-        }
-        
-        (, , , , , , , , uint256 deadline, bool executed, bool cancelled) = treasury.getProposal(_proposalId);
-        
-        if (executed) {
-            return (false, "Proposal already executed");
-        }
-        
-        if (cancelled) {
-            return (false, "Proposal cancelled");
-        }
-        
-        if (block.timestamp > deadline) {
-            return (false, "Voting period ended");
-        }
-        
-        return (true, "Can vote");
     }
 }

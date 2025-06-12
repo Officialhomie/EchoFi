@@ -5,6 +5,7 @@ import "@forge-std/Test.sol";
 import "@forge-std/console.sol";
 import "../src/GroupFiFactory.sol";
 import "../src/GroupFiTreasury.sol";
+import "../src/GroupFiHelper.sol";
 
 contract GroupFiFactoryTest is Test {
     GroupFiFactory public factory;

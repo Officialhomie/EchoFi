@@ -30,7 +30,7 @@ interface IAToken is IERC20 {
  * @notice Manages group proposals, voting, and automated DeFi execution through Aave lending
  */
 contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20;  // ← This is the key line that enables safeApprove
 
     // Role definitions
     bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
@@ -48,6 +48,16 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     // aUSDC token (received from Aave when supplying)
     address public immutable aUSDC;
 
+    // Proposal types
+    enum ProposalType {
+        DEPOSIT_AAVE,
+        WITHDRAW_AAVE,
+        TRANSFER,
+        EMERGENCY_WITHDRAW,
+        ADD_MEMBER,
+        REMOVE_MEMBER
+    }
+
     // Proposal structure
     struct Proposal {
         uint256 id;
@@ -63,220 +73,204 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         bool executed;
         bool cancelled;
         mapping(address => bool) hasVoted;
-        mapping(address => bool) voteChoice; // true = for, false = against
+        mapping(address => bool) voteChoice;
     }
 
-    enum ProposalType {
-        DEPOSIT_AAVE,      // Supply USDC to Aave
-        WITHDRAW_AAVE,     // Withdraw USDC from Aave  
-        TRANSFER,          // Transfer tokens to address
-        EMERGENCY_WITHDRAW, // Emergency withdrawal
-        ADD_MEMBER,        // Add new member
-        REMOVE_MEMBER      // Remove member
+    // Configuration struct for XMTP integration
+    struct GroupConfig {
+        string xmtpGroupId;
+        uint256 minVotingPower;
+        uint256 votingDuration;
+        uint256 executionDelay;
+        uint256 quorumPercentage;
+        bool autoExecute;
+        uint256 maxProposalAmount;
     }
 
-    // Storage
+    // State variables
     mapping(uint256 => Proposal) public proposals;
     mapping(address => uint256) public memberVotingPower;
     
     uint256 public proposalCount;
     uint256 public totalVotingPower;
-    uint256 public quorumPercentage = 51; // 51% required for approval
+    uint256 public quorumPercentage = 51;
     uint256 public votingPeriod = 3 days;
     uint256 public minProposalAmount = 10 * 1e6; // 10 USDC
     uint256 public maxProposalAmount = 1_000_000 * 1e6; // 1M USDC
 
     // Events
-    event ProposalCreated(
-        uint256 indexed proposalId,
-        address indexed proposer,
-        ProposalType proposalType,
-        uint256 amount,
-        string description
-    );
-    
-    event VoteCast(
-        uint256 indexed proposalId,
-        address indexed voter,
-        bool support,
-        uint256 votingPower
-    );
-    
+    event ProposalCreated(uint256 indexed proposalId, address indexed proposer, ProposalType proposalType, uint256 amount, string description);
+    event VoteCast(uint256 indexed proposalId, address indexed voter, bool support, uint256 votingPower);
     event ProposalExecuted(uint256 indexed proposalId, bool success);
-    event ProposalCancelled(uint256 indexed proposalId);
-    event MemberAdded(address indexed member, uint256 votingPower);
-    event MemberRemoved(address indexed member);
     event SuppliedToAave(uint256 amount, uint256 aTokensReceived);
     event WithdrawnFromAave(uint256 aTokenAmount, uint256 underlyingReceived);
+    event MemberAdded(address indexed member, uint256 votingPower);
+    event MemberRemoved(address indexed member);
 
     // Errors
-    error ProposalNotFound();
+    error InvalidProposalId();
+    error NotAuthorized();
     error ProposalAlreadyExecuted();
-    error ProposalDeadlinePassed();
-    error ProposalStillActive();
-    error InsufficientQuorum();
+    error ProposalCancelled();
+    error VotingStillActive();
+    error VotingEnded();
     error AlreadyVoted();
+    error QuorumNotReached();
+    error ProposalRejected();
+    error InsufficientBalance();
     error InvalidAmount();
-    error InvalidProposalType();
-    error UnauthorizedAccess();
-    error TransferFailed();
-
-    constructor(
-        address[] memory _initialMembers,
-        uint256[] memory _votingPowers,
-        address _aUSDCAddress
-    ) {
-        require(_initialMembers.length == _votingPowers.length, "Array length mismatch");
-        require(_initialMembers.length > 0, "No initial members");
-        require(_aUSDCAddress != address(0), "Invalid aUSDC address");
-
-        // Set up roles
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        
-        // Add initial members
-        for (uint256 i = 0; i < _initialMembers.length; i++) {
-            _addMember(_initialMembers[i], _votingPowers[i]);
-        }
-
-        aUSDC = _aUSDCAddress;
-    }
+    error InvalidAddress();
 
     /**
-     * @dev Add a new member to the group
+     * @dev Constructor
      */
-    function _addMember(address member, uint256 votingPower) internal {
-        require(member != address(0), "Invalid member address");
-        require(votingPower > 0, "Voting power must be positive");
-        require(memberVotingPower[member] == 0, "Member already exists");
-
-        memberVotingPower[member] = votingPower;
-        totalVotingPower += votingPower;
-
-        _grantRole(PROPOSER_ROLE, member);
-        _grantRole(VOTER_ROLE, member);
-        _grantRole(EXECUTOR_ROLE, member);
-
-        emit MemberAdded(member, votingPower);
+    constructor(
+        address _aUSDC,
+        address[] memory _initialMembers,
+        uint256[] memory _votingPowers
+    ) {
+        require(_aUSDC != address(0), "Invalid aUSDC address");
+        require(_initialMembers.length == _votingPowers.length, "Array length mismatch");
+        require(_initialMembers.length > 0, "No initial members");
+        
+        aUSDC = _aUSDC;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        
+        uint256 totalPower = 0;
+        for (uint256 i = 0; i < _initialMembers.length; i++) {
+            require(_initialMembers[i] != address(0), "Invalid member address");
+            require(_votingPowers[i] > 0, "Voting power must be > 0");
+            
+            _addMember(_initialMembers[i], _votingPowers[i]);
+            totalPower += _votingPowers[i];
+        }
+        
+        require(totalPower == 100, "Total voting power must equal 100");
+        totalVotingPower = totalPower;
     }
 
     /**
      * @dev Create a new proposal
      */
     function createProposal(
-        ProposalType _type,
+        ProposalType _proposalType,
         uint256 _amount,
         address _target,
         bytes calldata _data,
         string calldata _description
-    ) external onlyRole(PROPOSER_ROLE) whenNotPaused returns (uint256) {
-        require(_amount >= minProposalAmount && _amount <= maxProposalAmount, "Invalid amount");
+    ) external returns (uint256) {
+        if (!hasRole(PROPOSER_ROLE, msg.sender)) revert NotAuthorized();
+        if (_amount < minProposalAmount) revert InvalidAmount();
+        if (_amount > maxProposalAmount) revert InvalidAmount();
+        if (bytes(_description).length == 0) revert InvalidAmount();
         
         uint256 proposalId = proposalCount++;
-        Proposal storage proposal = proposals[proposalId];
+        uint256 deadline = block.timestamp + votingPeriod;
         
+        Proposal storage proposal = proposals[proposalId];
         proposal.id = proposalId;
         proposal.proposer = msg.sender;
-        proposal.proposalType = _type;
+        proposal.proposalType = _proposalType;
         proposal.amount = _amount;
         proposal.target = _target;
         proposal.data = _data;
         proposal.description = _description;
-        proposal.deadline = block.timestamp + votingPeriod;
-
-        emit ProposalCreated(proposalId, msg.sender, _type, _amount, _description);
+        proposal.deadline = deadline;
+        
+        emit ProposalCreated(proposalId, msg.sender, _proposalType, _amount, _description);
+        
         return proposalId;
     }
 
     /**
-     * @dev Cast a vote on a proposal
+     * @dev Vote on a proposal
      */
-    function vote(uint256 _proposalId, bool _support) external onlyRole(VOTER_ROLE) whenNotPaused {
-        Proposal storage proposal = proposals[_proposalId];
+    function vote(uint256 _proposalId, bool _support) external {
+        if (!hasRole(VOTER_ROLE, msg.sender)) revert NotAuthorized();
+        if (_proposalId >= proposalCount) revert InvalidProposalId();
         
-        if (proposal.proposer == address(0)) revert ProposalNotFound();
-        if (proposal.executed || proposal.cancelled) revert ProposalAlreadyExecuted();
-        if (block.timestamp > proposal.deadline) revert ProposalDeadlinePassed();
+        Proposal storage proposal = proposals[_proposalId];
+        if (block.timestamp > proposal.deadline) revert VotingEnded();
+        if (proposal.executed) revert ProposalAlreadyExecuted();
+        if (proposal.cancelled) revert ProposalCancelled();
         if (proposal.hasVoted[msg.sender]) revert AlreadyVoted();
-
+        
         uint256 votingPower = memberVotingPower[msg.sender];
         require(votingPower > 0, "No voting power");
-
+        
         proposal.hasVoted[msg.sender] = true;
         proposal.voteChoice[msg.sender] = _support;
-
+        
         if (_support) {
             proposal.votesFor += votingPower;
         } else {
             proposal.votesAgainst += votingPower;
         }
-
+        
         emit VoteCast(_proposalId, msg.sender, _support, votingPower);
     }
 
     /**
-     * @dev Execute a proposal after voting period
+     * @dev Execute a proposal
      */
-    function executeProposal(uint256 _proposalId) external onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
+    function executeProposal(uint256 _proposalId) external nonReentrant {
+        if (!hasRole(EXECUTOR_ROLE, msg.sender)) revert NotAuthorized();
+        if (_proposalId >= proposalCount) revert InvalidProposalId();
+        
         Proposal storage proposal = proposals[_proposalId];
+        if (block.timestamp <= proposal.deadline) revert VotingStillActive();
+        if (proposal.executed) revert ProposalAlreadyExecuted();
+        if (proposal.cancelled) revert ProposalCancelled();
         
-        if (proposal.proposer == address(0)) revert ProposalNotFound();
-        if (proposal.executed || proposal.cancelled) revert ProposalAlreadyExecuted();
-        if (block.timestamp <= proposal.deadline) revert ProposalStillActive();
-
-        // Check quorum
+        // Check if proposal passes
         uint256 totalVotes = proposal.votesFor + proposal.votesAgainst;
-        uint256 requiredQuorum = (totalVotingPower * quorumPercentage) / 100;
+        uint256 quorumRequired = (totalVotingPower * quorumPercentage) / 100;
         
-        if (totalVotes < requiredQuorum || proposal.votesFor <= proposal.votesAgainst) {
-            revert InsufficientQuorum();
-        }
-
+        if (totalVotes < quorumRequired) revert QuorumNotReached();
+        if (proposal.votesFor <= proposal.votesAgainst) revert ProposalRejected();
+        
         proposal.executed = true;
-        bool success = _executeProposalAction(proposal);
-
+        
+        bool success = false;
+        
+        // Execute based on proposal type
+        if (proposal.proposalType == ProposalType.DEPOSIT_AAVE) {
+            success = _executeAaveDeposit(proposal.amount);
+        } else if (proposal.proposalType == ProposalType.WITHDRAW_AAVE) {
+            success = _executeAaveWithdrawal(proposal.amount);
+        } else if (proposal.proposalType == ProposalType.TRANSFER) {
+            success = _executeTransfer(proposal.target, proposal.amount);
+        }
+        
         emit ProposalExecuted(_proposalId, success);
     }
 
     /**
-     * @dev Execute the actual proposal action
+     * @dev Execute Aave deposit - FIXED VERSION
      */
-    function _executeProposalAction(Proposal storage proposal) internal returns (bool) {
-        if (proposal.proposalType == ProposalType.DEPOSIT_AAVE) {
-            return _supplyToAave(proposal.amount);
-        } else if (proposal.proposalType == ProposalType.WITHDRAW_AAVE) {
-            return _withdrawFromAave(proposal.amount);
-        } else if (proposal.proposalType == ProposalType.TRANSFER) {
-            return _transferTokens(proposal.target, proposal.amount);
-        } else if (proposal.proposalType == ProposalType.EMERGENCY_WITHDRAW) {
-            return _emergencyWithdraw();
-        }
+    function _executeAaveDeposit(uint256 amount) internal returns (bool) {
+        IERC20 usdc = IERC20(USDC);
+        uint256 balance = usdc.balanceOf(address(this));
         
-        return false;
-    }
-
-    /**
-     * @dev Supply USDC to Aave V3
-     */
-    function _supplyToAave(uint256 amount) internal returns (bool) {
-        try IERC20(USDC).safeApprove(address(AAVE_POOL), amount) {
-            uint256 balanceBefore = IERC20(aUSDC).balanceOf(address(this));
-            
-            AAVE_POOL.supply(USDC, amount, address(this), 0);
-            
-            uint256 balanceAfter = IERC20(aUSDC).balanceOf(address(this));
-            uint256 aTokensReceived = balanceAfter - balanceBefore;
-            
-            emit SuppliedToAave(amount, aTokensReceived);
+        if (balance < amount) return false;
+        
+        // Use SafeERC20's safeApprove and handle errors with return values
+        usdc.safeApprove(address(AAVE_POOL), amount);
+        
+        try AAVE_POOL.supply(USDC, amount, address(this), 0) {
+            emit SuppliedToAave(amount, 0);
             return true;
         } catch {
+            // Reset approval on failure
+            usdc.safeApprove(address(AAVE_POOL), 0);
             return false;
         }
     }
 
     /**
-     * @dev Withdraw from Aave V3
+     * @dev Execute Aave withdrawal
      */
-    function _withdrawFromAave(uint256 amount) internal returns (bool) {
+    function _executeAaveWithdrawal(uint256 amount) internal returns (bool) {
         try AAVE_POOL.withdraw(USDC, amount, address(this)) returns (uint256 withdrawn) {
             emit WithdrawnFromAave(amount, withdrawn);
             return true;
@@ -286,10 +280,18 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Transfer tokens to specified address
+     * @dev Execute transfer
      */
-    function _transferTokens(address to, uint256 amount) internal returns (bool) {
-        try IERC20(USDC).safeTransfer(to, amount) {
+    function _executeTransfer(address to, uint256 amount) internal returns (bool) {
+        if (to == address(0)) return false;
+        
+        IERC20 usdc = IERC20(USDC);
+        uint256 balance = usdc.balanceOf(address(this));
+        
+        if (balance < amount) return false;
+        
+        // SafeERC20's safeTransfer will revert on failure, so we wrap it in try-catch
+        try usdc.safeTransfer(to, amount) {
             return true;
         } catch {
             return false;
@@ -297,41 +299,15 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Emergency withdraw all funds from Aave
+     * @dev Get proposal details
      */
-    function _emergencyWithdraw() internal returns (bool) {
-        uint256 aTokenBalance = IERC20(aUSDC).balanceOf(address(this));
-        if (aTokenBalance > 0) {
-            try AAVE_POOL.withdraw(USDC, type(uint256).max, address(this)) {
-                return true;
-            } catch {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    // Agent role functions for automated execution
-    function agentExecuteProposal(uint256 _proposalId) external onlyRole(AGENT_ROLE) nonReentrant {
-        // Agents can execute pre-approved proposals with simplified requirements
-        Proposal storage proposal = proposals[_proposalId];
-        require(proposal.proposer != address(0), "Proposal not found");
-        require(!proposal.executed && !proposal.cancelled, "Proposal already processed");
-        require(proposal.votesFor > proposal.votesAgainst, "Proposal not approved");
-        
-        proposal.executed = true;
-        _executeProposalAction(proposal);
-        
-        emit ProposalExecuted(_proposalId, true);
-    }
-
-    // View functions
     function getProposal(uint256 _proposalId) external view returns (
         uint256 id,
         address proposer,
         ProposalType proposalType,
         uint256 amount,
         address target,
+        bytes memory data,
         string memory description,
         uint256 votesFor,
         uint256 votesAgainst,
@@ -339,13 +315,17 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         bool executed,
         bool cancelled
     ) {
+        if (_proposalId >= proposalCount) revert InvalidProposalId();
+        
         Proposal storage proposal = proposals[_proposalId];
+        
         return (
             proposal.id,
             proposal.proposer,
             proposal.proposalType,
             proposal.amount,
             proposal.target,
+            proposal.data,
             proposal.description,
             proposal.votesFor,
             proposal.votesAgainst,
@@ -355,40 +335,57 @@ contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         );
     }
 
+    /**
+     * @dev Get treasury balance (both USDC and aUSDC)
+     */
     function getTreasuryBalance() external view returns (uint256 usdcBalance, uint256 aUsdcBalance) {
-        usdcBalance = IERC20(USDC).balanceOf(address(this));
-        aUsdcBalance = IERC20(aUSDC).balanceOf(address(this));
+        IERC20 usdc = IERC20(USDC);
+        IERC20 aUsdc = IERC20(aUSDC);
+        
+        usdcBalance = usdc.balanceOf(address(this));
+        aUsdcBalance = aUsdc.balanceOf(address(this));
     }
 
-    function getAavePosition() external view returns (
-        uint256 totalCollateral,
-        uint256 availableLiquidity
-    ) {
-        (totalCollateral,,,,,) = AAVE_POOL.getUserAccountData(address(this));
-        availableLiquidity = IERC20(aUSDC).balanceOf(address(this));
+    /**
+     * @dev Add member with voting power (internal)
+     */
+    function _addMember(address member, uint256 votingPower) internal {
+        if (member == address(0)) revert InvalidAddress();
+        if (votingPower == 0) revert InvalidAmount();
+        
+        // Grant all necessary roles
+        _grantRole(PROPOSER_ROLE, member);
+        _grantRole(VOTER_ROLE, member);
+        _grantRole(EXECUTOR_ROLE, member);
+        
+        // Set voting power
+        memberVotingPower[member] = votingPower;
+        
+        emit MemberAdded(member, votingPower);
     }
 
-    // Admin functions
-    function updateQuorum(uint256 _newQuorum) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_newQuorum > 0 && _newQuorum <= 100, "Invalid quorum");
-        quorumPercentage = _newQuorum;
+    /**
+     * @dev Emergency withdraw function (only admin)
+     */
+    function emergencyWithdraw(address token, uint256 amount) external {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert NotAuthorized();
+        
+        IERC20(token).safeTransfer(msg.sender, amount);
     }
 
-    function updateVotingPeriod(uint256 _newPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_newPeriod >= 1 hours && _newPeriod <= 30 days, "Invalid period");
-        votingPeriod = _newPeriod;
-    }
-
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /**
+     * @dev Pause contract (only admin)
+     */
+    function pause() external {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert NotAuthorized();
         _pause();
     }
 
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /**
+     * @dev Unpause contract (only admin)
+     */
+    function unpause() external {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert NotAuthorized();
         _unpause();
-    }
-
-    // Emergency function to recover any stuck tokens
-    function emergencyRecover(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        IERC20(token).safeTransfer(msg.sender, amount);
     }
 }
