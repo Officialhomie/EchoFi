@@ -280,7 +280,7 @@ export default function HomePage() {
 
         {viewMode === 'group-detail' && currentGroup && (
           <InvestmentGroup 
-            groupId={currentGroup.id}
+            groupId={currentGroup.id} 
             groupName={currentGroup.name}
           />
         )}

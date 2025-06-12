@@ -51,7 +51,6 @@ export class XMTPManager {
             env: config.env || 'dev',
             apiUrl: config.apiUrl,
             dbPath: config.dbPath || 'xmtp-db',
-            // Enhanced logging for buildathon demo
           };
       
           // Adapt BrowserSigner to XMTP Signer interface
@@ -353,18 +352,113 @@ export class XMTPManager {
         limit?: number
     ): Promise<DecodedMessage[]> {
         this.ensureClientReady();
+    
+        const maxRetries = 3;
+        let lastError: Error | null = null;
+    
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`📥 Fetching messages (attempt ${attempt}/${maxRetries})...`);
+                
+                // Attempt to sync conversation first
+                await this.syncConversationSafely(conversation);
+                
+                const messages = await conversation.messages({
+                    limit: limit ? BigInt(limit) : undefined
+                });
+                
+                console.log(`✅ Successfully fetched ${messages.length} messages`);
+                return messages;
+                
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                console.error(`❌ Message fetch attempt ${attempt} failed:`, lastError);
+                
+                // Check if it's a SequenceId error
+                if (lastError.message.includes('SequenceId not found') || 
+                    lastError.message.includes('sequence ID') ||
+                    lastError.message.includes('local db')) {
+                    
+                    console.log(`🔧 SequenceId error detected, attempting database recovery...`);
+                    
+                    if (attempt < maxRetries) {
+                        // Try to recover the conversation
+                        try {
+                            await this.recoverConversationDatabase(conversation);
+                            continue; // Retry after recovery
+                        } catch (recoveryError) {
+                            console.warn('⚠️ Database recovery failed:', recoveryError);
+                        }
+                    } else {
+                        // On final attempt, return empty array instead of crashing
+                        console.log('🛡️ All recovery attempts failed, returning empty messages');
+                        return [];
+                    }
+                } else {
+                    // For non-SequenceId errors, retry with backoff
+                    if (attempt < maxRetries) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                        continue;
+                    }
+                }
+            }
+        }
+        
+        // If all retries failed, return empty array instead of throwing
+        console.warn('⚠️ All message fetch attempts failed, returning empty array');
+        return [];
+    }
 
+    /**
+     * Safely sync conversation without throwing errors
+     */
+    private async syncConversationSafely(conversation: Conversation): Promise<void> {
         try {
             await conversation.sync();
-            const messages = await conversation.messages({
-                limit: limit ? BigInt(limit) : undefined
-            });
-            return messages;
+            console.log('✅ Conversation synced successfully');
         } catch (error) {
-            console.error('❌ Failed to fetch messages:', error);
-            throw new Error(`Failed to fetch messages: ${error instanceof Error ? error.message : String(error)}`);
+            console.warn('⚠️ Conversation sync failed (continuing anyway):', error);
+            // Don't throw - sync failures shouldn't block message fetching
         }
     }
+
+    /**
+     * Attempt to recover corrupted conversation database
+     */
+    private async recoverConversationDatabase(conversation: Conversation): Promise<void> {
+        try {
+            console.log('🔄 Attempting conversation database recovery...');
+            
+            // Method 1: Force conversation sync
+            try {
+                await conversation.sync();
+                console.log('✅ Conversation sync recovery successful');
+                return;
+            } catch (syncError) {
+                console.warn('⚠️ Sync recovery failed:', syncError);
+            }
+            
+            // Method 2: Try to get conversation info to verify it's valid
+            try {
+                const info = {
+                    id: conversation.id,
+                    topic: conversation.description,
+                    createdAt: conversation.createdAtNs
+                };
+                console.log('📋 Conversation info:', info);
+            } catch (infoError) {
+                console.warn('⚠️ Conversation info retrieval failed:', infoError);
+                throw new Error('Conversation appears to be corrupted');
+            }
+            
+            console.log('✅ Conversation database recovery completed');
+            
+        } catch (error) {
+            console.error('❌ Conversation recovery failed:', error);
+            throw error;
+        }
+    }
+
 
     /**
      * Stream messages from a specific conversation
@@ -529,47 +623,168 @@ export class XMTPManager {
      */
     async resetDatabase(): Promise<void> {
         try {
-            console.log('🔄 Resetting XMTP local database...');
+            console.log('🔄 Starting comprehensive XMTP database reset...');
             
-            // Cleanup current client
+            // Step 1: Cleanup current client
             await this.cleanup();
+            console.log('✅ Client cleanup completed');
             
-            // Clear IndexedDB databases that XMTP might use
-            const databases = await indexedDB.databases();
-            for (const db of databases) {
-                if (db.name && (db.name.includes('xmtp') || db.name.includes('echofi'))) {
-                    console.log(`🗑️ Deleting database: ${db.name}`);
-                    const deleteReq = indexedDB.deleteDatabase(db.name);
-                    await new Promise((resolve, reject) => {
-                        deleteReq.onsuccess = () => resolve(undefined);
-                        deleteReq.onerror = () => reject(deleteReq.error);
-                        deleteReq.onblocked = () => {
-                            console.warn(`Database ${db.name} deletion blocked`);
-                            resolve(undefined);
-                        };
-                    });
-                }
-            }
+            // Step 2: Clear IndexedDB databases
+            await this.clearIndexedDBDatabases();
+            console.log('✅ IndexedDB cleanup completed');
             
-            // Clear any localStorage items
-            const keysToRemove: string[] = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && (key.includes('xmtp') || key.includes('echofi'))) {
-                    keysToRemove.push(key);
-                }
-            }
-            keysToRemove.forEach(key => localStorage.removeItem(key));
+            // Step 3: Clear localStorage
+            await this.clearLocalStorage();
+            console.log('✅ localStorage cleanup completed');
             
-            console.log('✅ XMTP database reset completed');
+            // Step 4: Clear session storage
+            await this.clearSessionStorage();
+            console.log('✅ sessionStorage cleanup completed');
+            
+            // Step 5: Reset internal state
+            this.client = null;
+            this.isInitialized = false;
+            this.encryptionKey = null;
+            
+            console.log('✅ XMTP database reset completed successfully');
+            
         } catch (error) {
-            console.error('❌ Error resetting database:', error);
+            console.error('❌ Database reset failed:', error);
             throw new Error(`Failed to reset database: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
     /**
-     * Perform safe sync with error handling
+     * Clear all XMTP-related IndexedDB databases
+     */
+    private async clearIndexedDBDatabases(): Promise<void> {
+        try {
+            const databases = await indexedDB.databases();
+            const xmtpDatabases = databases.filter(db => 
+                db.name && (
+                    db.name.includes('xmtp') || 
+                    db.name.includes('echofi') ||
+                    db.name.includes('libxmtp') ||
+                    db.name.toLowerCase().includes('mls')
+                )
+            );
+            
+            console.log(`🗑️ Found ${xmtpDatabases.length} XMTP databases to delete`);
+            
+            for (const db of xmtpDatabases) {
+                if (db.name) {
+                    console.log(`🗑️ Deleting database: ${db.name}`);
+                    await this.deleteDatabase(db.name);
+                }
+            }
+            
+        } catch (error) {
+            console.warn('⚠️ IndexedDB cleanup failed (continuing anyway):', error);
+        }
+    }
+
+    /**
+     * Delete a specific IndexedDB database
+     */
+    private async deleteDatabase(dbName: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const deleteReq = indexedDB.deleteDatabase(dbName);
+            
+            deleteReq.onsuccess = () => {
+                console.log(`✅ Database ${dbName} deleted successfully`);
+                resolve();
+            };
+            
+            deleteReq.onerror = () => {
+                console.error(`❌ Failed to delete database ${dbName}:`, deleteReq.error);
+                resolve(); // Don't reject - continue with other cleanup
+            };
+            
+            deleteReq.onblocked = () => {
+                console.warn(`⚠️ Database ${dbName} deletion blocked (might be open in another tab)`);
+                // Wait a bit and resolve anyway
+                setTimeout(() => resolve(), 2000);
+            };
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                console.warn(`⏰ Database ${dbName} deletion timed out`);
+                resolve();
+            }, 10000);
+        });
+    }
+
+    /**
+     * Clear XMTP-related localStorage entries
+     */
+    private async clearLocalStorage(): Promise<void> {
+        try {
+            const keysToRemove: string[] = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && this.isXMTPStorageKey(key)) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            console.log(`🗑️ Clearing ${keysToRemove.length} localStorage entries`);
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                console.log(`🗑️ Removed localStorage key: ${key}`);
+            });
+            
+        } catch (error) {
+            console.warn('⚠️ localStorage cleanup failed (continuing anyway):', error);
+        }
+    }
+
+    /**
+     * Clear XMTP-related sessionStorage entries
+     */
+    private async clearSessionStorage(): Promise<void> {
+        try {
+            const keysToRemove: string[] = [];
+            
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && this.isXMTPStorageKey(key)) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            console.log(`🗑️ Clearing ${keysToRemove.length} sessionStorage entries`);
+            keysToRemove.forEach(key => {
+                sessionStorage.removeItem(key);
+                console.log(`🗑️ Removed sessionStorage key: ${key}`);
+            });
+            
+        } catch (error) {
+            console.warn('⚠️ sessionStorage cleanup failed (continuing anyway):', error);
+        }
+    }
+
+    /**
+     * Check if a storage key is XMTP-related
+     */
+    private isXMTPStorageKey(key: string): boolean {
+        const xmtpKeywords = [
+            'xmtp',
+            'echofi',
+            'libxmtp',
+            'mls',
+            'encryption_key',
+            'sequence',
+            'inbox',
+            'conversation'
+        ];
+        
+        const lowerKey = key.toLowerCase();
+        return xmtpKeywords.some(keyword => lowerKey.includes(keyword));
+    }
+
+    /**
+     * Safe conversation sync without throwing errors
      */
     async safeSyncConversations(): Promise<void> {
         if (!this.client) return;
@@ -579,13 +794,13 @@ export class XMTPManager {
             await this.client.conversations.sync();
             console.log('✅ Conversations synced successfully');
         } catch (error) {
-            console.warn('⚠️ Sync failed, continuing anyway:', error);
+            console.warn('⚠️ Conversation sync failed (continuing anyway):', error);
             // Don't throw - sync failures shouldn't block the app
         }
     }
 
     /**
-     * Enhanced conversation fetching with retry logic
+     * Enhanced conversation fetching with better error handling
      */
     async getConversationsWithRetry(maxRetries = 3): Promise<Conversation[]> {
         this.ensureClientReady();
@@ -597,28 +812,64 @@ export class XMTPManager {
                 // Try to sync first, but don't fail if sync fails
                 await this.safeSyncConversations();
                 
+                // Fetch conversations
                 const conversations = await this.client!.conversations.list();
                 console.log(`✅ Found ${conversations.length} conversations`);
-                return conversations;
+                
+                // Validate conversations
+                const validConversations = await this.validateConversations(conversations);
+                console.log(`✅ ${validConversations.length} valid conversations`);
+                
+                return validConversations;
                 
             } catch (error) {
-                console.error(`❌ Attempt ${attempt} failed:`, error);
+                console.error(`❌ Conversation fetch attempt ${attempt} failed:`, error);
                 
                 if (attempt === maxRetries) {
-                    // On final attempt, check if it's a sequence ID issue
-                    if (error instanceof Error && error.message.includes('SequenceId')) {
-                        console.log('🔧 Sequence ID error detected, database reset may be needed');
-                        throw new Error('Database sync error. Please try resetting your chat database.');
+                    // On final attempt, check if it's a database issue
+                    if (error instanceof Error && (
+                        error.message.includes('SequenceId') ||
+                        error.message.includes('database') ||
+                        error.message.includes('sync')
+                    )) {
+                        console.log('🔧 Database corruption detected, reset may be needed');
+                        throw new Error('XMTP database corruption detected. Please reset your chat database.');
                     }
-                    throw error;
+                    
+                    // For other errors, return empty array
+                    console.warn('⚠️ All conversation fetch attempts failed, returning empty array');
+                    return [];
                 }
                 
-                // Wait before retry
-                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                // Wait before retry with exponential backoff
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
             }
         }
         
         return [];
+    }
+
+
+    /**
+     * Validate conversations to ensure they're not corrupted
+     */
+    private async validateConversations(conversations: Conversation[]): Promise<Conversation[]> {
+        const validConversations: Conversation[] = [];
+        
+        for (const conversation of conversations) {
+            try {
+                // Basic validation - check if conversation has required properties
+                if (conversation.id && conversation.description) {
+                    validConversations.push(conversation);
+                } else {
+                    console.warn('⚠️ Skipping invalid conversation:', conversation.id);
+                }
+            } catch (error) {
+                console.warn('⚠️ Skipping corrupted conversation:', error);
+            }
+        }
+        
+        return validConversations;
     }
 
     /**

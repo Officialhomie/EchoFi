@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { useWallet } from '@/hooks/useWallet';
+import { GroupChat } from '../groups/GroupChat';
+import { MessageCircle } from 'lucide-react';
 import { InvestmentProposal, InvestmentVote, ContentTypeInvestmentProposal, ContentTypeInvestmentVote } from '../../lib/content-types';
 import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
@@ -278,6 +280,22 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            Group Chat
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <GroupChat 
+            groupId={groupId} 
+            groupName={groupName}
+            className="border-0 rounded-none"
+          />
+        </CardContent>
+      </Card>
 
       {/* Create Proposal Section */}
       <Card>

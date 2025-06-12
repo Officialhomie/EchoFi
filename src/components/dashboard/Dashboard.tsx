@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/providers/AppProviders';
 import { formatUSD, formatCrypto, getRelativeTime, formatAddress, formatPercentage } from '@/lib/utils';
+import { API_ENDPOINTS, UI_CONFIG } from '@/lib/config/app';
+import { DecodedMessage } from '@xmtp/browser-sdk';
 import { 
   WalletIcon, 
   TrendingUpIcon, 
@@ -20,7 +22,8 @@ import {
   DollarSignIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  BotIcon
+  BotIcon,
+  AlertTriangle
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -220,7 +223,7 @@ const renderPortfolioContent = (
 
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
-  const { conversations } = useXMTP();
+  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase } = useXMTP();
   const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
@@ -323,81 +326,171 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   }, [agentInitialized, getBalance, error]);
 
   const loadGroups = useCallback(async () => {
-    if (!address) return;
-
+    if (!address || !conversations) return;
+  
     try {
-      // Fetch user's groups from API
-      const groupsResponse = await fetch(`/api/groups?address=${address}`);
-      if (!groupsResponse.ok) {
-        throw new Error('Failed to fetch groups');
+      setError(null);
+      
+      // Get user's groups from database with error handling
+      let userGroups = [];
+      try {
+        const response = await fetch(`${API_ENDPOINTS.BASE_URL}/user-groups?address=${address}`);
+        if (response.ok) {
+          const data = await response.json();
+          userGroups = data.groups || [];
+        }
+      } catch (dbError) {
+        console.warn('⚠️ Failed to load user groups from database:', dbError);
+        // Continue with XMTP-only groups
       }
-      const { groups: userGroups } = await groupsResponse.json();
-
-      // Fetch proposal counts for each group
-      const groupSummaries: GroupSummary[] = await Promise.all(
-        userGroups.map(async (userGroup: any) => {
+  
+      // Transform database groups with safe activity tracking
+      const groupSummaries = await Promise.all(
+        userGroups.map(async (userGroup: any): Promise<GroupSummary> => {
           try {
-            // Get all proposals for this group
-            const proposalsResponse = await fetch(`/api/proposals?groupId=${userGroup.group.id}`);
-            if (!proposalsResponse.ok) {
-              console.warn(`Failed to fetch proposals for group ${userGroup.group.id}`);
-              return createFallbackGroupSummary(userGroup);
-            }
-
-            const { proposals } = await proposalsResponse.json();
+            // Safe activity tracking with fallback
+            const conversation = conversations.find(conv => conv.id === userGroup.group.id);
+            let realLastActivity = new Date(userGroup.member.joinedAt).getTime();
             
-            // Count active proposals
-            const activeProposals = proposals.filter((p: any) => 
-              p.status === 'active' && new Date(p.deadline) > new Date()
-            ).length;
-
+            if (conversation && getMessages) {
+              try {
+                // Use safe message fetching to avoid SequenceId errors
+                const recentMessages = await getMessages(conversation.id, 1);
+                if (recentMessages.length > 0) {
+                  realLastActivity = Number(recentMessages[0].sentAtNs) / 1000000;
+                }
+              } catch (msgError) {
+                console.warn('⚠️ Could not fetch recent messages for activity tracking:', msgError);
+                // Fallback to conversation creation time
+                realLastActivity = conversation.createdAtNs 
+                  ? Number(conversation.createdAtNs) / 1000000
+                  : realLastActivity;
+              }
+            }
+  
             return {
               id: userGroup.group.id,
               name: userGroup.group.name || 'Unnamed Group',
               memberCount: userGroup.group.memberCount || 1,
               totalFunds: userGroup.group.totalFunds || '0',
-              activeProposals,
-              totalProposals: proposals.length,
-              lastActivity: new Date(userGroup.member.joinedAt).getTime(),
+              activeProposals: userGroup.group.activeProposals || 0,
+              totalProposals: userGroup.group.totalProposals || 0,
+              lastActivity: realLastActivity,
             };
           } catch (error) {
-            console.error(`Error loading data for group ${userGroup.group.id}:`, error);
+            console.warn('⚠️ Error processing group, using fallback:', error);
             return createFallbackGroupSummary(userGroup);
           }
         })
       );
-
-      // Also map XMTP conversations that might not be in database yet
-      const conversationGroups = conversations
-        .filter(conv => !groupSummaries.find(g => g.id === conv.id))
-        .map(conv => ({
-          id: conv.id,
-          name: conv.name || 'Unnamed Group',
-          memberCount: 1, // Will be updated when group is synced to database
-          totalFunds: '0',
-          activeProposals: 0,
-          totalProposals: 0,
-          lastActivity: conv.createdAtNs ? Number(conv.createdAtNs) : Date.now(),
-        }));
-
-      setGroups([...groupSummaries, ...conversationGroups]);
+  
+      // Transform XMTP conversations with safe activity tracking
+      const conversationGroups = await Promise.all(
+        conversations
+          .filter(conv => !userGroups.some((ug: any) => ug.group.id === conv.id))
+          .map(async (conv): Promise<GroupSummary> => {
+            let realLastActivity = conv.createdAtNs 
+              ? Number(conv.createdAtNs) / 1000000 
+              : Date.now();
+  
+            // Safe message fetching to avoid SequenceId errors
+            if (getMessages) {
+              try {
+                const recentMessages = await getMessages(conv.id, 1);
+                if (recentMessages.length > 0) {
+                  realLastActivity = Number(recentMessages[0].sentAtNs) / 1000000;
+                }
+              } catch (msgError) {
+                console.warn('⚠️ Could not fetch recent messages for conversation:', msgError);
+                // Use conversation creation time as fallback
+              }
+            }
+  
+            return {
+              id: conv.id,
+              name: conv.name || 'Unnamed Group',
+              memberCount: 1, // XMTP doesn't expose member count directly
+              totalFunds: '0',
+              activeProposals: 0,
+              totalProposals: 0,
+              lastActivity: realLastActivity,
+            };
+          })
+      );
+  
+      const allGroups = [...groupSummaries, ...conversationGroups];
+      setGroups(allGroups);
+      
+      console.log(`✅ Loaded ${allGroups.length} groups successfully`);
+      
     } catch (error) {
-      console.error('Failed to load groups:', error);
+      console.error('❌ Failed to load groups:', error);
       setError('Failed to load groups data');
       
-      // Fallback to XMTP conversations only
-      const fallbackGroups = conversations.map(conv => ({
-        id: conv.id,
-        name: conv.name || 'Unnamed Group',
-        memberCount: 1,
-        totalFunds: '0',
-        activeProposals: 0,
-        totalProposals: 0,
-        lastActivity: conv.createdAtNs ? Number(conv.createdAtNs) : Date.now(),
-      }));
+      // Enhanced fallback with safe activity tracking
+      const fallbackGroups = await Promise.all(
+        conversations.map(async (conv): Promise<GroupSummary> => {
+          let realLastActivity = conv.createdAtNs 
+            ? Number(conv.createdAtNs) / 1000000 
+            : Date.now();
+  
+          // Even in fallback, try to get real activity safely
+          if (getMessages) {
+            try {
+              const recentMessages = await getMessages(conv.id, 1);
+              if (recentMessages.length > 0) {
+                realLastActivity = Number(recentMessages[0].sentAtNs) / 1000000;
+              }
+            } catch (msgError) {
+              // Silent fallback to creation time
+              console.warn('⚠️ Fallback message fetch failed, using creation time:', msgError);
+            }
+          }
+  
+          return {
+            id: conv.id,
+            name: conv.name || 'Unnamed Group',
+            memberCount: 1,
+            totalFunds: '0',
+            activeProposals: 0,
+            totalProposals: 0,
+            lastActivity: realLastActivity,
+          };
+        })
+      );
+      
       setGroups(fallbackGroups);
     }
-  }, [address, conversations]);
+  }, [address, conversations, getMessages]);
+  
+  const safeGetRecentMessages = useCallback(async (
+    conversationId: string, 
+    limit: number = 1
+  ): Promise<DecodedMessage[]> => {
+    try {
+      if (!getMessages) {
+        return [];
+      }
+      
+      const messages = await getMessages(conversationId, limit);
+      return messages || [];
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Handle SequenceId errors specifically
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('local db') ||
+          errorMessage.includes('database')) {
+        console.warn(`🛡️ Database error fetching messages for ${conversationId}, returning empty array`);
+        return [];
+      }
+      
+      // For other errors, also return empty array to prevent crashes
+      console.warn(`⚠️ Error fetching messages for ${conversationId}:`, errorMessage);
+      return [];
+    }
+  }, [getMessages]);
 
   const createFallbackGroupSummary = (userGroup: any): GroupSummary => ({
     id: userGroup.group.id,
@@ -438,6 +531,100 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       setIsLoading(false);
     }
   }, [loadPortfolio, loadGroups, loadPerformanceAnalysis]);
+
+  const handleDatabaseError = useCallback(async () => {
+    try {
+      setError(null);
+      
+      // Try to reinitialize XMTP
+      if (initializeXMTP) {
+        console.log('🔄 Attempting to reinitialize XMTP...');
+        await initializeXMTP();
+      }
+      
+      // Reload groups after reinitialization
+      await loadGroups();
+      
+    } catch (error) {
+      console.error('❌ Error recovery failed:', error);
+      setError('Failed to recover from database error. You may need to reset your chat database.');
+    }
+  }, [initializeXMTP, loadGroups]);
+
+  const handleResetDatabase = useCallback(async () => {
+    if (!resetDatabase) return;
+    
+    try {
+      setError(null);
+      console.log('🔄 Resetting XMTP database...');
+      
+      await resetDatabase();
+      
+      // Reload groups after reset
+      setTimeout(() => {
+        loadGroups();
+      }, 2000); // Give time for reinitialization
+      
+    } catch (error) {
+      console.error('❌ Database reset failed:', error);
+      setError('Failed to reset database. Please refresh the page and try again.');
+    }
+  }, [resetDatabase, loadGroups]);
+
+  const renderErrorWithRecovery = () => {
+    if (!error) return null;
+    
+    const isDatabaseError = error.includes('SequenceId') || 
+                           error.includes('database') || 
+                           error.includes('sync');
+    
+    return (
+      <Card className="border-destructive/50 bg-destructive/5">
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-medium text-destructive mb-1">
+                {isDatabaseError ? 'Database Sync Issue' : 'Error'}
+              </h3>
+              <p className="text-sm text-destructive/80 mb-3">{error}</p>
+              
+              {isDatabaseError && (
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDatabaseError}
+                    className="border-destructive/20 text-destructive hover:bg-destructive/10"
+                  >
+                    Try Recovery
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetDatabase}
+                    className="border-destructive/20 text-destructive hover:bg-destructive/10"
+                  >
+                    Reset Database
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isLoading) {
+        loadGroups();
+      }
+    }, UI_CONFIG.POLLING_INTERVAL);
+  
+    return () => clearInterval(interval);
+  }, [loadGroups, isLoading]);
 
   useEffect(() => {
     loadDashboardData();
@@ -488,8 +675,11 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const totalActiveProposals = groups.reduce((sum, group) => sum + group.activeProposals, 0);
   const totalProposals = groups.reduce((sum, group) => sum + group.totalProposals, 0);
 
-      return (
+  return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {/* Error Display with Recovery Options */}
+      {renderErrorWithRecovery()}
+
       {/* Welcome Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -642,26 +832,27 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
         {/* Investment Groups */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center">
-                <UsersIcon className="w-5 h-5 mr-2" />
-                Your Groups
-              </CardTitle>
-              <Button size="sm" onClick={onViewGroups}>
-                <PlusIcon className="w-4 h-4 mr-1" />
-                Manage
-              </Button>
-            </div>
+            <CardTitle className="flex items-center">
+              <UsersIcon className="w-5 h-5 mr-2" />
+              Your Groups
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {groups.length === 0 ? (
               <div className="text-center py-8">
                 <UsersIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No groups yet</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {isLoading ? 'Loading groups...' : 'No groups yet'}
+                </h3>
                 <p className="text-gray-600 mb-4">
-                  Create or join investment groups to start coordinating with others.
+                  {isLoading 
+                    ? 'Please wait while we load your groups...'
+                    : 'Create or join investment groups to start coordinating with others.'
+                  }
                 </p>
-                <Button onClick={onViewGroups}>Create Your First Group</Button>
+                {!isLoading && (
+                  <Button onClick={onViewGroups}>Create Your First Group</Button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">

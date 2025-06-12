@@ -37,6 +37,8 @@ export interface UseXMTPReturn {
   refreshConversations: () => Promise<void>;
   cleanup: () => Promise<void>;
   clearError?: () => void;
+  checkDatabaseHealth: () => Promise<boolean>;
+  safeMessageOperation: <T>(operation: () => Promise<T>, fallbackValue: T, operationName: string) => Promise<T>;
 }
 
 /**
@@ -69,30 +71,99 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
 
   const refreshConversations = useCallback(async () => {
     if (!xmtpManager.current) return;
-
+  
     try {
       console.log('🔄 Refreshing conversations...');
       const convos = await xmtpManager.current.getConversations();
       setConversations(convos);
       console.log(`✅ Loaded ${convos.length} conversations`);
-    } catch (error) {
-      console.error('❌ Failed to refresh conversations:', error);
       
-      // Check if it's a sequence ID error
-      if (error instanceof Error && error.message.includes('SequenceId')) {
-        setError('Database sync error. You may need to reset your chat database.');
+      // Clear any previous errors on successful load
+      if (convos.length > 0) {
+        setError(null);
+      }
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Failed to refresh conversations:', errorMessage);
+      
+      // Handle different types of errors appropriately
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('database') || 
+          errorMessage.includes('sync')) {
+        console.log('🔧 Database sync error detected');
+        setError('Chat database sync error. You may need to reset your chat database.');
+      } else if (errorMessage.includes('network') || 
+                 errorMessage.includes('connection')) {
+        setError('Network connection issue. Please check your internet connection.');
       } else {
         setError('Failed to load conversations. Please try again.');
       }
+      
+      // Don't crash the app - set empty conversations
+      setConversations([]);
     }
   }, []);
+
+  const safeMessageOperation = useCallback(async <T>(
+    operation: () => Promise<T>,
+    fallbackValue: T,
+    operationName: string
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ ${operationName} failed:`, errorMessage);
+      
+      // Handle SequenceId errors specifically
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('local db') ||
+          errorMessage.includes('database corruption')) {
+        console.log(`🛡️ Database error in ${operationName}, using fallback`);
+        setError(`Database sync issue during ${operationName.toLowerCase()}. Some features may be temporarily unavailable.`);
+      }
+      
+      return fallbackValue;
+    }
+  }, []);
+
+  const checkDatabaseHealth = useCallback(async (): Promise<boolean> => {
+    if (!xmtpManager.current || !client) {
+      return false;
+    }
+  
+    try {
+      console.log('🔍 Checking XMTP database health...');
+      
+      // Test basic operations
+      await client.conversations.list();
+      console.log('✅ Database health check passed');
+      return true;
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Database health check failed:', errorMessage);
+      
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('database') ||
+          errorMessage.includes('sync')) {
+        console.log('🔧 Database corruption detected in health check');
+        setError('Database corruption detected. Consider resetting your chat database.');
+        return false;
+      }
+      
+      return false;
+    }
+  }, [client]);
+  
 
   const initializeXMTP = useCallback(async () => {
     if (!signer || isInitializing) return;
     
     setIsInitializing(true);
     setError(null);
-
+  
     try {
       console.log('🚀 Initializing XMTP...');
       
@@ -109,41 +180,58 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         dbPath: config?.dbPath || 'echofi-xmtp',
         ...config,
       };
-
+  
       const xmtpClient = await xmtpManager.current.initializeClient(browserSigner, xmtpConfig);
       
       setClient(xmtpClient);
       setIsInitialized(true);
       
-      // Load existing conversations with retry logic
-      try {
-        await refreshConversations();
-      } catch (convError) {
-        console.warn('⚠️ Failed to load conversations during init, continuing anyway:', convError);
-        // Don't fail initialization just because conversation loading failed
+      // Perform health check after initialization
+      const isHealthy = await checkDatabaseHealth();
+      
+      if (isHealthy) {
+        // Load existing conversations with safe error handling
+        try {
+          await refreshConversations();
+        } catch (convError) {
+          console.warn('⚠️ Failed to load conversations during init (continuing anyway):', convError);
+          // Don't fail initialization just because conversation loading failed
+        }
+      } else {
+        console.warn('⚠️ Database health check failed, but client initialized');
+        setError('Chat database may have issues. Some features might not work properly.');
       }
       
       console.log('✅ XMTP initialized successfully');
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize XMTP';
       console.error('❌ XMTP initialization failed:', errorMessage);
       
-      // Check if it's a database corruption issue
-      if (errorMessage.includes('SequenceId') || errorMessage.includes('database') || errorMessage.includes('sync')) {
-        setError('Database sync error. Click "Reset Database" below if the problem persists.');
+      // Provide specific error guidance
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('database') || 
+          errorMessage.includes('sync')) {
+        setError('Database sync error during initialization. Click "Reset Database" below if the problem persists.');
+      } else if (errorMessage.includes('signer') || 
+                 errorMessage.includes('wallet')) {
+        setError('Wallet connection issue. Please check your wallet and try again.');
+      } else if (errorMessage.includes('network')) {
+        setError('Network connection issue. Please check your internet connection.');
       } else {
-        setError(errorMessage);
+        setError(`Initialization failed: ${errorMessage}`);
       }
     } finally {
       setIsInitializing(false);
     }
-  }, [signer, isInitializing, config, refreshConversations]);
+  }, [signer, isInitializing, config, refreshConversations, checkDatabaseHealth]);
+  
 
 
 
   const resetDatabase = useCallback(async () => {
     if (!xmtpManager.current) return;
-
+  
     try {
       setIsInitializing(true);
       setError(null);
@@ -151,25 +239,40 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       console.log('🔄 Resetting XMTP database...');
       await xmtpManager.current.resetDatabase();
       
-      // Reset state
+      // Reset all state
       setClient(null);
       setIsInitialized(false);
       setConversations([]);
       
-      console.log('✅ Database reset complete, reinitializing...');
+      // Stop all message streams
+      messageStreams.current.forEach(stopStream => {
+        try {
+          stopStream();
+        } catch (error) {
+          console.warn('⚠️ Error stopping stream:', error);
+        }
+      });
+      messageStreams.current.clear();
       
-      // Reinitialize XMTP
-      if (signer) {
+      // Recreate XMTP manager
+      xmtpManager.current = new XMTPManager();
+      
+      console.log('✅ Database reset complete');
+      
+      // Reinitialize XMTP if wallet is connected
+      if (signer && isConnected) {
+        console.log('🔄 Reinitializing XMTP after database reset...');
         await initializeXMTP();
       }
       
     } catch (error) {
-      console.error('❌ Database reset failed:', error);
-      setError(`Reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Database reset failed:', errorMessage);
+      setError(`Reset failed: ${errorMessage}`);
     } finally {
       setIsInitializing(false);
     }
-  }, [signer, initializeXMTP]);
+  }, [signer, isConnected, initializeXMTP]);
 
   // Initialize XMTP when wallet is connected
   useEffect(() => {
@@ -263,61 +366,58 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   }, [refreshConversations]);
 
   const sendMessage = useCallback(async (
-    conversationId: string, 
-    content: unknown, 
-    contentType: string = 'text'
-  ) => {
-    if (!xmtpManager.current) {
-      throw new Error('XMTP not initialized');
-    }
-
-    try {
+    conversationId: string,
+    content: unknown,
+    contentType?: string
+  ): Promise<void> => {
+    await safeMessageOperation(async () => {
+      if (!xmtpManager.current) {
+        throw new Error('XMTP not initialized');
+      }
       const conversation = await xmtpManager.current.getConversationById(conversationId);
       if (!conversation) {
         throw new Error('Conversation not found');
       }
-
-      // Handle different content types
-      let messageContent = content;
-      let messageContentType = undefined;
-
-      if (contentType === 'investment-proposal') {
-        messageContent = content as InvestmentProposal;
-        messageContentType = ContentTypeInvestmentProposal;
-      } else if (contentType === 'investment-vote') {
-        messageContent = content as InvestmentVote;
-        messageContentType = ContentTypeInvestmentVote;
+      if (contentType) {
+        await xmtpManager.current.sendMessage(conversation, content, contentType);
+      } else {
+        await xmtpManager.current.sendMessage(conversation, content);
       }
-
-      await xmtpManager.current.sendMessage(
-        conversation, 
-        messageContent as string, 
-        messageContentType
-      );
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      throw error;
-    }
-  }, []);
+    }, undefined, 'Send Message');
+  }, [safeMessageOperation]);
 
   const getMessages = useCallback(async (
-    conversationId: string, 
+    conversationId: string,
     limit?: number
   ): Promise<DecodedMessage[]> => {
     if (!xmtpManager.current) {
       throw new Error('XMTP not initialized');
     }
-
+  
     try {
       const conversation = await xmtpManager.current.getConversationById(conversationId);
       if (!conversation) {
-        throw new Error('Conversation not found');
+        console.warn(`⚠️ Conversation ${conversationId} not found`);
+        return [];
       }
-
+  
       return await xmtpManager.current.getMessages(conversation, limit);
     } catch (error) {
-      console.error('Failed to get messages:', error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Failed to get messages:', errorMessage);
+      
+      // Handle SequenceId errors gracefully
+      if (errorMessage.includes('SequenceId') || 
+          errorMessage.includes('local db') ||
+          errorMessage.includes('database')) {
+        console.log('🛡️ Database error detected, returning empty messages array');
+        setError('Chat database sync issue detected. Messages may be temporarily unavailable.');
+        return [];
+      }
+      
+      // For other errors, still return empty array to prevent UI crashes
+      setError(`Failed to load messages: ${errorMessage}`);
+      return [];
     }
   }, []);
 
@@ -328,31 +428,47 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     if (!xmtpManager.current) {
       throw new Error('XMTP not initialized');
     }
-
+  
     try {
       // Stop existing stream for this conversation
       const existingStream = messageStreams.current.get(conversationId);
       if (existingStream) {
         existingStream();
       }
-
-      // Start new stream
+  
+      // Start new stream with error handling
       const stopStream = await xmtpManager.current.streamConversationMessages(
         conversationId,
-        onMessage,
+        (message) => {
+          try {
+            onMessage(message);
+          } catch (error) {
+            console.error('❌ Error in message callback:', error);
+          }
+        },
         (error) => {
-          console.error('Message stream error:', error);
-          setError(error.message);
+          console.error('❌ Message stream error:', error);
+          
+          // Handle SequenceId errors in streaming
+          if (error.message.includes('SequenceId') || 
+              error.message.includes('database')) {
+            console.log('🔧 Database sync error in message stream');
+            setError('Real-time messaging temporarily unavailable due to database sync issue.');
+          } else {
+            setError(`Message streaming error: ${error.message}`);
+          }
         }
       );
-
+  
       // Store cleanup function
       messageStreams.current.set(conversationId, stopStream);
-
+  
       return stopStream;
     } catch (error) {
-      console.error('Failed to stream messages:', error);
-      throw error;
+      console.error('❌ Failed to start message stream:', error);
+      
+      // Return no-op function to prevent further errors
+      return () => {};
     }
   }, []);
 
@@ -452,5 +568,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     refreshConversations,
     cleanup,
     clearError,
+    checkDatabaseHealth,
+    safeMessageOperation,
   };
 }
