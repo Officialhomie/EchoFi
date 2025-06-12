@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
 /**
  * @title AgentExecutor
  * @dev Contract for executing AgentKit strategies on-chain

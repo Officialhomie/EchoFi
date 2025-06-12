@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "./GroupFiTreasury.sol";
+import "./EchoFiTreasury.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title GroupFiFactory
- * @dev Factory contract for deploying and managing GroupFi treasury instances
+ * @title EchoFiFactory
+ * @dev Factory contract for deploying and managing EchoFi treasury instances
  * @notice Enables easy creation of new investment groups with standardized configurations
  */
-contract GroupFiFactory is Ownable, ReentrancyGuard {
+contract EchoFiFactory is Ownable, ReentrancyGuard {
     // Treasury registry
     struct TreasuryInfo {
         address treasuryAddress;
@@ -59,7 +59,7 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Create a new GroupFi treasury
+     * @dev Create a new EchoFi treasury
      * @param _name Name of the investment group
      * @param _description Description of the group's purpose
      * @param _members Array of member addresses
@@ -94,7 +94,7 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
         }
 
         // Deploy new treasury
-        GroupFiTreasury treasury = new GroupFiTreasury(
+        EchoFiTreasury treasury = new EchoFiTreasury(
             aUSDC,
             _members,
             _votingPowers
@@ -141,7 +141,7 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
         string memory _name,
         string memory _xmtpGroupId,
         string memory _creatorXmtp,
-        GroupFiTreasury.GroupConfig memory _config
+        EchoFiTreasury.GroupConfig memory _config
     ) external payable nonReentrant returns (address) {
         // Validate creation fee
         if (msg.value < creationFee) revert InsufficientFee();
@@ -153,7 +153,7 @@ contract GroupFiFactory is Ownable, ReentrancyGuard {
         initialVotingPowers[0] = 100;
 
         // Deploy new treasury with config
-        GroupFiTreasury treasury = new GroupFiTreasury(
+        EchoFiTreasury treasury = new EchoFiTreasury(
             aUSDC,
             initialMembers,
             initialVotingPowers

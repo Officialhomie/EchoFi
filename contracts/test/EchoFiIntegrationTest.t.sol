@@ -2,15 +2,15 @@
 pragma solidity ^0.8.25;
 
 import "forge-std/Test.sol";
-import "../src/GroupFiFactory.sol";
-import "../src/GroupFiTreasury.sol";
+import "../src/EchoFiFactory.sol";
+import "../src/EchoFiTreasury.sol";
 import "../src/AgentExecutor.sol";
 import "../src/mocks/MockUSDC.sol";
 import "../src/mocks/MockWETH.sol";
 import "../src/mocks/MockDeFiProtocol.sol";
 
-contract GroupFiIntegrationTest is Test {
-    GroupFiFactory public factory;
+contract EchoFiIntegrationTest is Test {
+    EchoFiFactory public factory;
     MockUSDC public usdc;
     MockWETH public weth;
     MockDeFiProtocol public defiProtocol;
@@ -21,7 +21,7 @@ contract GroupFiIntegrationTest is Test {
     address public charlie = makeAddr("charlie");
 
     function setUp() public {
-        factory = new GroupFiFactory();
+        factory = new EchoFiFactory();
         usdc = new MockUSDC();
         weth = new MockWETH();
         defiProtocol = new MockDeFiProtocol();
@@ -29,7 +29,7 @@ contract GroupFiIntegrationTest is Test {
     }
     
     function testCreateGroup() public {
-        GroupFiTreasury.GroupConfig memory config = GroupFiTreasury.GroupConfig({
+        EchoFiTreasury.GroupConfig memory config = EchoFiTreasury.GroupConfig({
             xmtpGroupId: "test-xmtp-group",
             minVotingPower: 1,
             votingDuration: 7 days,

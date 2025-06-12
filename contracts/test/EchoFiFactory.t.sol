@@ -3,13 +3,13 @@ pragma solidity ^0.8.25;
 
 import "@forge-std/Test.sol";
 import "@forge-std/console.sol";
-import "../src/GroupFiFactory.sol";
-import "../src/GroupFiTreasury.sol";
-import "../src/GroupFiHelper.sol";
+import "../src/EchoFiFactory.sol";
+import "../src/EchoFiTreasury.sol";
+import "../src/EchoFiHelper.sol";
 
-contract GroupFiFactoryTest is Test {
-    GroupFiFactory public factory;
-    GroupFiHelper public helper;
+contract EchoFiFactoryTest is Test {
+    EchoFiFactory public factory;
+    EchoFiHelper public helper;
     
     address public owner = address(1);
     address public user1 = address(2);
@@ -31,8 +31,8 @@ contract GroupFiFactoryTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         
-        factory = new GroupFiFactory(MOCK_AUSDC, owner);
-        helper = new GroupFiHelper(address(factory));
+        factory = new EchoFiFactory(MOCK_AUSDC, owner);
+        helper = new EchoFiHelper(address(factory));
         
         // Fund users with ETH for creation fees
         vm.deal(user1, 10 ether);
@@ -85,7 +85,7 @@ contract GroupFiFactoryTest is Test {
         assertEq(factory.treasuryCount(), 1);
         
         // Verify treasury info
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasuryAddress);
+        EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasuryAddress);
         assertEq(info.treasuryAddress, treasuryAddress);
         assertEq(info.creator, user1);
         assertEq(info.name, "Test Group");
@@ -118,7 +118,7 @@ contract GroupFiFactoryTest is Test {
         votingPowers[1] = 40;
 
         vm.prank(user1);
-        vm.expectRevert(GroupFiFactory.InsufficientFee.selector);
+        vm.expectRevert(EchoFiFactory.InsufficientFee.selector);
         factory.createTreasury{value: CREATION_FEE - 1}(
             "Test Group",
             "Description",
@@ -135,7 +135,7 @@ contract GroupFiFactoryTest is Test {
         votingPowers[0] = 100;
 
         vm.prank(user1);
-        vm.expectRevert(GroupFiFactory.InvalidMemberCount.selector);
+        vm.expectRevert(EchoFiFactory.InvalidMemberCount.selector);
         factory.createTreasury{value: CREATION_FEE}(
             "Test Group",
             "Description",
@@ -158,7 +158,7 @@ contract GroupFiFactoryTest is Test {
         votingPowers[2] = 20; // Sum = 95, not 100
 
         vm.prank(user1);
-        vm.expectRevert(GroupFiFactory.InvalidVotingPowers.selector);
+        vm.expectRevert(EchoFiFactory.InvalidVotingPowers.selector);
         factory.createTreasury{value: CREATION_FEE}(
             "Test Group",
             "Description",
@@ -178,7 +178,7 @@ contract GroupFiFactoryTest is Test {
         votingPowers[2] = 20;
 
         vm.prank(user1);
-        vm.expectRevert(GroupFiFactory.InvalidVotingPowers.selector);
+        vm.expectRevert(EchoFiFactory.InvalidVotingPowers.selector);
         factory.createTreasury{value: CREATION_FEE}(
             "Test Group",
             "Description",
@@ -279,7 +279,7 @@ contract GroupFiFactoryTest is Test {
         vm.prank(user1);
         factory.updateTreasuryStatus(treasury, false);
 
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasury);
+        EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasury);
         assertFalse(info.isActive);
 
         // Owner can also update status
@@ -295,7 +295,7 @@ contract GroupFiFactoryTest is Test {
 
         // Non-creator/non-owner cannot update status
         vm.prank(user2);
-        vm.expectRevert(GroupFiFactory.UnauthorizedAccess.selector);
+        vm.expectRevert(EchoFiFactory.UnauthorizedAccess.selector);
         factory.updateTreasuryStatus(treasury, false);
     }
 
@@ -304,7 +304,7 @@ contract GroupFiFactoryTest is Test {
         
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit GroupFiFactory.CreationFeeUpdated(CREATION_FEE, newFee);
+        emit EchoFiFactory.CreationFeeUpdated(CREATION_FEE, newFee);
         factory.updateCreationFee(newFee);
 
         assertEq(factory.creationFee(), newFee);
@@ -382,7 +382,7 @@ contract GroupFiFactoryTest is Test {
         address[] memory treasuries = new address[](1);
         treasuries[0] = treasury;
 
-        GroupFiHelper.TreasuryDetails[] memory details = helper.getTreasuryDetails(treasuries);
+        EchoFiHelper.TreasuryDetails[] memory details = helper.getTreasuryDetails(treasuries);
         
         assertEq(details.length, 1);
         assertEq(details[0].treasuryAddress, treasury);
@@ -395,11 +395,11 @@ contract GroupFiFactoryTest is Test {
         address treasury = _createTestTreasury(user1, "Test Group");
         
         // Create a proposal to test voting eligibility
-        GroupFiTreasury treasuryContract = GroupFiTreasury(treasury);
+        EchoFiTreasury treasuryContract = EchoFiTreasury(treasury);
         
         vm.prank(user1);
         uint256 proposalId = treasuryContract.createProposal(
-            GroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             1000 * 1e6,
             address(0),
             "",
@@ -446,7 +446,7 @@ contract GroupFiFactoryTest is Test {
     function test_TreasuryNotFound() public {
         address nonExistentTreasury = address(0x999);
         
-        vm.expectRevert(GroupFiFactory.TreasuryNotFound.selector);
+        vm.expectRevert(EchoFiFactory.TreasuryNotFound.selector);
         factory.getTreasuryInfo(nonExistentTreasury);
     }
 
@@ -502,7 +502,7 @@ contract GroupFiFactoryTest is Test {
 
         assertTrue(treasury != address(0));
         
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasury);
+        EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(treasury);
         assertEq(info.memberCount, memberCount);
         assertEq(info.totalVotingPower, 100);
     }

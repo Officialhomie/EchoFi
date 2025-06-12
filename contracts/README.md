@@ -1,12 +1,12 @@
-# GroupFi Smart Contracts 🚀
+# EchoFi Smart Contracts 🚀
 
 **Decentralized Group Investment DAO with XMTP Integration**
 
-GroupFi enables secure, collaborative investment management through XMTP-powered messaging, AI agent automation, and battle-tested smart contracts on Base blockchain.
+EchoFi enables secure, collaborative investment management through XMTP-powered messaging, AI agent automation, and battle-tested smart contracts on Base blockchain.
 
 ## 🎯 Project Overview
 
-**Bottom Line Up Front:** GroupFi combines XMTP v3 encrypted messaging, AgentKit DeFi automation, and robust multi-signature treasury contracts to create the first messaging-native group investment platform.
+**Bottom Line Up Front:** EchoFi combines XMTP v3 encrypted messaging, AgentKit DeFi automation, and robust multi-signature treasury contracts to create the first messaging-native group investment platform.
 
 ### Key Features
 
@@ -44,13 +44,13 @@ This implementation focuses on **Aave V3 USDC lending** as the DeFi integration 
 
 ```
 src/
-├── GroupFiTreasury.sol     # Main treasury with Aave integration
-├── GroupFiFactory.sol      # Factory for creating treasuries  
-└── GroupFiHelper.sol       # Frontend integration utilities
+├── EchoFiTreasury.sol     # Main treasury with Aave integration
+├── EchoFiFactory.sol      # Factory for creating treasuries  
+└── EchoFiHelper.sol       # Frontend integration utilities
 
 test/
-├── GroupFiTreasury.t.sol   # Comprehensive treasury tests
-└── GroupFiFactory.t.sol    # Factory and helper tests
+├── EchoFiTreasury.t.sol   # Comprehensive treasury tests
+└── EchoFiFactory.t.sol    # Factory and helper tests
 
 script/
 └── Deploy.s.sol            # Deployment automation
@@ -70,7 +70,7 @@ script/
 ```bash
 # Clone and setup
 git clone https://github.com/Officialhomie/EchoFi
-cd groupfi-contracts
+cd echoFi-contracts
 
 # Install dependencies
 make install
@@ -101,7 +101,7 @@ make deploy-mainnet
 
 ## 📋 Contract Details
 
-### GroupFiTreasury
+### EchoFiTreasury
 
 **Main Features:**
 - Multi-signature proposal system
@@ -138,7 +138,7 @@ function _supplyToAave(uint256 amount) internal returns (bool);
 - `TRANSFER` - Send tokens to external address
 - `EMERGENCY_WITHDRAW` - Emergency Aave exit
 
-### GroupFiFactory
+### EchoFiFactory
 
 **Purpose:** Standardized treasury deployment and management
 
@@ -159,7 +159,7 @@ function getUserTreasuries(address _user) external view returns (address[] memor
 function getActiveTreasuries() external view returns (address[] memory);
 ```
 
-### GroupFiHelper
+### EchoFiHelper
 
 **Purpose:** Frontend integration and utility functions
 
@@ -192,8 +192,8 @@ make test-specific TEST=test_CreateProposal
 
 ### Test Coverage
 
-- **GroupFiTreasury**: 95%+ coverage
-- **GroupFiFactory**: 95%+ coverage
+- **EchoFiTreasury**: 95%+ coverage
+- **EchoFiFactory**: 95%+ coverage
 - **Integration Tests**: Full user workflows
 - **Fuzz Testing**: Property-based validation
 - **Gas Optimization**: Benchmarked operations
@@ -253,7 +253,7 @@ uint256 public maxProposalAmount = 1M * 1e6;  // 1M USDC max
 
 **1. Contract ABIs** (auto-generated in `out/` after build)
 ```typescript
-import { GroupFiTreasury, GroupFiFactory } from './contracts';
+import { EchoFiTreasury, EchoFiFactory } from './contracts';
 ```
 
 **2. Deployment Addresses** (saved in `deployments/`)
@@ -273,14 +273,14 @@ import { useContractRead, useContractWrite } from 'wagmi';
 // Read treasury balance
 const { data: balance } = useContractRead({
   address: treasuryAddress,
-  abi: GroupFiTreasuryABI,
+  abi: EchoFiTreasuryABI,
   functionName: 'getTreasuryBalance'
 });
 
 // Create proposal
 const { write: createProposal } = useContractWrite({
   address: treasuryAddress,
-  abi: GroupFiTreasuryABI,
+  abi: EchoFiTreasuryABI,
   functionName: 'createProposal'
 });
 ```
@@ -403,8 +403,8 @@ MIT License - see [LICENSE](./LICENSE) file.
 
 - **Documentation**: This README
 - **Issues**: GitHub Issues
-- **Discord**: [GroupFi Community](https://discord.gg/groupfi)
-- **Email**: support@groupfi.xyz
+- **Discord**: [EchoFi Community](https://discord.gg/cchoFi)
+- **Email**: support@echoFi.xyz
 
 ---
 

@@ -3,12 +3,12 @@ pragma solidity ^0.8.25;
 
 import "@forge-std/Script.sol";
 import "@forge-std/console.sol";
-import "../src/GroupFiTreasury.sol";
+import "../src/EchoFiTreasury.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title Deploy Script for GroupFiTreasury
- * @dev Deploys GroupFiTreasury contract with network-specific configurations
+ * @title Deploy Script for EchoFiTreasury
+ * @dev Deploys EchoFiTreasury contract with network-specific configurations
  * @notice Run with: forge script script/Deploy.s.sol --rpc-url <RPC_URL> --broadcast --verify
  */
 contract DeployScript is Script {
@@ -61,8 +61,8 @@ contract DeployScript is Script {
 
         vm.startBroadcast(config.deployerKey);
 
-        // Deploy GroupFiTreasury
-        GroupFiTreasury treasury = new GroupFiTreasury(
+        // Deploy EchoFiTreasury
+        EchoFiTreasury treasury = new EchoFiTreasury(
             config.initialMembers,
             config.votingPowers,
             config.aUsdc
@@ -72,7 +72,7 @@ contract DeployScript is Script {
 
         // Log deployment info
         console.log("=== DEPLOYMENT SUCCESSFUL ===");
-        console.log("GroupFiTreasury deployed at:", address(treasury));
+        console.log("EchoFiTreasury deployed at:", address(treasury));
         console.log("Deployer:", vm.addr(config.deployerKey));
         console.log("Initial members:", config.initialMembers.length);
         console.log("Total voting power:", treasury.totalVotingPower());
@@ -118,7 +118,7 @@ contract DeployScript is Script {
         return powers;
     }
 
-    function _verifyDeployment(GroupFiTreasury treasury, NetworkConfig memory config) internal view {
+    function _verifyDeployment(EchoFiTreasury treasury, NetworkConfig memory config) internal view {
         console.log("=== DEPLOYMENT VERIFICATION ===");
         
         // Check basic contract state
@@ -197,7 +197,7 @@ contract SetupScript is Script {
         
         vm.startBroadcast(deployerKey);
         
-        GroupFiTreasury treasury = GroupFiTreasury(treasuryAddress);
+        EchoFiTreasury treasury = EchoFiTreasury(treasuryAddress);
         IERC20 usdc = IERC20(usdcAddress);
         
         // Add agent role for automation (optional)
@@ -247,7 +247,7 @@ contract VerifyScript is Script {
         console.log("=== VERIFYING DEPLOYMENT ===");
         console.log("Treasury Address:", treasuryAddress);
         
-        GroupFiTreasury treasury = GroupFiTreasury(treasuryAddress);
+        EchoFiTreasury treasury = EchoFiTreasury(treasuryAddress);
         
         // Verify contract state
         console.log("Total Voting Power:", treasury.totalVotingPower());

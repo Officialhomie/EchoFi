@@ -25,11 +25,11 @@ interface IAToken is IERC20 {
 }
 
 /**
- * @title GroupFiTreasury
+ * @title EchoFiTreasury
  * @dev Multi-signature treasury contract with Aave V3 integration for group investment coordination
  * @notice Manages group proposals, voting, and automated DeFi execution through Aave lending
  */
-contract GroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
+contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;  // ← This is the key line that enables safeApprove
 
     // Role definitions

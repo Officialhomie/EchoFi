@@ -3,7 +3,7 @@ pragma solidity ^0.8.25;
 
 import "@forge-std/Test.sol";
 import "@forge-std/console.sol";
-import "../src/GroupFiTreasury.sol";
+import "../src/EchoFiTreasury.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Mock USDC token for testing
@@ -88,8 +88,8 @@ contract MockAavePool {
     }
 }
 
-// Custom GroupFi Treasury for testing with mock contracts
-contract TestGroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
+// Custom EchoFi Treasury for testing with mock contracts
+contract TestEchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // Role definitions (same as main contract)
@@ -296,8 +296,8 @@ contract TestGroupFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     }
 }
 
-contract GroupFiTreasuryTest is Test {
-    TestGroupFiTreasury public treasury;
+contract EchoFiTreasuryTest is Test {
+    TestEchoFiTreasury public treasury;
     MockUSDC public usdc;
     MockAUSDC public aUsdc;
     MockAavePool public aavePool;
@@ -330,7 +330,7 @@ contract GroupFiTreasuryTest is Test {
         votingPowers[1] = 35; // 35% 
         votingPowers[2] = 25; // 25%
 
-        treasury = new TestGroupFiTreasury(
+        treasury = new TestEchoFiTreasury(
             initialMembers,
             votingPowers,
             address(aavePool),
@@ -366,7 +366,7 @@ contract GroupFiTreasuryTest is Test {
         vm.startPrank(member1);
         
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             50_000 * 1e6, // 50k USDC
             address(0),
             "",
@@ -376,7 +376,7 @@ contract GroupFiTreasuryTest is Test {
         (
             uint256 id,
             address proposer,
-            TestGroupFiTreasury.ProposalType proposalType,
+            EchoFiTreasury.ProposalType proposalType,
             uint256 amount,
             ,
             string memory description,
@@ -389,7 +389,7 @@ contract GroupFiTreasuryTest is Test {
 
         assertEq(id, 0);
         assertEq(proposer, member1);
-        assertTrue(proposalType == TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE);
+        assertTrue(proposalType == EchoFiTreasury.ProposalType.DEPOSIT_AAVE);
         assertEq(amount, 50_000 * 1e6);
         assertEq(description, "Deposit 50k USDC to Aave for yield");
         assertEq(votesFor, 0);
@@ -405,7 +405,7 @@ contract GroupFiTreasuryTest is Test {
         // Create proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -435,7 +435,7 @@ contract GroupFiTreasuryTest is Test {
         // Create and pass proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -473,7 +473,7 @@ contract GroupFiTreasuryTest is Test {
         // Create withdrawal proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.WITHDRAW_AAVE,
+            EchoFiTreasury.ProposalType.WITHDRAW_AAVE,
             15_000 * 1e6, // Withdraw 15k
             address(0),
             "",
@@ -501,7 +501,7 @@ contract GroupFiTreasuryTest is Test {
         // Create proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -524,7 +524,7 @@ contract GroupFiTreasuryTest is Test {
         vm.prank(nonMember);
         vm.expectRevert();
         treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -535,7 +535,7 @@ contract GroupFiTreasuryTest is Test {
     function test_NonMemberCannotVote() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -550,7 +550,7 @@ contract GroupFiTreasuryTest is Test {
     function test_CannotVoteTwice() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -568,7 +568,7 @@ contract GroupFiTreasuryTest is Test {
     function test_CannotExecuteBeforeDeadline() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -593,7 +593,7 @@ contract GroupFiTreasuryTest is Test {
 
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.TRANSFER,
+            EchoFiTreasury.ProposalType.TRANSFER,
             transferAmount,
             recipient,
             "",
@@ -624,7 +624,7 @@ contract GroupFiTreasuryTest is Test {
         // Too small
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             5 * 1e6, // 5 USDC - below minimum
             address(0),
             "",
@@ -634,7 +634,7 @@ contract GroupFiTreasuryTest is Test {
         // Too large
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             2_000_000 * 1e6, // 2M USDC - above maximum
             address(0),
             "",
@@ -647,16 +647,16 @@ contract GroupFiTreasuryTest is Test {
         
         // Test ProposalCreated event
         vm.expectEmit(true, true, false, true);
-        emit TestGroupFiTreasury.ProposalCreated(
+        emit EchoFiTreasury.ProposalCreated(
             0,
             member1,
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             "Test proposal"
         );
         
         uint256 proposalId = treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -665,7 +665,7 @@ contract GroupFiTreasuryTest is Test {
 
         // Test VoteCast event
         vm.expectEmit(true, true, false, true);
-        emit TestGroupFiTreasury.VoteCast(proposalId, member1, true, 40);
+        emit EchoFiTreasury.VoteCast(proposalId, member1, true, 40);
         treasury.vote(proposalId, true);
         
         vm.stopPrank();
@@ -677,7 +677,7 @@ contract GroupFiTreasuryTest is Test {
         vm.warp(block.timestamp + 4 days);
         
         vm.expectEmit(true, false, false, true);
-        emit TestGroupFiTreasury.ProposalExecuted(proposalId, true);
+        emit EchoFiTreasury.ProposalExecuted(proposalId, true);
         
         vm.prank(member1);
         treasury.executeProposal(proposalId);
@@ -690,7 +690,7 @@ contract GroupFiTreasuryTest is Test {
         // Measure gas for proposal creation
         uint256 gasBefore = gasleft();
         treasury.createProposal(
-            TestGroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",

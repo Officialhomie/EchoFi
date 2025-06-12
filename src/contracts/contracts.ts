@@ -1,4 +1,4 @@
-// Frontend Integration for GroupFi Smart Contracts
+// Frontend Integration for EchoFi Smart Contracts
 // WAGMI + Viem integration with TypeScript types
 
 import {
@@ -15,7 +15,7 @@ import { parseUnits, formatUnits } from 'viem';
 // CONTRACT ABIS (Auto-generated from Foundry)
 // =============================================================================
 
-export const GroupFiTreasuryABI = [
+export const EchoFiTreasuryABI = [
   // Core Treasury Functions
   {
     "inputs": [
@@ -122,7 +122,7 @@ export const GroupFiTreasuryABI = [
   }
 ] as const;
 
-export const GroupFiFactoryABI = [
+export const EchoFiFactoryABI = [
   {
     "inputs": [
       {"name": "_name", "type": "string"},
@@ -253,7 +253,7 @@ export function useCreateTreasury(chainId: number) {
   const factoryAddress = CONTRACTS[chainId as keyof typeof CONTRACTS]?.factory;
   const { data: simulation, error: simError, isPending: isSimPending } = useSimulateContract({
     address: factoryAddress,
-    abi: GroupFiFactoryABI,
+    abi: EchoFiFactoryABI,
     functionName: 'createTreasury',
   });
   const { data, writeContract, isPending } = useWriteContract();
@@ -269,7 +269,7 @@ export function useCreateTreasury(chainId: number) {
     }
     writeContract({
       address: factoryAddress,
-      abi: GroupFiFactoryABI,
+      abi: EchoFiFactoryABI,
       functionName: 'createTreasury',
       args: [
         params.name,
@@ -297,7 +297,7 @@ export function useUserTreasuries(userAddress: Address, chainId: number) {
   const factoryAddress = CONTRACTS[chainId as keyof typeof CONTRACTS]?.factory;
   const { data, error, isPending } = useReadContract({
     address: factoryAddress,
-    abi: GroupFiFactoryABI,
+    abi: EchoFiFactoryABI,
     functionName: 'getUserTreasuries',
     args: [userAddress],
   });
@@ -315,7 +315,7 @@ export function useProposalEvents(treasuryAddress: Address) {
   // Listen for new proposals
   useWatchContractEvent({
     address: treasuryAddress,
-    abi: GroupFiTreasuryABI,
+    abi: EchoFiTreasuryABI,
     eventName: 'ProposalCreated',
     onLogs(logs: any[]) {
       logs.forEach((log) => {
@@ -334,7 +334,7 @@ export function useProposalEvents(treasuryAddress: Address) {
   // Listen for votes
   useWatchContractEvent({
     address: treasuryAddress,
-    abi: GroupFiTreasuryABI,
+    abi: EchoFiTreasuryABI,
     eventName: 'VoteCast',
     onLogs(logs: any[]) {
       logs.forEach((log) => {
@@ -350,7 +350,7 @@ export function useProposalEvents(treasuryAddress: Address) {
   // Listen for executions
   useWatchContractEvent({
     address: treasuryAddress,
-    abi: GroupFiTreasuryABI,
+    abi: EchoFiTreasuryABI,
     eventName: 'ProposalExecuted',
     onLogs(logs: any[]) {
       logs.forEach((log) => {

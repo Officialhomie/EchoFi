@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "./GroupFiFactory.sol";
-import "./GroupFiTreasury.sol";
+import "./EchoFiFactory.sol";
+import "./EchoFiTreasury.sol";
 
 /**
- * @title GroupFiHelper
+ * @title EchoFiHelper
  * @dev Helper contract for frontend integration and treasury management
  * @notice Provides utility functions for easier frontend integration
  */
-contract GroupFiHelper {
+contract EchoFiHelper {
     struct TreasuryDetails {
         address treasuryAddress;
         string name;
@@ -24,7 +24,7 @@ contract GroupFiHelper {
     struct ProposalDetails {
         uint256 id;
         address proposer;
-        GroupFiTreasury.ProposalType proposalType;
+        EchoFiTreasury.ProposalType proposalType;
         uint256 amount;
         string description;
         uint256 votesFor;
@@ -44,11 +44,11 @@ contract GroupFiHelper {
         bool hasExecutorRole;
     }
 
-    GroupFiFactory public immutable factory;
+    EchoFiFactory public immutable factory;
 
     constructor(address _factory) {
         require(_factory != address(0), "Invalid factory address");
-        factory = GroupFiFactory(_factory);
+        factory = EchoFiFactory(_factory);
     }
 
     /**
@@ -79,8 +79,8 @@ contract GroupFiHelper {
      * @dev Internal function to get treasury details
      */
     function _getTreasuryDetail(address _treasury) internal view returns (TreasuryDetails memory) {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
+        EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
         
         (uint256 usdcBalance, uint256 aUsdcBalance) = treasury.getTreasuryBalance();
         
@@ -90,7 +90,7 @@ contract GroupFiHelper {
         
         for (uint256 i = 0; i < proposalCount; i++) {
             try treasury.getProposal(i) returns (
-                uint256, address, GroupFiTreasury.ProposalType, uint256, address, bytes memory, string memory,
+                uint256, address, EchoFiTreasury.ProposalType, uint256, address, bytes memory, string memory,
                 uint256, uint256, uint256, bool executed, bool cancelled
             ) {
                 if (!executed && !cancelled) {
@@ -121,7 +121,7 @@ contract GroupFiHelper {
         view 
         returns (ProposalDetails[] memory) 
     {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
         uint256 proposalCount = treasury.proposalCount();
         
         if (proposalCount == 0) {
@@ -147,14 +147,14 @@ contract GroupFiHelper {
         view 
         returns (ProposalDetails memory) 
     {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
         return _getProposalDetail(treasury, _proposalId);
     }
 
     /**
      * @dev Internal function to get proposal details
      */
-    function _getProposalDetail(GroupFiTreasury treasury, uint256 _proposalId) 
+    function _getProposalDetail(EchoFiTreasury treasury, uint256 _proposalId) 
         internal 
         view 
         returns (ProposalDetails memory) 
@@ -162,7 +162,7 @@ contract GroupFiHelper {
         try treasury.getProposal(_proposalId) returns (
             uint256 id,
             address proposer,
-            GroupFiTreasury.ProposalType proposalType,
+            EchoFiTreasury.ProposalType proposalType,
             uint256 amount,
             address,
             bytes memory,
@@ -198,7 +198,7 @@ contract GroupFiHelper {
             return ProposalDetails({
                 id: _proposalId,
                 proposer: address(0),
-                proposalType: GroupFiTreasury.ProposalType.DEPOSIT_AAVE,
+                proposalType: EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
                 amount: 0,
                 description: "Invalid proposal",
                 votesFor: 0,
@@ -220,8 +220,8 @@ contract GroupFiHelper {
         view 
         returns (MemberInfo[] memory) 
     {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
-        GroupFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
+        EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
         
         // This is a simplified implementation - in reality, you'd need to track members
         // For now, return empty array as member enumeration isn't implemented in the treasury
@@ -231,7 +231,7 @@ contract GroupFiHelper {
     /**
      * @dev Calculate if a proposal passes based on votes
      */
-    function _calculateVoteResult(GroupFiTreasury treasury, uint256 votesFor, uint256 votesAgainst) 
+    function _calculateVoteResult(EchoFiTreasury treasury, uint256 votesFor, uint256 votesAgainst) 
         internal 
         view 
         returns (bool) 
@@ -253,7 +253,7 @@ contract GroupFiHelper {
         uint256 deadline,
         uint256 votesFor,
         uint256 votesAgainst,
-        GroupFiTreasury treasury
+        EchoFiTreasury treasury
     ) internal view returns (string memory) {
         if (executed) return "Executed";
         if (cancelled) return "Cancelled";
@@ -289,7 +289,7 @@ contract GroupFiHelper {
             uint256 treasuryValue
         ) 
     {
-        GroupFiTreasury treasury = GroupFiTreasury(_treasury);
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
         totalProposals = treasury.proposalCount();
         totalVotingPower = treasury.totalVotingPower();
         
@@ -302,7 +302,7 @@ contract GroupFiHelper {
         
         for (uint256 i = 0; i < totalProposals; i++) {
             try treasury.getProposal(i) returns (
-                uint256, address, GroupFiTreasury.ProposalType, uint256, address, bytes memory, string memory,
+                uint256, address, EchoFiTreasury.ProposalType, uint256, address, bytes memory, string memory,
                 uint256, uint256, uint256, bool executed, bool cancelled
             ) {
                 if (executed) {

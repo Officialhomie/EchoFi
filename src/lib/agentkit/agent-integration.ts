@@ -1,5 +1,5 @@
 /* Updated for viem/wagmi v2 and TypeScript ES2020 compatibility */
-// XMTP Agent Integration for GroupFi
+// XMTP Agent Integration for EchoFi
 // Bridges XMTP messaging with smart contract automation
 
 import { Client, DecodedMessage, Conversation, type ClientOptions } from '@xmtp/browser-sdk';
@@ -7,7 +7,7 @@ import { createWalletClient, http, parseUnits, formatUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { 
-  GroupFiTreasuryABI, 
+  EchoFiTreasuryABI, 
   ProposalType, 
   formatProposalType,
   validateUSDCAmount 
@@ -36,10 +36,10 @@ interface InvestmentCommand {
 }
 
 // =============================================================================
-// GROUPFI AGENT CLASS
+// ECHOFI AGENT CLASS
 // =============================================================================
 
-export class GroupFiAgent {
+export class EchoFiAgent {
   private xmtpClient: Client | null = null;
   private walletClient: any;
   private config: AgentConfig;
@@ -119,13 +119,13 @@ export class GroupFiAgent {
       // Client options with proper typing
       const clientOptions: ClientOptions = {
         env: this.config.xmtpEnv,
-        dbPath: 'groupfi-xmtp-db',
+        dbPath: 'echofi-xmtp-db',
       };
 
       // Initialize XMTP client with correct signature: (signer, encryptionKey, options)
       this.xmtpClient = await Client.create(adaptedSigner, this.encryptionKey, clientOptions);
 
-      console.log(`✅ GroupFi Agent initialized for address: ${this.walletClient.account.address}`);
+      console.log(`✅ EchoFi Agent initialized for address: ${this.walletClient.account.address}`);
       console.log(`📨 XMTP Client details:`, {
         address: this.xmtpClient.accountAddress,
         inboxId: this.xmtpClient.inboxId,
@@ -137,9 +137,9 @@ export class GroupFiAgent {
       
     } catch (error) {
       if (error instanceof Error) {
-        console.error('❌ Failed to initialize GroupFi Agent:', error.message);
+        console.error('❌ Failed to initialize EchoFi Agent:', error.message);
       } else {
-        console.error('❌ Failed to initialize GroupFi Agent:', error);
+        console.error('❌ Failed to initialize EchoFi Agent:', error);
       }
       throw error;
     }
@@ -330,7 +330,7 @@ export class GroupFiAgent {
       
       const { request } = await this.walletClient.simulateContract({
         address: this.config.treasuryAddress,
-        abi: GroupFiTreasuryABI,
+        abi: EchoFiTreasuryABI,
         functionName: 'createProposal',
         args: [
           ProposalType.DEPOSIT_AAVE,
@@ -369,7 +369,7 @@ export class GroupFiAgent {
       
       const { request } = await this.walletClient.simulateContract({
         address: this.config.treasuryAddress,
-        abi: GroupFiTreasuryABI,
+        abi: EchoFiTreasuryABI,
         functionName: 'createProposal',
         args: [
           ProposalType.WITHDRAW_AAVE,
@@ -404,7 +404,7 @@ export class GroupFiAgent {
       // Get treasury balance
       const [usdcBalance, aUsdcBalance] = await this.walletClient.readContract({
         address: this.config.treasuryAddress,
-        abi: GroupFiTreasuryABI,
+        abi: EchoFiTreasuryABI,
         functionName: 'getTreasuryBalance',
       });
 
@@ -415,7 +415,7 @@ export class GroupFiAgent {
       // Get Aave position details
       const [totalCollateral, availableLiquidity] = await this.walletClient.readContract({
         address: this.config.treasuryAddress,
-        abi: GroupFiTreasuryABI,
+        abi: EchoFiTreasuryABI,
         functionName: 'getAavePosition',
       });
 
@@ -443,7 +443,7 @@ export class GroupFiAgent {
    */
   private async sendHelpMessage(groupId: string) {
     const helpMessage = 
-      `🤖 **GroupFi Agent Commands**\n\n` +
+      `🤖 **EchoFi Agent Commands**\n\n` +
       `💰 **Investment Commands:**\n` +
       `• "deposit 1000" - Create proposal to deposit $1000 to Aave\n` +
       `• "withdraw 500" - Create proposal to withdraw $500 from Aave\n` +
@@ -547,7 +547,7 @@ export class GroupFiAgent {
    */
   async stop() {
     this.isListening = false;
-    console.log('🛑 GroupFi Agent stopped');
+    console.log('🛑 EchoFi Agent stopped');
   }
 }
 
@@ -555,12 +555,12 @@ export class GroupFiAgent {
 // AGENT FACTORY
 // =============================================================================
 
-export class GroupFiAgentFactory {
+export class EchoFiAgentFactory {
   /**
-   * Create and initialize a GroupFi agent for a treasury
+   * Create and initialize a EchoFi agent for a treasury
    */
-  static async createAgent(config: AgentConfig): Promise<GroupFiAgent> {
-    const agent = new GroupFiAgent(config);
+  static async createAgent(config: AgentConfig): Promise<EchoFiAgent> {
+    const agent = new EchoFiAgent(config);
     await agent.initialize();
     return agent;
   }
@@ -568,7 +568,7 @@ export class GroupFiAgentFactory {
   /**
    * Create agent from environment variables
    */
-  static async createFromEnv(): Promise<GroupFiAgent> {
+  static async createFromEnv(): Promise<EchoFiAgent> {
     const config: AgentConfig = {
       privateKey: process.env.AGENT_PRIVATE_KEY as `0x${string}`,
       xmtpEnv: process.env.NODE_ENV === 'production' ? 'production' : 'dev',
@@ -588,22 +588,22 @@ export class GroupFiAgentFactory {
 // =============================================================================
 
 /*
-// Start GroupFi Agent
+// Start EchoFi Agent
 async function startAgent() {
   try {
-    const agent = await GroupFiAgentFactory.createFromEnv();
+    const agent = await EchoFiAgentFactory.createFromEnv();
     
-    console.log('🚀 GroupFi Agent is running...');
+    console.log('🚀 EchoFi Agent is running...');
     
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
-      console.log('🛑 Shutting down GroupFi Agent...');
+      console.log('🛑 Shutting down EchoFi Agent...');
       await agent.stop();
       process.exit(0);
     });
     
   } catch (error) {
-    console.error('❌ Failed to start GroupFi Agent:', error);
+    console.error('❌ Failed to start EchoFi Agent:', error);
     process.exit(1);
   }
 }
