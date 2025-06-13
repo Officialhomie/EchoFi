@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
-import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
+import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ export function InitializationDebug() {
   const [agentHealthCheck, setAgentHealthCheck] = useState<any>(null);
   
   const wallet = useWallet();
-  const xmtp = useEnhancedXMTP();
+  const xmtp = useXMTP();
   const agent = useInvestmentAgent();
 
   const checkAgentHealth = async () => {

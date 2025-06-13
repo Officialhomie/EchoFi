@@ -1,6 +1,6 @@
 // src/components/investment/InvestmentGroup.tsx
 import { useState, useEffect, useCallback } from 'react';
-import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
+import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { useWallet } from '@/hooks/useWallet';
 import { GroupChat } from '../groups/GroupChat';
@@ -38,7 +38,7 @@ interface PortfolioBalance {
 
 export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
   const { address } = useWallet();
-  const { client, sendMessage, streamMessages } = useEnhancedXMTP();
+  const { client, sendMessage, streamMessages } = useXMTP();
   const { executeStrategy, getBalance, isInitialized } = useInvestmentAgent();
   const [proposals, setProposals] = useState<ProposalWithVotes[]>([]);
   const [isLoading, setIsLoading] = useState(false);

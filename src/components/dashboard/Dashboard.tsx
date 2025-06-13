@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
-import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
+import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { AgentStatus, AgentStatusCompact } from '@/components/agent/AgentStatus';
 import { Button } from '@/components/ui/button';
@@ -224,7 +224,7 @@ const renderPortfolioContent = (
 
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
-  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase, clearError } = useEnhancedXMTP();
+  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase, clearError } = useXMTP();
   const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);

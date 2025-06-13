@@ -3,12 +3,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useWallet } from '@/hooks/useWallet';
-import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
+import { useXMTP } from '@/hooks/useXMTP'; // Updated to use unified XMTP hook
 import { useInvestmentAgent } from '@/hooks/useAgent';
-import { AlertTriangleIcon, RefreshCwIcon, XIcon } from 'lucide-react';
+import { AlertTriangleIcon, RefreshCwIcon, XIcon, ShieldCheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-// Create query client with better defaults
+// Create query client with optimized defaults for EchoFi
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -29,7 +29,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// App Context with better typing
+// Enhanced App Context with comprehensive system monitoring
 interface AppContextType {
   isInitialized: boolean;
   initializationProgress: number;
@@ -42,6 +42,18 @@ interface AppContextType {
     xmtp: boolean;
     agent: boolean;
   };
+  systemHealth: {
+    overall: 'healthy' | 'degraded' | 'critical';
+    components: {
+      wallet: 'healthy' | 'warning' | 'error';
+      xmtp: 'healthy' | 'warning' | 'error';
+      agent: 'healthy' | 'warning' | 'error';
+    };
+  };
+  // XMTP-specific actions
+  resetXMTPDatabase: () => Promise<void>;
+  repairXMTPSequenceId: () => Promise<void>;
+  performXMTPHealthCheck: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -54,7 +66,7 @@ export function useApp() {
   return context;
 }
 
-// App Provider with enhanced error handling
+// Enhanced App Provider with unified system management
 interface AppProviderProps {
   children: React.ReactNode;
 }
@@ -70,20 +82,43 @@ export function AppProvider({ children }: AppProviderProps) {
     xmtp: false,
     agent: false,
   });
+  const [systemHealth, setSystemHealth] = useState<{
+    overall: 'healthy' | 'degraded' | 'critical';
+    components: {
+      wallet: 'healthy' | 'warning' | 'error';
+      xmtp: 'healthy' | 'warning' | 'error';
+      agent: 'healthy' | 'warning' | 'error';
+    };
+  }>({
+    overall: 'healthy',
+    components: {
+      wallet: 'healthy',
+      xmtp: 'healthy',
+      agent: 'healthy',
+    }
+  });
   
+  // Initialize hooks with unified XMTP configuration
   const wallet = useWallet();
-  const xmtp = useEnhancedXMTP();
+  const xmtp = useXMTP({
+    env: 'dev', // Use dev environment for development
+    enableLogging: true,
+    dbPath: 'echofi-xmtp-unified',
+    maxRetries: 3,
+    retryDelay: 2000,
+    healthCheckInterval: 30000,
+  });
   const agent = useInvestmentAgent({ autoInitialize: true });
 
   const clearError = useCallback(() => {
     setError(null);
     setErrorDetails(null);
     if (xmtp.clearError) xmtp.clearError();
-    agent.clearError();
+    if (agent.clearError) agent.clearError();
   }, [xmtp, agent]);
 
   const checkInitializationStatus = useCallback(() => {
-    console.log('🔍 Checking initialization status...', {
+    console.log('🔍 [UNIFIED] Checking initialization status...', {
       wallet: {
         isConnected: wallet.isConnected,
         address: wallet.address?.slice(0, 8) + '...'
@@ -91,7 +126,8 @@ export function AppProvider({ children }: AppProviderProps) {
       xmtp: {
         isInitialized: xmtp.isInitialized,
         isInitializing: xmtp.isInitializing,
-        error: xmtp.error
+        error: xmtp.error,
+        databaseHealth: xmtp.databaseHealth?.isHealthy
       },
       agent: {
         isInitialized: agent.isInitialized,
@@ -109,72 +145,130 @@ export function AppProvider({ children }: AppProviderProps) {
       agent: false,
     };
 
+    // Enhanced system health monitoring
+    const healthComponents: {
+      wallet: 'healthy' | 'warning' | 'error';
+      xmtp: 'healthy' | 'warning' | 'error';
+      agent: 'healthy' | 'warning' | 'error';
+    } = {
+      wallet: 'healthy',
+      xmtp: 'healthy',
+      agent: 'healthy',
+    };
+
     // Check wallet connection (25% of progress)
     if (wallet.isConnected) {
       progress += 25;
       status.wallet = true;
-      console.log('✅ Wallet: Connected');
+      healthComponents.wallet = 'healthy';
+      console.log('✅ [UNIFIED] Wallet: Connected');
     } else {
       allReady = false;
-      console.log('❌ Wallet: Not connected');
+      healthComponents.wallet = 'error';
+      console.log('❌ [UNIFIED] Wallet: Not connected');
     }
 
-    // Check XMTP initialization (35% of progress)
+    // Check XMTP initialization (40% of progress) - increased weight due to importance
     if (xmtp.isInitialized) {
-      progress += 35;
-      status.xmtp = true;
-      console.log('✅ XMTP: Initialized');
-    } else if (xmtp.isInitializing) {
-      progress += 15; // Partial progress while initializing
-      allReady = false;
-      console.log('🔄 XMTP: Initializing...');
-    } else if (wallet.isConnected) {
-      allReady = false;
-      console.log('❌ XMTP: Not initialized');
-    }
-
-    // Check agent initialization (40% of progress)
-    if (agent.isInitialized) {
       progress += 40;
-      status.agent = true;
-      console.log('✅ Agent: Initialized');
-    } else if (agent.isInitializing) {
+      status.xmtp = true;
+      
+      // Check database health
+      if (xmtp.databaseHealth?.isHealthy) {
+        healthComponents.xmtp = 'healthy';
+      } else if (xmtp.databaseHealth?.isHealthy === false) {
+        healthComponents.xmtp = 'warning';
+      } else {
+        healthComponents.xmtp = 'healthy'; // Unknown state defaults to healthy
+      }
+      
+      console.log('✅ [UNIFIED] XMTP: Initialized and healthy');
+    } else if (xmtp.isInitializing) {
       progress += 20; // Partial progress while initializing
       allReady = false;
-      console.log('🔄 Agent: Initializing...');
-    } else {
+      healthComponents.xmtp = 'warning';
+      console.log('🔄 [UNIFIED] XMTP: Initializing...');
+    } else if (wallet.isConnected) {
       allReady = false;
-      console.log('❌ Agent: Not initialized');
+      healthComponents.xmtp = 'error';
+      console.log('❌ [UNIFIED] XMTP: Not initialized');
     }
 
-    // Collect errors
+    // Check agent initialization (35% of progress)
+    if (agent.isInitialized) {
+      progress += 35;
+      status.agent = true;
+      healthComponents.agent = 'healthy';
+      console.log('✅ [UNIFIED] Agent: Initialized');
+    } else if (agent.isInitializing) {
+      progress += 15; // Partial progress while initializing
+      allReady = false;
+      healthComponents.agent = 'warning';
+      console.log('🔄 [UNIFIED] Agent: Initializing...');
+    } else {
+      allReady = false;
+      healthComponents.agent = 'error';
+      console.log('❌ [UNIFIED] Agent: Not initialized');
+    }
+
+    // Collect errors with enhanced context
     if (xmtp.error) {
       errors.push(`XMTP: ${xmtp.error}`);
-      console.error('❌ XMTP Error:', xmtp.error);
+      healthComponents.xmtp = 'error';
+      console.error('❌ [UNIFIED] XMTP Error:', xmtp.error);
+      
+      // Log additional XMTP context
+      if (xmtp.initializationState) {
+        console.error('❌ [UNIFIED] XMTP State:', xmtp.initializationState);
+      }
     }
+    
     if (agent.error) {
       errors.push(`Agent: ${agent.error}`);
-      console.error('❌ Agent Error:', agent.error);
+      healthComponents.agent = 'error';
+      console.error('❌ [UNIFIED] Agent Error:', agent.error);
+    }
+
+    // Determine overall system health
+    let overallHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
+    const errorCount = Object.values(healthComponents).filter(status => status === 'error').length;
+    const warningCount = Object.values(healthComponents).filter(status => status === 'warning').length;
+    
+    if (errorCount > 1) {
+      overallHealth = 'critical';
+    } else if (errorCount === 1 || warningCount > 1) {
+      overallHealth = 'degraded';
     }
 
     // Update state
     setInitializationProgress(progress);
     setInitializationStatus(status);
+    setSystemHealth({
+      overall: overallHealth,
+      components: healthComponents
+    });
     
     // Only set as initialized if all components are ready
     const shouldBeInitialized = wallet.isConnected && xmtp.isInitialized && agent.isInitialized;
     setIsInitialized(shouldBeInitialized);
 
-    console.log('📊 Initialization Summary:', {
+    console.log('📊 [UNIFIED] Initialization Summary:', {
       progress: `${progress}%`,
       allReady: shouldBeInitialized,
       status,
+      health: overallHealth,
       errors: errors.length > 0 ? errors : 'None'
     });
 
+    // Update error state
     if (errors.length > 0 && !error) {
       setError(errors.join('; '));
-      setErrorDetails({ xmtpError: xmtp.error, agentError: agent.error });
+      setErrorDetails({ 
+        xmtpError: xmtp.error, 
+        agentError: agent.error,
+        xmtpState: xmtp.initializationState,
+        databaseHealth: xmtp.databaseHealth
+      });
     } else if (errors.length === 0 && error) {
       // Clear error if all errors are resolved
       setError(null);
@@ -185,7 +279,9 @@ export function AppProvider({ children }: AppProviderProps) {
     wallet.address,
     xmtp.isInitialized, 
     xmtp.isInitializing, 
-    xmtp.error, 
+    xmtp.error,
+    xmtp.initializationState,
+    xmtp.databaseHealth,
     agent.isInitialized, 
     agent.isInitializing, 
     agent.error,
@@ -197,7 +293,7 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [checkInitializationStatus]);
 
   const retryInitialization = useCallback(async () => {
-    console.log('🔄 Retrying initialization...');
+    console.log('🔄 [UNIFIED] Retrying initialization...');
     setInitializationAttempt(prev => prev + 1);
     clearError();
     setInitializationProgress(0);
@@ -205,13 +301,13 @@ export function AppProvider({ children }: AppProviderProps) {
     try {
       // Reset and retry XMTP if needed
       if (!xmtp.isInitialized && wallet.isConnected) {
-        console.log('🔄 Retrying XMTP initialization...');
+        console.log('🔄 [UNIFIED] Retrying XMTP initialization...');
         await xmtp.initializeXMTP();
       }
       
       // Agent initialization happens automatically, just clear errors
       if (agent.error) {
-        console.log('🔄 Clearing agent errors...');
+        console.log('🔄 [UNIFIED] Clearing agent errors...');
         agent.clearError();
       }
 
@@ -221,27 +317,88 @@ export function AppProvider({ children }: AppProviderProps) {
       }, 1000);
 
     } catch (err) {
-      console.error('❌ Retry initialization failed:', err);
+      console.error('❌ [UNIFIED] Retry initialization failed:', err);
       setError(err instanceof Error ? err.message : 'Retry failed');
     }
   }, [clearError, xmtp, agent, wallet.isConnected, checkInitializationStatus]);
 
-  // Auto-retry logic for transient errors
+  // XMTP-specific recovery actions
+  const resetXMTPDatabase = useCallback(async () => {
+    try {
+      console.log('🔧 [UNIFIED] Resetting XMTP database...');
+      await xmtp.resetDatabase();
+      console.log('✅ [UNIFIED] XMTP database reset completed');
+      
+      // Force status check after reset
+      setTimeout(() => {
+        checkInitializationStatus();
+      }, 1000);
+    } catch (error) {
+      console.error('❌ [UNIFIED] XMTP database reset failed:', error);
+      setError(error instanceof Error ? error.message : 'Database reset failed');
+    }
+  }, [xmtp, checkInitializationStatus]);
+
+  const repairXMTPSequenceId = useCallback(async () => {
+    try {
+      console.log('🔧 [UNIFIED] Repairing XMTP SequenceId...');
+      await xmtp.repairSequenceId();
+      console.log('✅ [UNIFIED] XMTP SequenceId repair completed');
+      
+      // Force status check after repair
+      setTimeout(() => {
+        checkInitializationStatus();
+      }, 1000);
+    } catch (error) {
+      console.error('❌ [UNIFIED] XMTP SequenceId repair failed:', error);
+      setError(error instanceof Error ? error.message : 'SequenceId repair failed');
+    }
+  }, [xmtp, checkInitializationStatus]);
+
+  const performXMTPHealthCheck = useCallback(async () => {
+    try {
+      console.log('🔍 [UNIFIED] Performing XMTP health check...');
+      const healthReport = await xmtp.performHealthCheck();
+      console.log('✅ [UNIFIED] XMTP health check completed:', healthReport);
+      
+      // Force status check to update health state
+      setTimeout(() => {
+        checkInitializationStatus();
+      }, 500);
+    } catch (error) {
+      console.error('❌ [UNIFIED] XMTP health check failed:', error);
+      setError(error instanceof Error ? error.message : 'Health check failed');
+    }
+  }, [xmtp, checkInitializationStatus]);
+
+  // Auto-retry logic for transient errors with enhanced backoff
   useEffect(() => {
     if (error && initializationAttempt < 3) {
       const isTransientError = 
         error.includes('timeout') || 
         error.includes('network') || 
-        error.includes('connection');
+        error.includes('connection') ||
+        error.includes('SequenceId');
       
       if (isTransientError) {
         const retryDelay = Math.pow(2, initializationAttempt) * 1000; // Exponential backoff
-        console.log(`⏰ Auto-retrying in ${retryDelay}ms (attempt ${initializationAttempt + 1}/3)`);
+        console.log(`⏰ [UNIFIED] Auto-retrying in ${retryDelay}ms (attempt ${initializationAttempt + 1}/3)`);
         const timer = setTimeout(retryInitialization, retryDelay);
         return () => clearTimeout(timer);
       }
     }
   }, [error, initializationAttempt, retryInitialization]);
+
+  // Enhanced periodic health monitoring
+  useEffect(() => {
+    if (isInitialized) {
+      const healthCheckInterval = setInterval(() => {
+        performXMTPHealthCheck();
+      }, 60000); // Check every minute when initialized
+
+      return () => clearInterval(healthCheckInterval);
+    }
+  }, [isInitialized, performXMTPHealthCheck]);
 
   const value: AppContextType = {
     isInitialized,
@@ -251,6 +408,10 @@ export function AppProvider({ children }: AppProviderProps) {
     clearError,
     retryInitialization,
     initializationStatus,
+    systemHealth,
+    resetXMTPDatabase,
+    repairXMTPSequenceId,
+    performXMTPHealthCheck,
   };
 
   return (
@@ -260,7 +421,7 @@ export function AppProvider({ children }: AppProviderProps) {
   );
 }
 
-// Main Providers Component
+// Main Providers Component with error boundary
 interface AppProvidersProps {
   children: React.ReactNode;
 }
@@ -269,26 +430,140 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
+        <SystemHealthMonitor />
         {children}
       </AppProvider>
     </QueryClientProvider>
   );
 }
 
-// Enhanced Error Boundary
+// Enhanced System Health Monitor Component
+function SystemHealthMonitor() {
+  const app = useApp();
+  const [showHealthDetails, setShowHealthDetails] = useState(false);
+
+  // Show health warning for degraded systems
+  if (app.systemHealth.overall === 'degraded' || app.systemHealth.overall === 'critical') {
+    return (
+      <div className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg border shadow-lg ${
+        app.systemHealth.overall === 'critical' 
+          ? 'bg-red-50 border-red-200 text-red-800' 
+          : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+      }`}>
+        <div className="flex items-start gap-3">
+          <AlertTriangleIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm">
+              System Health: {app.systemHealth.overall === 'critical' ? 'Critical' : 'Degraded'}
+            </h3>
+            {app.error && (
+              <p className="text-xs mt-1 opacity-90">
+                {app.error}
+              </p>
+            )}
+            <div className="flex gap-2 mt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowHealthDetails(!showHealthDetails)}
+                className="text-xs"
+              >
+                {showHealthDetails ? 'Hide' : 'Show'} Details
+              </Button>
+              <Button
+                size="sm"
+                onClick={app.retryInitialization}
+                className="text-xs"
+              >
+                <RefreshCwIcon className="w-3 h-3 mr-1" />
+                Retry
+              </Button>
+            </div>
+            
+            {showHealthDetails && (
+              <div className="mt-3 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    app.systemHealth.components.wallet === 'healthy' ? 'bg-green-500' :
+                    app.systemHealth.components.wallet === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`} />
+                  <span>Wallet: {app.systemHealth.components.wallet}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    app.systemHealth.components.xmtp === 'healthy' ? 'bg-green-500' :
+                    app.systemHealth.components.xmtp === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`} />
+                  <span>XMTP: {app.systemHealth.components.xmtp}</span>
+                  {app.systemHealth.components.xmtp !== 'healthy' && (
+                    <div className="flex gap-1 ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={app.repairXMTPSequenceId}
+                        className="text-xs px-2 py-1 h-auto"
+                      >
+                        Repair
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={app.resetXMTPDatabase}
+                        className="text-xs px-2 py-1 h-auto"
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    app.systemHealth.components.agent === 'healthy' ? 'bg-green-500' :
+                    app.systemHealth.components.agent === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`} />
+                  <span>Agent: {app.systemHealth.components.agent}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={app.clearError}
+            className="text-current opacity-60 hover:opacity-100"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show healthy status briefly when all systems are operational
+  if (app.isInitialized && app.systemHealth.overall === 'healthy') {
+    return (
+      <div className="fixed top-4 right-4 z-50 max-w-md p-3 rounded-lg border bg-green-50 border-green-200 text-green-800 shadow-lg">
+        <div className="flex items-center gap-2 text-sm">
+          <ShieldCheckIcon className="w-4 h-4" />
+          <span className="font-medium">All systems operational</span>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// Enhanced Error Boundary for additional protection
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
-  errorInfo?: React.ErrorInfo;
+  errorInfo?: any;
 }
 
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  fallback?: React.ComponentType<{ error: Error; resetError: () => void; errorInfo?: React.ErrorInfo }>;
-}
-
-export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+export class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -297,76 +572,40 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error Boundary caught an error:', error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('❌ [ERROR BOUNDARY] Application error:', error, errorInfo);
     this.setState({ errorInfo });
-    
-    // Report to error tracking service here
-    // Example: Sentry.captureException(error, { contexts: { react: errorInfo } });
   }
 
-  resetError = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
-  };
-
   render() {
-    if (this.state.hasError && this.state.error) {
-      if (this.props.fallback) {
-        const FallbackComponent = this.props.fallback;
-        return (
-          <FallbackComponent 
-            error={this.state.error} 
-            resetError={this.resetError}
-            errorInfo={this.state.errorInfo}
-          />
-        );
-      }
-
+    if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-          <div className="max-w-md w-full">
-            <div className="bg-white rounded-lg shadow-lg p-6 border border-red-200">
-              <div className="flex items-center mb-4">
-                <AlertTriangleIcon className="h-8 w-8 text-red-500 mr-3" />
-                <h2 className="text-xl font-bold text-red-900">Something went wrong</h2>
-              </div>
-              
-              <div className="mb-4">
-                <p className="text-gray-700 mb-2">
-                  {this.state.error.message || 'An unexpected error occurred'}
-                </p>
-                
-                {process.env.NODE_ENV === 'development' && (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-                      Technical Details
-                    </summary>
-                    <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                      {this.state.error.stack}
-                    </pre>
-                    {this.state.errorInfo && (
-                      <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                        {this.state.errorInfo.componentStack}
-                      </pre>
-                    )}
-                  </details>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                <Button onClick={this.resetError} className="flex-1">
-                  <RefreshCwIcon className="w-4 h-4 mr-2" />
-                  Try Again
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.reload()}
-                  className="flex-1"
-                >
-                  Reload Page
-                </Button>
-              </div>
-            </div>
+        <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+            <AlertTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Application Error
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Something went wrong. Please refresh the page or contact support.
+            </p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="w-full"
+            >
+              <RefreshCwIcon className="w-4 h-4 mr-2" />
+              Refresh Page
+            </Button>
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <details className="mt-4 text-left">
+                <summary className="cursor-pointer text-sm text-gray-500">
+                  Error Details (Development)
+                </summary>
+                <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
+                  {this.state.error.stack}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       );
@@ -376,165 +615,39 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
   }
 }
 
-// Enhanced Loading Components
+// Loading Spinner Component (updated)
 export function LoadingSpinner({ 
-  size = 'md',
-  className = '',
-  color = 'blue'
+  size = 'default', 
+  message = 'Loading...',
+  progress,
+  details 
 }: { 
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  className?: string;
-  color?: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'gray';
+  size?: 'sm' | 'default' | 'lg';
+  message?: string;
+  progress?: number;
+  details?: string;
 }) {
   const sizeClasses = {
-    xs: 'w-3 h-3',
     sm: 'w-4 h-4',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
-    xl: 'w-12 h-12'
-  };
-
-  const colorClasses = {
-    blue: 'border-blue-600',
-    green: 'border-green-600',
-    red: 'border-red-600',
-    yellow: 'border-yellow-600',
-    purple: 'border-purple-600',
-    gray: 'border-gray-600',
+    default: 'w-6 h-6',
+    lg: 'w-8 h-8'
   };
 
   return (
-    <div 
-      className={`animate-spin rounded-full border-2 border-gray-200 border-t-transparent ${sizeClasses[size]} ${colorClasses[color]} ${className}`}
-      role="status"
-      aria-label="Loading"
-    />
-  );
-}
-
-// Enhanced Global Loading with detailed progress
-export function GlobalLoading() {
-  const { initializationProgress, error, initializationStatus } = useApp();
-
-  const getStepStatus = (isComplete: boolean, isError: boolean) => {
-    if (isError) return '❌';
-    if (isComplete) return '✅';
-    return '🔄';
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
-        <div className="text-center">
-          <LoadingSpinner size="xl" className="mx-auto mb-6" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Initializing EchoFi...
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Setting up your investment coordination platform
-          </p>
-          
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-            <div 
-              className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${initializationProgress}%` }}
-            />
-          </div>
-          
-          <p className="text-sm text-gray-500 mb-4">
-            {initializationProgress}% complete
-          </p>
-
-          {/* Detailed Steps */}
-          <div className="text-left space-y-2 mb-4">
-            <div className="flex items-center text-sm">
-              <span className="mr-2">{getStepStatus(initializationStatus.wallet, false)}</span>
-              <span>Wallet Connection</span>
-            </div>
-            <div className="flex items-center text-sm">
-              <span className="mr-2">{getStepStatus(initializationStatus.xmtp, !!error?.includes('XMTP'))}</span>
-              <span>Secure Messaging (XMTP)</span>
-            </div>
-            <div className="flex items-center text-sm">
-              <span className="mr-2">{getStepStatus(initializationStatus.agent, !!error?.includes('Agent'))}</span>
-              <span>AI Investment Agent</span>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-left">
-              <p className="text-sm text-red-700 font-medium">Error:</p>
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
+    <div className="flex flex-col items-center justify-center space-y-2">
+      <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 ${sizeClasses[size]}`} />
+      <p className="text-sm text-gray-600">{message}</p>
+      {typeof progress === 'number' && (
+        <div className="w-full max-w-xs bg-gray-200 rounded-full h-2">
+          <div 
+            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+          />
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Notification Toast Component
-interface NotificationProps {
-  type: 'success' | 'error' | 'warning' | 'info';
-  title: string;
-  message: string;
-  onClose: () => void;
-  autoClose?: boolean;
-  duration?: number;
-}
-
-export function Notification({ 
-  type, 
-  title, 
-  message, 
-  onClose, 
-  autoClose = true, 
-  duration = 5000 
-}: NotificationProps) {
-  const [isVisible, setIsVisible] = useState(true);
-
-  useEffect(() => {
-    if (autoClose) {
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setTimeout(onClose, 300); // Allow fade out animation
-      }, duration);
-      return () => clearTimeout(timer);
-    }
-  }, [autoClose, duration, onClose]);
-
-  const typeStyles = {
-    success: 'bg-green-50 border-green-200 text-green-800',
-    error: 'bg-red-50 border-red-200 text-red-800',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-    info: 'bg-blue-50 border-blue-200 text-blue-800',
-  };
-
-  return (
-    <div 
-      className={`
-        fixed top-4 right-4 max-w-sm w-full border rounded-lg p-4 shadow-lg z-50
-        transition-all duration-300 ease-in-out
-        ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'}
-        ${typeStyles[type]}
-      `}
-    >
-      <div className="flex items-start">
-        <div className="flex-1">
-          <h3 className="font-medium">{title}</h3>
-          <p className="mt-1 text-sm">{message}</p>
-        </div>
-        <button
-          onClick={() => {
-            setIsVisible(false);
-            setTimeout(onClose, 300);
-          }}
-          className="ml-3 text-gray-400 hover:text-gray-600"
-        >
-          <XIcon className="w-4 h-4" />
-        </button>
-      </div>
+      )}
+      {details && (
+        <p className="text-xs text-gray-500 text-center max-w-xs">{details}</p>
+      )}
     </div>
   );
 }
