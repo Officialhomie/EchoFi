@@ -25,21 +25,20 @@ const nextConfig = {
     '@coinbase/agentkit-langchain',
   ],
 
-  // Only transpile XMTP for browser compatibility
+  // Transpile XMTP for browser compatibility
   transpilePackages: [
     '@xmtp/browser-sdk',
   ],
 
-  // Environment variables validation
+  // Environment variables
   env: {
-    // These will be available in both client and server
     NEXT_PUBLIC_XMTP_ENV: process.env.NEXT_PUBLIC_XMTP_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
 
-  // Webpack config
+  // Webpack config for enhanced XMTP
   webpack: (config, { isServer }) => {
-    // Ensure fs is not bundled for client-side
+    // Ensure proper fallbacks for browser environment
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -47,7 +46,12 @@ const nextConfig = {
       crypto: false,
     };
 
-    // Add support for node modules that use native bindings
+    // Add support for WebAssembly (required for XMTP v3 MLS)
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+
     if (isServer) {
       config.externals = [...(config.externals || []), 'bigint'];
     }
@@ -55,7 +59,6 @@ const nextConfig = {
     return config;
   },
 
-  // Suppress bigint warnings in development
   experimental: {
     serverComponentsExternalPackages: [
       '@coinbase/agentkit',

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useWallet } from '@/hooks/useWallet';
-import { useXMTP } from '@/hooks/useXMTP';
+import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { AlertTriangleIcon, RefreshCwIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -72,7 +72,7 @@ export function AppProvider({ children }: AppProviderProps) {
   });
   
   const wallet = useWallet();
-  const xmtp = useXMTP();
+  const xmtp = useEnhancedXMTP();
   const agent = useInvestmentAgent({ autoInitialize: true });
 
   const clearError = useCallback(() => {

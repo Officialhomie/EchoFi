@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { investmentGroups, groupMembers, proposals, votes } from '@/lib/db';
+import { db } from '@/lib/db-enhanced';
+import { investmentGroups, groupMembers, proposals, votes } from '@/lib/db-enhanced';
 import { eq, sql, count } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {

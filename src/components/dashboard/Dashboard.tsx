@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
-import { useXMTP } from '@/hooks/useXMTP';
+import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { AgentStatus, AgentStatusCompact } from '@/components/agent/AgentStatus';
 import { Button } from '@/components/ui/button';
@@ -224,7 +224,7 @@ const renderPortfolioContent = (
 
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
-  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase } = useXMTP();
+  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase, clearError } = useEnhancedXMTP();
   const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
@@ -572,7 +572,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     }
   }, [resetDatabase, loadGroups]);
 
-  const renderErrorWithRecovery = () => {
+  const renderErrorRecovery = () => {
     if (!error) return null;
     
     const isDatabaseError = error.includes('SequenceId') || 
@@ -580,36 +580,41 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
                            error.includes('sync');
     
     return (
-      <Card className="border-destructive/50 bg-destructive/5">
+      <Card className="border-destructive/50 bg-destructive/5 mb-4">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-medium text-destructive mb-1">
-                {isDatabaseError ? 'Database Sync Issue' : 'Error'}
+                {isDatabaseError ? 'Database Synchronization Issue' : 'XMTP Error'}
               </h3>
               <p className="text-sm text-destructive/80 mb-3">{error}</p>
-              
-              {isDatabaseError && (
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDatabaseError}
-                    className="border-destructive/20 text-destructive hover:bg-destructive/10"
-                  >
-                    Try Recovery
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResetDatabase}
-                    className="border-destructive/20 text-destructive hover:bg-destructive/10"
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={initializeXMTP}
+                  className="border-destructive/30"
+                >
+                  Retry Connection
+                </Button>
+                {isDatabaseError && (
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={resetDatabase}
                   >
                     Reset Database
                   </Button>
-                </div>
-              )}
+                )}
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={clearError}
+                >
+                  Dismiss
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -679,7 +684,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Error Display with Recovery Options */}
-      {renderErrorWithRecovery()}
+      {renderErrorRecovery()}
 
       {/* Welcome Header */}
       <div className="text-center mb-8">

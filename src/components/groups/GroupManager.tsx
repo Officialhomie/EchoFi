@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useXMTP } from '@/hooks/useXMTP';
+import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -23,7 +23,7 @@ interface GroupData {
 }
 
 export function GroupManager({ onCreateGroup, onJoinGroup, isLoading }: GroupManagerProps) {
-  const { conversations, canMessage } = useXMTP();
+  const { canMessage, conversations } = useEnhancedXMTP();
   const { address } = useWallet();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [groupData, setGroupData] = useState<GroupData>({

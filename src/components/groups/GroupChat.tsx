@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useXMTP } from '@/hooks/useXMTP';
+import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,7 +56,7 @@ export function GroupChat({
   maxHeight = 'min-h-[400px] max-h-[600px]'
 }: GroupChatProps) {
   const { address } = useWallet();
-  const { getMessages, sendMessage, streamMessages } = useXMTP();
+  const { getMessages, sendMessage, streamMessages } = useEnhancedXMTP();
   
   // Dynamic configuration from app config
   const chatConfig: ChatConfig = {

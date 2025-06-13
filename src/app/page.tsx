@@ -1,4 +1,4 @@
-// src/app/page.tsx - Updated with debug component
+// src/app/page.tsx - Updated with Enhanced XMTP
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,9 +6,10 @@ import { ConnectWallet, WalletStatus } from '@/components/wallet/ConnectWallet';
 import { InvestmentGroup } from '@/components/investment/InvestmentGroup';
 import { GroupManager } from '@/components/groups/GroupManager';
 import { Dashboard } from '@/components/dashboard/Dashboard';
+import { InitializationProgress } from '@/components/xmtp/InitializationProgress';
 import { InitializationDebug } from '@/components/debug/InitializationDebug';
 import { useWallet } from '@/hooks/useWallet';
-import { useXMTP } from '@/hooks/useXMTP';
+import { useEnhancedXMTP } from '@/hooks/useXMTP-enhanced';
 import { useApp } from '@/components/providers/AppProviders';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -19,8 +20,19 @@ type ViewMode = 'dashboard' | 'groups' | 'group-detail' | 'welcome';
 
 export default function HomePage() {
   const { isConnected, address } = useWallet();
-  const { client, createGroup, isInitialized: xmtpInitialized } = useXMTP();
-  const { isInitialized, error, clearError, initializationProgress } = useApp();
+  const { 
+    client, 
+    createGroup, 
+    isInitialized: xmtpInitialized,
+    initializationState,
+    isInitializing,
+    error: xmtpError,
+    resetDatabase,
+    performHealthCheck,
+    initializeXMTP,
+    clearError
+  } = useEnhancedXMTP();
+  const { isInitialized, error, clearError: clearAppError, initializationProgress } = useApp();
   
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
   const [currentGroup, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);
@@ -29,56 +41,56 @@ export default function HomePage() {
 
   // Debug: Log initialization status changes
   useEffect(() => {
-    console.log('📱 Page: Initialization status changed:', {
+    console.log('📱 [ENHANCED] Page: Initialization status changed:', {
       isConnected,
       xmtpInitialized,
       isInitialized,
       initializationProgress: `${initializationProgress}%`,
-      error,
-      viewMode
+      error: error || xmtpError,
+      viewMode,
+      initializationState: initializationState.phase
     });
-  }, [isConnected, xmtpInitialized, isInitialized, initializationProgress, error, viewMode]);
+  }, [isConnected, xmtpInitialized, isInitialized, initializationProgress, error, xmtpError, viewMode, initializationState]);
 
   // Update view mode based on connection status
   useEffect(() => {
     if (!isConnected) {
       setViewMode('welcome');
       setCurrentGroup(null);
-      console.log('📱 Page: Switching to welcome (wallet not connected)');
+      console.log('📱 [ENHANCED] Page: Switching to welcome (wallet not connected)');
     } else if (isConnected && xmtpInitialized && isInitialized && viewMode === 'welcome') {
-      console.log('📱 Page: Switching to dashboard (all systems ready)');
+      console.log('📱 [ENHANCED] Page: Switching to dashboard (all systems ready)');
       setViewMode('dashboard');
     }
   }, [isConnected, xmtpInitialized, isInitialized, viewMode]);
 
   // Show notification for errors
   useEffect(() => {
-    if (error) {
-      setNotification({ type: 'error', message: error });
+    if (error || xmtpError) {
+      setNotification({ type: 'error', message: error || xmtpError || 'Unknown error' });
     }
-  }, [error]);
+  }, [error, xmtpError]);
 
   const handleCreateGroup = async (groupData: { name: string; description: string; members: string[] }) => {
     if (!client || !address) return;
 
     setIsLoading(true);
     try {
-      console.log('Creating group with data:', {
+      console.log('🔄 [ENHANCED] Creating group with data:', {
         name: groupData.name,
         description: groupData.description,
         members: groupData.members,
         memberCount: groupData.members.length
       });
 
-      // In XMTP v3, don't include your own address - the creator is automatically included
-      // Only pass the additional members
+      // Use enhanced group creation
       const group = await createGroup(groupData.name, groupData.description, groupData.members);
       
       setCurrentGroup({ id: group.id, name: groupData.name });
       setViewMode('group-detail');
       setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
     } catch (err) {
-      console.error('Group creation error:', err);
+      console.error('❌ [ENHANCED] Group creation error:', err);
       const message = err instanceof Error ? err.message : 'Failed to create group';
       setNotification({ type: 'error', message });
     } finally {
@@ -100,11 +112,19 @@ export default function HomePage() {
   const [debugBypass, setDebugBypass] = useState(false);
   const shouldShowLoading = isConnected && !isInitialized && !debugBypass;
 
-  // Show loading screen during initialization
+  // Show enhanced loading screen during initialization
   if (shouldShowLoading) {
     return (
-      <>
-        <GlobalLoading />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <InitializationProgress
+          initializationState={initializationState}
+          isInitializing={isInitializing}
+          error={xmtpError}
+          onRetry={initializeXMTP}
+          onResetDatabase={resetDatabase}
+          onPerformHealthCheck={performHealthCheck}
+        />
+        
         {/* Debug component overlay */}
         {process.env.NODE_ENV === 'development' && (
           <div className="fixed top-4 left-4 z-50">
@@ -122,8 +142,7 @@ export default function HomePage() {
             </Card>
           </div>
         )}
-        <InitializationDebug />
-      </>
+      </div>
     );
   }
 
@@ -131,102 +150,34 @@ export default function HomePage() {
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="container mx-auto px-4 py-16">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <div className="mb-8">
-              <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-                Welcome to <span className="text-blue-600">EchoFi</span>
-              </h1>
-              <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-                Transform group chats into investment DAOs with AI-powered execution
-              </p>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-12">
-              <div className="text-center p-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">💬</span>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Chat & Coordinate</h3>
-                <p className="text-gray-600">Create investment groups and coordinate with friends through XMTP messaging</p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🗳️</span>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Propose & Vote</h3>
-                <p className="text-gray-600">Submit investment proposals and vote democratically on group decisions</p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🤖</span>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">AI Execution</h3>
-                <p className="text-gray-600">Let AI agents execute approved strategies automatically on DeFi protocols</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Connection Card */}
-          <div className="max-w-md mx-auto">
-            <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl text-gray-900">Get Started</CardTitle>
-                <p className="text-gray-600">Connect your wallet to begin</p>
-              </CardHeader>
-              <CardContent>
-                <ConnectWallet />
-                
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Features</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex items-center">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                      Decentralized group messaging
-                    </li>
-                    <li className="flex items-center">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                      Democratic investment voting
-                    </li>
-                    <li className="flex items-center">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                      AI-powered DeFi execution
-                    </li>
-                    <li className="flex items-center">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
-                      Portfolio tracking & analytics
-                    </li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Welcome to EchoFi
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Decentralized Investment Coordination Platform
+            </p>
+            <p className="text-gray-500 mb-8">
+              Connect your wallet to start creating investment groups and coordinating with others.
+            </p>
+            <ConnectWallet />
           </div>
         </div>
-        {/* Debug component for welcome screen too */}
-        {process.env.NODE_ENV === 'development' && <InitializationDebug />}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 
-                className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={handleBackToDashboard}
-              >
-                EchoFi
-              </h1>
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <h1 className="text-2xl font-bold text-gray-900">EchoFi</h1>
               
-              {/* Navigation */}
-              <nav className="hidden md:flex items-center space-x-4">
+              <nav className="hidden md:flex space-x-4">
                 <Button
                   variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('dashboard')}
@@ -254,6 +205,19 @@ export default function HomePage() {
               {(debugBypass || !isInitialized) && (
                 <div className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded">
                   Init: {initializationProgress}%
+                </div>
+              )}
+
+              {/* Show XMTP status */}
+              {isInitialized && (
+                <div className={`text-xs px-2 py-1 rounded ${
+                  xmtpInitialized 
+                    ? 'text-green-600 bg-green-100' 
+                    : isInitializing
+                      ? 'text-orange-600 bg-orange-100'
+                      : 'text-red-600 bg-red-100'
+                }`}>
+                  XMTP: {xmtpInitialized ? 'Ready' : isInitializing ? 'Initializing' : 'Error'}
                 </div>
               )}
             </div>
@@ -307,6 +271,7 @@ export default function HomePage() {
             setNotification(null);
             if (notification.type === 'error') {
               clearError();
+              clearAppError();
             }
           }}
         />
