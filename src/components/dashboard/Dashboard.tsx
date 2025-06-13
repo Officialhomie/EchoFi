@@ -26,6 +26,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+
 interface DashboardProps {
   onViewGroups: () => void;
   onJoinGroup: (groupId: string, groupName: string) => void;

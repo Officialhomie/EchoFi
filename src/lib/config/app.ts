@@ -231,12 +231,13 @@ export const SUPPORTED_ASSETS = {
 export const API_ENDPOINTS = {
   BASE_URL: process.env.NEXT_PUBLIC_API_URL || '/api',
   GROUPS: '/api/groups',
+  USER_GROUPS: '/api/user-groups',
   PROPOSALS: '/api/proposals',
   VOTES: '/api/votes',
   ANALYTICS: '/api/analytics',
   AGENT: '/api/agent',
   PORTFOLIO: '/api/portfolio',
-};
+} as const;
 
 // XMTP Configuration
 export const XMTP_CONFIG = {
@@ -347,3 +348,4 @@ export const SUCCESS_MESSAGES = {
   STRATEGY_EXECUTED: 'Investment strategy executed successfully',
   MEMBER_ADDED: 'Member added to group successfully',
 } as const;
+

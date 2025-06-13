@@ -1,6 +1,6 @@
 // src/app/api/groups/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getInvestmentGroup, getGroupMembers } from '@/lib/db-queries';
+import { getGroupAnalytics } from '@/lib/db-queries';
 
 // Handles GET /api/groups/[id] (fetch group details and members)
 export async function GET(
@@ -10,19 +10,15 @@ export async function GET(
   try {
     const groupId = params.id;
 
-    const [group, members] = await Promise.all([
-      getInvestmentGroup(groupId),
-      getGroupMembers(groupId),
-    ]);
-
-    if (!group) {
+    const analytics = await getGroupAnalytics(groupId);
+    if (!analytics.group) {
       return NextResponse.json(
         { error: 'Group not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ group, members });
+    return NextResponse.json(analytics);
   } catch (error) {
     console.error('Failed to fetch group details:', error);
     return NextResponse.json(
