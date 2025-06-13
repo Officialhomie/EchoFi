@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { investmentGroups, groupMembers, proposals } from '@/lib/db';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql, and, inArray } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -55,18 +55,18 @@ export async function GET(request: NextRequest) {
           count: sql<number>`count(*)`.as('count'),
         })
         .from(proposals)
-        .where(sql`${proposals.groupId} = ANY(${groupIds})`)
+        .where(inArray(proposals.groupId, groupIds))
         .groupBy(proposals.groupId, proposals.status);
 
       // Process proposal counts
       proposalData.forEach(item => {
-        if (item.groupId == null) return;
+        if (item.groupId == null) return; // Skip if groupId is null
         if (!proposalCounts[item.groupId]) {
           proposalCounts[item.groupId] = { active: 0, total: 0 };
         }
-        proposalCounts[item.groupId].total += item.count;
+        proposalCounts[item.groupId].total += Number(item.count);
         if (item.status === 'active') {
-          proposalCounts[item.groupId].active += item.count;
+            proposalCounts[item.groupId].active += Number(item.count);
         }
       });
     }
