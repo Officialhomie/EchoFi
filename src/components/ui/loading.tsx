@@ -1,4 +1,3 @@
-// src/components/ui/loading.tsx
 'use client';
 
 import React from 'react';
@@ -40,6 +39,9 @@ export function Spinner({ size = 'md', color = 'blue', className }: SpinnerProps
     />
   );
 }
+
+// Legacy LoadingSpinner alias for backward compatibility
+export const LoadingSpinner = Spinner;
 
 // Skeleton Loading Component
 interface SkeletonProps {
@@ -307,41 +309,16 @@ export function LoadingOverlay({ isVisible, message = 'Loading...', children }: 
 interface PulseProps {
   children: React.ReactNode;
   className?: string;
-  duration?: 'fast' | 'normal' | 'slow';
+  duration?: number;
 }
 
-export function Pulse({ children, className, duration = 'normal' }: PulseProps) {
-  const durationClasses = {
-    fast: 'animate-pulse',
-    normal: 'animate-pulse',
-    slow: 'animate-pulse',
-  };
-
+export function Pulse({ children, className, duration = 2000 }: PulseProps) {
   return (
-    <div className={cn(durationClasses[duration], className)}>
+    <div 
+      className={cn('animate-pulse', className)}
+      style={{ animationDuration: `${duration}ms` }}
+    >
       {children}
     </div>
   );
 }
-
-// Shimmer Effect Component
-export function Shimmer({ className }: { className?: string }) {
-  return (
-    <div className={cn('relative overflow-hidden', className)}>
-      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent" />
-    </div>
-  );
-}
-
-// Custom CSS for shimmer animation (add to your global CSS)
-export const shimmerKeyframes = `
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite;
-}
-`;

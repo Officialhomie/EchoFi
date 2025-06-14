@@ -6,7 +6,7 @@ import { useXMTP } from '@/hooks/useXMTP';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { LoadingSpinner } from '@/components/providers/AppProviders';
+import { Spinner as LoadingSpinner } from '@/components/ui/loading';
 import { UI_CONFIG, VALIDATION_RULES, APP_LIMITS } from '@/lib/config/app';
 import { formatAddress, getRelativeTime, truncateText } from '@/lib/utils';
 import { MessageCircle, Send, Users, Clock } from 'lucide-react';
