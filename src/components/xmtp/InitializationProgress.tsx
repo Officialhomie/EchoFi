@@ -219,7 +219,7 @@ export function InitializationProgress({
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">SequenceId Status:</span>
             <span className={`
-              text-sm px-2 py-1 rounded-full text-xs font-medium
+              md:text-sm px-2 py-1 rounded-full text-xs font-medium
               ${healthReport.sequenceIdStatus === 'valid' 
                 ? 'bg-green-100 text-green-700' 
                 : healthReport.sequenceIdStatus === 'corrupted'

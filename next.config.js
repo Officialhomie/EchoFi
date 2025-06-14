@@ -60,7 +60,7 @@ const nextConfig = {
   },
 
   experimental: {
-    serverComponentsExternalPackages: [
+    serverExternalPackages: [
       '@coinbase/agentkit',
       '@coinbase/agentkit-langchain',
     ],

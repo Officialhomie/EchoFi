@@ -1,7 +1,7 @@
-// src/app/page.tsx - Updated with Enhanced XMTP
+// src/app/page.tsx - FIXED: Infinite Loop Resolution
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ConnectWallet, WalletStatus } from '@/components/wallet/ConnectWallet';
 import { InvestmentGroup } from '@/components/investment/InvestmentGroup';
 import { GroupManager } from '@/components/groups/GroupManager';
@@ -40,35 +40,54 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Debug: Log initialization status changes
+  // FIXED: Memoize the initializationState.phase to prevent object recreation
+  const initializationPhase = useMemo(() => initializationState.phase, [initializationState.phase]);
+  const currentOperation = useMemo(() => initializationState.currentOperation, [initializationState.currentOperation]);
+  const initializationProgress_stable = useMemo(() => initializationState.progress, [initializationState.progress]);
+
+  // FIXED: Debug logging with stable dependencies
   useEffect(() => {
-    console.log('📱 [ENHANCED] Page: Initialization status changed:', {
+    console.log('📱 [FIXED] Page: Initialization status changed:', {
       isConnected,
       xmtpInitialized,
       appInitialized,
       initializationProgress: `${initializationProgress}%`,
       error: appError || xmtpError,
       viewMode,
-      initializationState: initializationState.phase
+      initializationPhase, // Using memoized value instead of full object
+      currentOperation,
+      xmtpProgress: initializationProgress_stable
     });
-  }, [isConnected, xmtpInitialized, appInitialized, initializationProgress, appError, xmtpError, viewMode, initializationState]);
+  }, [
+    isConnected, 
+    xmtpInitialized, 
+    appInitialized, 
+    initializationProgress, 
+    appError, 
+    xmtpError, 
+    viewMode, 
+    initializationPhase, // Stable reference
+    currentOperation,
+    initializationProgress_stable
+  ]);
 
-  // Update view mode based on connection status
+  // FIXED: Proper dependency management for view mode updates
   useEffect(() => {
     if (!isConnected) {
       setViewMode('welcome');
       setCurrentGroup(null);
-      console.log('📱 [ENHANCED] Page: Switching to welcome (wallet not connected)');
+      console.log('📱 [FIXED] Page: Switching to welcome (wallet not connected)');
     } else if (isConnected && xmtpInitialized && appInitialized && viewMode === 'welcome') {
-      console.log('📱 [ENHANCED] Page: Switching to dashboard (all systems ready)');
+      console.log('📱 [FIXED] Page: Switching to dashboard (all systems ready)');
       setViewMode('dashboard');
     }
   }, [isConnected, xmtpInitialized, appInitialized, viewMode]);
 
-  // Show notification for errors
+  // FIXED: Error notification handling with stable dependencies
   useEffect(() => {
-    if (appError || xmtpError) {
-      setNotification({ type: 'error', message: appError || xmtpError || 'Unknown error' });
+    const errorMessage = appError || xmtpError;
+    if (errorMessage) {
+      setNotification({ type: 'error', message: errorMessage });
     }
   }, [appError, xmtpError]);
 
@@ -77,7 +96,7 @@ export default function HomePage() {
 
     setIsLoading(true);
     try {
-      console.log('🔄 [ENHANCED] Creating group with data:', {
+      console.log('🔄 [FIXED] Creating group with data:', {
         name: groupData.name,
         description: groupData.description,
         members: groupData.members,
@@ -91,7 +110,7 @@ export default function HomePage() {
       setViewMode('group-detail');
       setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
     } catch (err) {
-      console.error('❌ [ENHANCED] Group creation error:', err);
+      console.error('❌ [FIXED] Group creation error:', err);
       const message = err instanceof Error ? err.message : 'Failed to create group';
       setNotification({ type: 'error', message });
     } finally {
@@ -113,9 +132,9 @@ export default function HomePage() {
   const [debugBypass, setDebugBypass] = useState(false);
   const shouldShowLoading = isConnected && !appInitialized && !debugBypass;
 
-  // Update initialization progress display to match new phases
-  const getInitializationPhase = () => {
-    switch (initializationState.phase) {
+  // FIXED: Memoized initialization phase getter
+  const getInitializationPhase = useMemo(() => {
+    switch (initializationPhase) {
       case 'starting':
         return 'Starting XMTP client...';
       case 'connecting':
@@ -127,15 +146,20 @@ export default function HomePage() {
       case 'failed':
         return 'Initialization failed';
       default:
-        return 'Unknown state';
+        return currentOperation || 'Initializing...';
     }
-  };
+  }, [initializationPhase, currentOperation]);
 
-  // Update health check display to match new report structure
+  // Updated progress calculation for consistency
+  const effectiveProgress = useMemo(() => {
+    return Math.max(initializationProgress, initializationProgress_stable);
+  }, [initializationProgress, initializationProgress_stable]);
+
+  // Enhanced health check handler
   const handleHealthCheck = async () => {
     try {
       const report = await performHealthCheck();
-      console.log('Database Health Report:', {
+      console.log('🔍 [FIXED] Database Health Report:', {
         isHealthy: report.isHealthy,
         issues: report.issues,
         recommendations: report.recommendations,
@@ -143,7 +167,7 @@ export default function HomePage() {
         lastSyncTimestamp: report.lastSyncTimestamp
       });
     } catch (error) {
-      console.error('Health check failed:', error);
+      console.error('❌ [FIXED] Health check failed:', error);
     }
   };
 
@@ -151,8 +175,8 @@ export default function HomePage() {
   if (shouldShowLoading) {
     return (
       <LoadingScreen
-        progress={initializationProgress}
-        currentPhase={getInitializationPhase()}
+        progress={effectiveProgress}
+        currentPhase={getInitializationPhase}
         onRetry={initializeXMTP}
         onResetDatabase={resetDatabase}
         onPerformHealthCheck={handleHealthCheck}
@@ -190,8 +214,8 @@ export default function HomePage() {
       <Card className="w-full max-w-md">
         <CardContent className="p-6 text-center">
           <h2 className="text-xl font-semibold mb-4">Initializing...</h2>
-          <p className="text-sm text-gray-600 mb-4">{getInitializationPhase()}</p>
-          <Progress value={initializationProgress} className="mb-6" />
+          <p className="text-sm text-gray-600 mb-4">{getInitializationPhase}</p>
+          <Progress value={effectiveProgress} className="mb-6" />
         </CardContent>
       </Card>
     </div>

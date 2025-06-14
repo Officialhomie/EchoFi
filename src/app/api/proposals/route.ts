@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db-enhanced';
-import { proposals, investmentGroups, votes } from '@/lib/db-enhanced';
+import { proposals, votes } from '@/lib/db-enhanced';
 import { eq, sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
