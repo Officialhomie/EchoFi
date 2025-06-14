@@ -8,7 +8,7 @@ import { useInvestmentAgent } from '@/hooks/useAgent';
 import { AgentStatus, AgentStatusCompact } from '@/components/agent/AgentStatus';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { LoadingSpinner } from '@/components/providers/AppProviders';
+// import { LoadingSpinner } from '@/components/providers/AppProviders';
 import { formatUSD, formatCrypto, getRelativeTime, formatAddress, formatPercentage } from '@/lib/utils';
 import { API_ENDPOINTS, UI_CONFIG } from '@/lib/config/app';
 import { DecodedMessage } from '@xmtp/browser-sdk';
@@ -659,7 +659,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     return (
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center py-12">
-          <LoadingSpinner size="lg" />
+          {/* <LoadingSpinner size="lg" /> */}
           <p className="mt-4 text-gray-600">Loading your dashboard...</p>
         </div>
       </div>

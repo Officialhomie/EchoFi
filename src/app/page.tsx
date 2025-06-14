@@ -33,7 +33,7 @@ export default function HomePage() {
     initializeXMTP,
     clearError: clearXMTPError
   } = useXMTP();
-  const { isInitialized: appInitialized, error: appError, clearError: clearAppError, initializationProgress } = useApp();
+  const { isReady: appInitialized, error: appError, clearError: clearAppError, initializationProgress } = useApp();
   
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
   const [currentGroup, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);

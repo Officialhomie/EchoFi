@@ -652,8 +652,7 @@ function createBrowserSigner(signer: any): Signer {
       return BigInt(1); // Default to mainnet
     },
     getBlockNumber: () => {
-      // Since XMTP expects a synchronous return, we'll return the last known block
-      // or default to 0 if not available
+
       return BigInt(0);
     }
   };

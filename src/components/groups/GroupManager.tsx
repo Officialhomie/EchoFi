@@ -6,7 +6,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input, Textarea, FormField } from '@/components/ui/input';
-import { LoadingSpinner } from '@/components/providers/AppProviders';
+// import { LoadingSpinner } from '@/components/providers/AppProviders';
 import { formatAddress, getRelativeTime, isValidAddress } from '@/lib/utils';
 import { PlusIcon, UsersIcon, MessageCircleIcon } from 'lucide-react';
 
@@ -258,7 +258,7 @@ export function GroupManager({ onCreateGroup, onJoinGroup, isLoading }: GroupMan
               >
                 {isLoading ? (
                   <>
-                    <LoadingSpinner size="sm" />
+                    {/* <LoadingSpinner size="sm" /> */}
                     <span className="ml-2">Creating...</span>
                   </>
                 ) : (

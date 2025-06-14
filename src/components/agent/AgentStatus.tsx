@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoadingSpinner } from '@/components/providers/AppProviders';
+// import { LoadingSpinner } from '@/components/providers/AppProviders';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
@@ -41,7 +41,7 @@ export function AgentStatus({
 
   const getStatusIcon = () => {
     if (isInitializing) {
-      return <LoadingSpinner size="sm" className="text-blue-500" />;
+      // return <LoadingSpinner size="sm" className="text-blue-500" />;
     } else if (isInitialized) {
       return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
     } else if (error) {
@@ -171,7 +171,7 @@ export function AgentStatus({
           >
             {isCheckingHealth ? (
               <>
-                <LoadingSpinner size="xs" className="mr-1" />
+                {/* <LoadingSpinner size="xs" className="mr-1" /> */}
                 Checking...
               </>
             ) : (
@@ -247,7 +247,7 @@ export function AgentStatusCompact({ className = '' }: { className?: string }) {
   };
 
   const getStatusIcon = () => {
-    if (isInitializing) return <LoadingSpinner size="xs" />;
+    // if (isInitializing) return <LoadingSpinner size="xs" />;
     if (isInitialized) return <CheckCircleIcon className="w-3 h-3" />;
     if (error) return <XCircleIcon className="w-3 h-3" />;
     return <ClockIcon className="w-3 h-3" />;
