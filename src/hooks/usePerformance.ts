@@ -349,19 +349,6 @@ export function useExpensiveCalculation<T, D extends readonly unknown[]>(
 
   const loggerInstance = logger || Logger.getInstance();
 
-  // FIXED: Convert deps array to a stable string representation for dependency tracking
-  // This solves the spread element issue by creating a dependency that useMemo can track
-  const depsString = useMemo(() => {
-    try {
-      // Create a stable string representation of the dependencies
-      // This allows useMemo to properly track changes without using spread syntax
-      return JSON.stringify(deps);
-    } catch (jsonError) {
-      // Fallback for non-serializable dependencies - use timestamp to force recalculation
-      console.warn('Dependencies not serializable, forcing recalculation:', jsonError);
-      return Date.now().toString();
-    }
-  }, [deps]);
 
   // FIXED: Use the stable string dependency instead of spread operator
   const memoizedValue = useMemo(() => {
@@ -419,7 +406,7 @@ export function useExpensiveCalculation<T, D extends readonly unknown[]>(
     fallback, 
     enableProfiling, 
     loggerInstance,
-    depsString  // FIXED: Use the stable string dependency instead of ...deps
+    // depsString  // FIXED: Use the stable string dependency instead of ...deps
   ]);
 
   return result.value !== undefined ? result : { value: memoizedValue, isCalculating: false, error: null };

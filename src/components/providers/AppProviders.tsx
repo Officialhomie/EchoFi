@@ -258,12 +258,12 @@ export function AppProviders({ children }: AppProvidersProps) {
       }));
     }
   }, [
-    wallet.isConnected, 
-    wallet.isConnecting, 
-    wallet.connect, 
-    xmtp.isInitialized, 
-    xmtp.isInitializing, 
-    xmtp.initializeXMTP, 
+    // wallet.isConnected, 
+    // wallet.isConnecting, 
+    // wallet.connect, 
+    // xmtp.isInitialized, 
+    // xmtp.isInitializing, 
+    // xmtp.initializeXMTP, 
     clearError,
     wallet,  // FIXED: Added missing wallet dependency
     xmtp     // FIXED: Added missing xmtp dependency
@@ -286,7 +286,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       }));
     }
   }, [
-    xmtp.resetDatabase, 
+    // xmtp.resetDatabase, 
     xmtp  // FIXED: Added missing xmtp dependency
   ]);
 

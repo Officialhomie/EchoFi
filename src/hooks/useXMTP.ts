@@ -756,7 +756,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   }, [
     error, 
     repairSequenceId,
-    isInitializing
   ]);
 
   /**
@@ -837,7 +836,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       setIsInitializing(false);
       initializationInProgress.current = false;
     }
-  }, [signer, isConnected, config, refreshConversations]); // FIXED: Add refreshConversations dependency
+  }, [signer, isConnected, config, refreshConversations, isInitializing]); // FIXED: Add refreshConversations dependency
 
   /**
    * Perform comprehensive health check

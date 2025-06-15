@@ -17,9 +17,19 @@ interface WalletClientInterface {
     address: string;
     signMessage: (options: { message: string }) => Promise<string>;
   };
-  readContract: (params: any) => Promise<any>;
-  simulateContract: (params: any) => Promise<{ request: any }>;
-  writeContract: (request: any) => Promise<string>;
+  readContract: (params: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args?: readonly unknown[];
+  }) => Promise<bigint[]>;
+  simulateContract: (params: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args?: readonly unknown[];
+  }) => Promise<{ request: { to: `0x${string}`; data: `0x${string}` } }>;
+  writeContract: (request: { to: `0x${string}`; data: `0x${string}` }) => Promise<`0x${string}`>;
 }
 
 interface XMTPSigner {

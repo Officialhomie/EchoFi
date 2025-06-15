@@ -19,14 +19,11 @@ const nextConfig = {
     ];
   },
   
-  // Keep AgentKit server-side only - FIXED: Moved to top-level experimental
-  experimental: {
-    // FIXED: Removed invalid serverExternalPackages from experimental
-    serverComponentsExternalPackages: [
-      '@coinbase/agentkit',
-      '@coinbase/agentkit-langchain',
-    ],
-  },
+  // Keep AgentKit server-side only
+  serverComponentsExternalPackages: [
+    '@coinbase/agentkit',
+    '@coinbase/agentkit-langchain',
+  ],
 
   // Transpile XMTP for browser compatibility
   transpilePackages: [
