@@ -14,7 +14,6 @@ export type WalletData = {
 export const WALLET_DATA_FILE = './wallet.json';
 
 
-
 /**
  * Prepares the AgentKit and WalletProvider.
  *
@@ -65,7 +64,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
       networkId: process.env.NETWORK_ID || 'base-sepolia',
       signer,
       smartWalletAddress: walletData?.smartWalletAddress as `0x${string}`,
-      paymasterUrl: undefined, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
+      paymasterUrl: undefined, 
     });
     console.log("this is my wallet Provider:", walletProvider)
 
@@ -73,7 +72,6 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
     const agentkit = await AgentKit.from({
       walletProvider,
       actionProviders: [
-        // If you have wethActionProvider, import and add it here
         pythActionProvider(),
         walletActionProvider(),
         erc20ActionProvider(),
@@ -99,4 +97,4 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
     console.error('Error initializing agent:', error);
     throw new Error('Failed to initialize agent');
   }
-} 
+}

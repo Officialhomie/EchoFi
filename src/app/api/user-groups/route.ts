@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Get proposal counts for each group
     const groupIds = memberGroups.map(mg => mg.groupId);
-    let proposalCounts: Record<string, { active: number; total: number }> = {};
+    const proposalCounts: Record<string, { active: number; total: number }> = {};
 
     if (groupIds.length > 0) {
       const proposalData = await db

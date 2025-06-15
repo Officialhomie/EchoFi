@@ -225,6 +225,16 @@ export interface CreateProposalParams {
   description: string;
 }
 
+export interface ContractLog {
+  address: Address;
+  topics: string[];
+  data: string;
+  transactionHash: string;
+  blockNumber: bigint;
+  blockHash: string;
+  logIndex: number;
+}
+
 // =============================================================================
 // CONTRACT ADDRESSES
 // =============================================================================
@@ -312,54 +322,31 @@ export function useUserTreasuries(userAddress: Address, chainId: number) {
  * Hook to listen to proposal events
  */
 export function useProposalEvents(treasuryAddress: Address) {
-  // Listen for new proposals
   useWatchContractEvent({
     address: treasuryAddress,
     abi: EchoFiTreasuryABI,
     eventName: 'ProposalCreated',
-    onLogs(logs: any[]) {
-      logs.forEach((log) => {
-        console.log('New proposal created:', {
-          proposalId: log.args.proposalId,
-          proposer: log.args.proposer,
-          amount: formatUnits(log.args.amount || BigInt(0), 6),
-          description: log.args.description,
-        });
-        // You can trigger notifications, update state, etc.
-        // This is where you'd integrate with XMTP messaging
-      });
-    },
-  });   
+    onLogs(logs: ContractLog[]) {
+      console.log('Proposal Created:', logs);
+    }
+  });
 
-  // Listen for votes
   useWatchContractEvent({
     address: treasuryAddress,
     abi: EchoFiTreasuryABI,
     eventName: 'VoteCast',
-    onLogs(logs: any[]) {
-      logs.forEach((log) => {
-        console.log('Vote cast:', {
-          proposalId: log.args.proposalId,
-          voter: log.args.voter,
-          support: log.args.support,
-          votingPower: log.args.votingPower,
-        });
-      });
-    },
+    onLogs(logs: ContractLog[]) {
+      console.log('Vote Cast:', logs);
+    }
   });
-  // Listen for executions
+
   useWatchContractEvent({
     address: treasuryAddress,
     abi: EchoFiTreasuryABI,
     eventName: 'ProposalExecuted',
-    onLogs(logs: any[]) {
-      logs.forEach((log) => {
-        console.log('Proposal executed:', {
-          proposalId: log.args.proposalId,
-          success: log.args.success,
-        });
-      });
-    },
+    onLogs(logs: ContractLog[]) {
+      console.log('Proposal Executed:', logs);
+    }
   });
 }
 

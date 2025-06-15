@@ -1,20 +1,13 @@
-// src/app/page.tsx - FIXED: Infinite Loop Resolution
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ConnectWallet, WalletStatus } from '@/components/wallet/ConnectWallet';
-import { InvestmentGroup } from '@/components/investment/InvestmentGroup';
-import { GroupManager } from '@/components/groups/GroupManager';
+import { ConnectWallet } from '@/components/wallet/ConnectWallet';
 import { Dashboard } from '@/components/dashboard/Dashboard';
-import { InitializationProgress } from '@/components/xmtp/InitializationProgress';
-import { InitializationDebug } from '@/components/debug/InitializationDebug';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useApp } from '@/components/providers/AppProviders';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { LoadingScreen } from '@/components/ui/loading-screen';
-import { NotificationToast } from '@/components/ui/NotificationToast';
 import { Progress } from '@/components/ui/progress';
 
 type ViewMode = 'dashboard' | 'groups' | 'group-detail' | 'welcome';
@@ -25,20 +18,18 @@ export default function HomePage() {
     client,
     createGroup,
     isInitialized: xmtpInitialized,
-    isInitializing,
     initializationState,
     error: xmtpError,
     resetDatabase,
     performHealthCheck,
     initializeXMTP,
-    clearError: clearXMTPError
   } = useXMTP();
-  const { isReady: appInitialized, error: appError, clearError: clearAppError, initializationProgress } = useApp();
+  const { isReady: appInitialized, error: appError, initializationProgress } = useApp();
   
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
-  const [currentGroup, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [, setCurrentGroup] = useState<{ id: string; name: string } | null>(null);
+  const [, setIsLoading] = useState(false);
+  const [, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // FIXED: Memoize the initializationState.phase to prevent object recreation
   const initializationPhase = useMemo(() => initializationState.phase, [initializationState.phase]);
@@ -91,45 +82,41 @@ export default function HomePage() {
     }
   }, [appError, xmtpError]);
 
-  const handleCreateGroup = async (groupData: { name: string; description: string; members: string[] }) => {
-    if (!client || !address) return;
+  // const handleCreateGroup = async (groupData: { name: string; description: string; members: string[] }) => {
+  //   if (!client || !address) return;
 
-    setIsLoading(true);
-    try {
-      console.log('🔄 [FIXED] Creating group with data:', {
-        name: groupData.name,
-        description: groupData.description,
-        members: groupData.members,
-        memberCount: groupData.members.length
-      });
+  //   setIsLoading(true);
+  //   try {
+  //     console.log('🔄 [FIXED] Creating group with data:', {
+  //       name: groupData.name,
+  //       description: groupData.description,
+  //       members: groupData.members,
+  //       memberCount: groupData.members.length
+  //     });
 
-      // Use enhanced group creation
-      const group = await createGroup(groupData.name, groupData.description, groupData.members);
+  //     // Use enhanced group creation
+  //     const group = await createGroup(groupData.name, groupData.description, groupData.members);
       
-      setCurrentGroup({ id: group.id, name: groupData.name });
-      setViewMode('group-detail');
-      setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
-    } catch (err) {
-      console.error('❌ [FIXED] Group creation error:', err);
-      const message = err instanceof Error ? err.message : 'Failed to create group';
-      setNotification({ type: 'error', message });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     setCurrentGroup({ id: group.id, name: groupData.name });
+  //     setViewMode('group-detail');
+  //     setNotification({ type: 'success', message: `Group "${groupData.name}" created successfully!` });
+  //   } catch (err) {
+  //     console.error('❌ [FIXED] Group creation error:', err);
+  //     const message = err instanceof Error ? err.message : 'Failed to create group';
+  //     setNotification({ type: 'error', message });
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const handleJoinGroup = (groupId: string, groupName: string) => {
     setCurrentGroup({ id: groupId, name: groupName });
     setViewMode('group-detail');
   };
 
-  const handleBackToDashboard = () => {
-    setCurrentGroup(null);
-    setViewMode('dashboard');
-  };
 
   // Force bypass loading screen for debugging (only in development)
-  const [debugBypass, setDebugBypass] = useState(false);
+  const [debugBypass,] = useState(false);
   const shouldShowLoading = isConnected && !appInitialized && !debugBypass;
 
   // FIXED: Memoized initialization phase getter

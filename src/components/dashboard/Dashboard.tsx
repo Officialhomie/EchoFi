@@ -1,4 +1,3 @@
-// src/components/dashboard/Dashboard.tsx - Updated with AgentKit Status
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,16 +7,13 @@ import { useInvestmentAgent } from '@/hooks/useAgent';
 import { AgentStatus, AgentStatusCompact } from '@/components/agent/AgentStatus';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Spinner } from '@/components/ui/loading';
 import { formatUSD, formatCrypto, getRelativeTime, formatAddress, formatPercentage } from '@/lib/utils';
 import { API_ENDPOINTS, UI_CONFIG } from '@/lib/config/app';
-import { DecodedMessage } from '@xmtp/browser-sdk';
 import { 
   WalletIcon, 
   TrendingUpIcon, 
   UsersIcon, 
   ActivityIcon,
-  PlusIcon,
   BarChartIcon,
   DollarSignIcon,
   ArrowUpIcon,
@@ -25,44 +21,16 @@ import {
   BotIcon,
   AlertTriangle
 } from 'lucide-react';
-
+import { 
+  PortfolioData, 
+  GroupSummary,
+  BalanceResponse,
+  BalanceAsset
+} from '@/types';
 
 interface DashboardProps {
   onViewGroups: () => void;
   onJoinGroup: (groupId: string, groupName: string) => void;
-}
-
-interface PortfolioData {
-  totalValue: string;
-  change24h: number;
-  assets: Array<{
-    symbol: string;
-    amount: string;
-    value: string;
-    change24h: number;
-  }>;
-}
-
-interface GroupSummary {
-  id: string;
-  name: string;
-  memberCount: number;
-  totalFunds: string;
-  activeProposals: number;
-  totalProposals: number;
-  lastActivity: number;
-}
-
-interface BalanceAsset {
-  asset: string;
-  amount: string;
-  usdValue?: string;
-}
-
-interface BalanceResponse {
-  address: string;
-  balances: BalanceAsset[];
-  totalUsdValue?: string;
 }
 
 // Move these functions outside the Dashboard component for export
@@ -181,7 +149,7 @@ const renderPortfolioContent = (
         <WalletIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Portfolio Empty</h3>
         <p className="text-gray-600 mb-4">
-          Your wallet is connected but doesn't have any tracked assets yet.
+          Your wallet is connected but doesn&apos;t have any tracked assets yet.
         </p>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
           <h4 className="font-medium text-blue-900 mb-2">💡 Getting Started:</h4>
@@ -224,7 +192,7 @@ const renderPortfolioContent = (
 
 export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const { address } = useWallet();
-  const { conversations, isInitialized: xmtpInitialized, getMessages, initializeXMTP, resetDatabase, clearError } = useXMTP();
+  const { conversations, getMessages, initializeXMTP, resetDatabase, clearError } = useXMTP();
   const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
   
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
@@ -464,43 +432,15 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     }
   }, [address, conversations, getMessages]);
   
-  const safeGetRecentMessages = useCallback(async (
-    conversationId: string, 
-    limit: number = 1
-  ): Promise<DecodedMessage[]> => {
-    try {
-      if (!getMessages) {
-        return [];
-      }
-      
-      const messages = await getMessages(conversationId, limit);
-      return messages || [];
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Handle SequenceId errors specifically
-      if (errorMessage.includes('SequenceId') || 
-          errorMessage.includes('local db') ||
-          errorMessage.includes('database')) {
-        console.warn(`🛡️ Database error fetching messages for ${conversationId}, returning empty array`);
-        return [];
-      }
-      
-      // For other errors, also return empty array to prevent crashes
-      console.warn(`⚠️ Error fetching messages for ${conversationId}:`, errorMessage);
-      return [];
-    }
-  }, [getMessages]);
 
-  const createFallbackGroupSummary = (userGroup: any): GroupSummary => ({
-    id: userGroup.group.id,
-    name: userGroup.group.name || 'Unnamed Group',
-    memberCount: userGroup.group.memberCount || 1,
-    totalFunds: userGroup.group.totalFunds || '0',
-    activeProposals: 0, // Safe fallback
-    totalProposals: 0,  // Safe fallback
-    lastActivity: new Date(userGroup.member.joinedAt).getTime(),
+  const createFallbackGroupSummary = (userGroup: GroupSummary): GroupSummary => ({
+    id: userGroup.id,
+    name: userGroup.name,
+    memberCount: userGroup.memberCount,
+    totalFunds: userGroup.totalFunds,
+    activeProposals: userGroup.activeProposals,
+    totalProposals: userGroup.totalProposals,
+    lastActivity: userGroup.lastActivity
   });
 
   const loadPerformanceAnalysis = useCallback(async () => {
@@ -953,4 +893,4 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     );
 }
   
-  export { loadPortfolio, createSafePortfolioData, renderPortfolioContent };
+export { loadPortfolio, createSafePortfolioData, renderPortfolioContent };

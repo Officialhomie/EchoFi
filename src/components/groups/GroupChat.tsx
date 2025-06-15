@@ -11,33 +11,13 @@ import { UI_CONFIG, VALIDATION_RULES, APP_LIMITS } from '@/lib/config/app';
 import { formatAddress, getRelativeTime, truncateText } from '@/lib/utils';
 import { MessageCircle, Send, Users, Clock } from 'lucide-react';
 import { DecodedMessage } from '@xmtp/browser-sdk';
+import { GroupChatMessage, GroupChatState } from '@/types';
 
 interface GroupChatProps {
   groupId: string;
   groupName: string;
   className?: string;
   maxHeight?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  sentAtNs: bigint;
-  conversationId: string;
-  senderInboxId: string;
-  content: any;
-  contentType: any;
-  deliveryStatus: any;
-  isOwnMessage: boolean;
-  senderDisplayName: string;
-}
-
-interface ChatState {
-  messages: ChatMessage[];
-  isLoading: boolean;
-  isSending: boolean;
-  isStreaming: boolean;
-  error: string | null;
-  lastActivity: number | null;
 }
 
 interface ChatConfig {
@@ -69,13 +49,10 @@ export function GroupChat({
   };
 
   // Chat state
-  const [state, setState] = useState<ChatState>({
+  const [state, setState] = useState<GroupChatState>({
     messages: [],
-    isLoading: false,
-    isSending: false,
-    isStreaming: false,
+    loading: false,
     error: null,
-    lastActivity: null,
   });
 
   const [inputMessage, setInputMessage] = useState('');
@@ -86,22 +63,25 @@ export function GroupChat({
   // Derived state
   const canSendMessage = inputMessage.trim().length > 0 && 
                         inputMessage.length <= chatConfig.maxMessageLength && 
-                        !state.isSending;
+                        !state.loading;
 
   const messageCount = state.messages.length;
   const charactersRemaining = chatConfig.maxMessageLength - inputMessage.length;
 
   // Message transformation with user context
-  const transformMessage = useCallback((message: DecodedMessage): ChatMessage => {
+  const transformMessage = useCallback((message: DecodedMessage): GroupChatMessage => {
     const isOwnMessage = message.senderInboxId === address;
     const senderDisplayName = isOwnMessage 
       ? 'You' 
       : formatAddress(message.senderInboxId || 'Unknown');
 
     return {
-      ...message,
-      isOwnMessage,
-      senderDisplayName,
+      id: message.id,
+      sender: message.senderInboxId as `0x${string}`,
+      content: message.content.toString(),
+      timestamp: Number(message.sentAtNs),
+      type: 'text',
+      senderDisplayName
     };
   }, [address]);
 
@@ -124,7 +104,7 @@ export function GroupChat({
 
   // Load message history
   const loadMessages = useCallback(async () => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
       const conversation = await getMessages(groupId, APP_LIMITS.maxProposalsPerGroup);
@@ -136,7 +116,7 @@ export function GroupChat({
         lastActivity: transformedMessages.length > 0 
           ? Number(transformedMessages[transformedMessages.length - 1].sentAtNs)
           : null,
-        isLoading: false,
+        loading: false,
       }));
 
       scrollToBottom(true);
@@ -145,7 +125,7 @@ export function GroupChat({
       setState(prev => ({
         ...prev,
         error: 'Failed to load chat history',
-        isLoading: false,
+        loading: false,
       }));
     }
   }, [groupId, getMessages, transformMessage, scrollToBottom]);
@@ -157,7 +137,7 @@ export function GroupChat({
     }
 
     try {
-      setState(prev => ({ ...prev, isStreaming: true }));
+      setState(prev => ({ ...prev, loading: true }));
       
       const stopStream = await streamMessages(groupId, (newMessage) => {
         const transformedMessage = transformMessage(newMessage);
@@ -177,7 +157,7 @@ export function GroupChat({
       setState(prev => ({
         ...prev,
         error: 'Failed to connect to real-time updates',
-        isStreaming: false,
+        loading: false,
       }));
     }
   }, [groupId, streamMessages, transformMessage, scrollToBottom]);
@@ -188,13 +168,13 @@ export function GroupChat({
 
     const messageText = inputMessage.trim();
     setInputMessage('');
-    setState(prev => ({ ...prev, isSending: true, error: null }));
+    setState(prev => ({ ...prev, loading: true, error: null }));
 
     let retryCount = 0;
     while (retryCount < chatConfig.retryAttempts) {
       try {
         await sendMessage(groupId, messageText);
-        setState(prev => ({ ...prev, isSending: false }));
+        setState(prev => ({ ...prev, loading: false }));
         return;
       } catch (error) {
         retryCount++;
@@ -204,7 +184,7 @@ export function GroupChat({
           setState(prev => ({
             ...prev,
             error: 'Failed to send message. Please try again.',
-            isSending: false,
+            loading: false,
           }));
         } else {
           // Wait before retry
@@ -272,7 +252,7 @@ export function GroupChat({
               <span>Last: {getRelativeTime(state.lastActivity / 1000000)}</span>
             </div>
           )}
-          {state.isStreaming && (
+          {state.loading && (
             <div className="flex items-center gap-1 text-green-600">
               <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
               <span>Live</span>
@@ -290,7 +270,7 @@ export function GroupChat({
           animationDuration: `${chatConfig.animationDuration}ms` 
         }}
       >
-        {state.isLoading ? (
+        {state.loading ? (
           <div className="flex items-center justify-center py-8">
             <LoadingSpinner />
             <span className="ml-2 text-sm text-muted-foreground">Loading messages...</span>
@@ -354,7 +334,7 @@ export function GroupChat({
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={`Message ${groupName}...`}
-              disabled={state.isSending}
+              disabled={state.loading}
               className="resize-none"
               maxLength={chatConfig.maxMessageLength}
             />
@@ -370,7 +350,7 @@ export function GroupChat({
             size="sm"
             className="px-3"
           >
-            {state.isSending ? (
+            {state.loading ? (
               <LoadingSpinner size="sm" />
             ) : (
               <Send className="h-4 w-4" />

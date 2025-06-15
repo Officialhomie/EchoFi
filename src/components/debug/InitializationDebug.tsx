@@ -7,9 +7,25 @@ import { useInvestmentAgent } from '@/hooks/useAgent';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+interface AgentHealthCheck {
+  status: 'healthy' | 'configuration_needed' | 'error';
+  message?: string;
+  error?: string;
+  initializationStatus?: {
+    isInitialized: boolean;
+    lastInitAttempt?: string;
+  };
+  details?: {
+    agentInitialized: boolean;
+    environment: string;
+    networkId: string;
+    features: string[];
+  };
+}
+
 export function InitializationDebug() {
   const [isVisible, setIsVisible] = useState(false);
-  const [agentHealthCheck, setAgentHealthCheck] = useState<any>(null);
+  const [agentHealthCheck, setAgentHealthCheck] = useState<AgentHealthCheck | null>(null);
   
   const wallet = useWallet();
   const xmtp = useXMTP();
@@ -23,7 +39,10 @@ export function InitializationDebug() {
       console.log('🏥 Agent Health Check:', result);
     } catch (error) {
       console.error('❌ Health check failed:', error);
-      setAgentHealthCheck({ error: error instanceof Error ? error.message : 'Unknown error' });
+      setAgentHealthCheck({ 
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
     }
   };
 

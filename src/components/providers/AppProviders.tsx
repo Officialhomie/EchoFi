@@ -6,24 +6,19 @@ import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { useState } from 'react';
 import React from 'react';
+import { 
+  AppState, 
+  AppContextType, 
+  AppProvidersProps, 
+  ErrorBoundaryProps, 
+  ErrorBoundaryState,
+  InitializationStatus,
+  GlobalState
+} from '@/types/providers';
 
 // =============================================================================
 // TYPES
 // =============================================================================
-
-interface AppState {
-  isReady: boolean;
-  initializationProgress: number;
-  currentStep: string;
-  error: string | null;
-  retryCount: number;
-}
-
-interface AppContextType extends AppState {
-  retryInitialization: () => Promise<void>;
-  resetXMTPDatabase: () => Promise<void>;
-  clearError: () => void;
-}
 
 // =============================================================================
 // CONTEXT CREATION
@@ -40,10 +35,10 @@ export function useApp(): AppContextType {
 }
 
 // =============================================================================
-// APP PROVIDERS COMPONENT - FIXED INFINITE LOOP ISSUES
+// APP PROVIDERS COMPONENT
 // =============================================================================
 
-export function AppProviders({ children }: { children: React.ReactNode }) {
+export function AppProviders({ children }: AppProvidersProps) {
   const wallet = useWallet();
   const xmtp = useXMTP();
   const agent = useInvestmentAgent();
@@ -73,7 +68,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Memoized status calculation to prevent recalculation on every render
-  const initializationStatus = useMemo(() => {
+  const initializationStatus = useMemo<InitializationStatus>(() => {
     const walletReady = wallet.isConnected && !wallet.isConnecting && !wallet.error;
     const xmtpReady = xmtp.isInitialized && !xmtp.error;
     const agentReady = !agent.error;
@@ -173,7 +168,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       }
 
       // Log status changes (but not repeatedly)
-      if (errorChanged || Math.abs(progress - (global as any).lastLoggedProgress || 0) >= 10) {
+      const globalState = global as GlobalState;
+      if (errorChanged || Math.abs(progress - (globalState.lastLoggedProgress || 0)) >= 10) {
         console.log('📊 Initialization status:', {
           isReady,
           progress,
@@ -183,7 +179,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           agentReady,
           errors: errors.length > 0 ? errors : 'none',
         });
-        (global as any).lastLoggedProgress = progress;
+        globalState.lastLoggedProgress = progress;
       }
     } finally {
       initializationCheckInProgress.current = false;
@@ -264,51 +260,42 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     }
   }, [xmtp.resetDatabase]);
 
-  // Memoized context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
-    ...appState,
-    retryInitialization,
-    resetXMTPDatabase,
-    clearError,
-  }), [appState, retryInitialization, resetXMTPDatabase, clearError]);
-
   return (
-    <AppContext.Provider value={contextValue}>
+    <AppContext.Provider value={{
+      ...appState,
+      retryInitialization,
+      resetXMTPDatabase,
+      clearError,
+    }}>
       {children}
     </AppContext.Provider>
   );
 }
 
-export class AppErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props)
-    this.state = { hasError: false, error: null }
+// =============================================================================
+// ERROR BOUNDARY COMPONENT
+// =============================================================================
+
+export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-4 py-2 bg-blue-500 text-white rounded"
-            >
-              Try again
-            </button>
-          </div>
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <h2 className="text-lg font-semibold text-red-800">Something went wrong</h2>
+          <p className="mt-2 text-red-600">{this.state.error?.message}</p>
         </div>
-      )
+      );
     }
-    return this.props.children
+
+    return this.props.children;
   }
 }
-export { AppErrorBoundary as default }

@@ -1,4 +1,3 @@
-// src/lib/error-handling.ts - Centralized error handling for EchoFi
 import { Logger } from './logger';
 
 export interface ErrorContext {
@@ -7,7 +6,7 @@ export interface ErrorContext {
   userId?: string;
   groupId?: string;
   timestamp?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProcessedError {
@@ -89,7 +88,7 @@ export class ErrorHandler {
     const processed = this.analyzeError(errorString, type, context);
     
     // Log the error
-    this.logger.error(`${type}: ${processed.message}`, error as Error, processed.context);
+    this.logger.error(`${type}: ${processed.message}`, error as Error, processed.context as Record<string, unknown>);
     
     // Track error frequency
     this.trackErrorFrequency(processed.code);

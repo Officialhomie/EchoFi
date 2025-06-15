@@ -1,4 +1,3 @@
-// src/lib/config/index.ts - Centralized configuration management
 export interface AppConfiguration {
     // Environment
     nodeEnv: 'development' | 'staging' | 'production';
@@ -88,62 +87,65 @@ export interface AppConfiguration {
       maxLogEntries: number;
     };
   }
-  
+
   /**
    * Configuration manager with environment-based defaults
+   * This approach replaces the previous 'any' types with strict typing for better maintainability
    */
   class ConfigurationManager {
     private static instance: ConfigurationManager;
     private config: AppConfiguration;
     private overrides: Partial<AppConfiguration> = {};
-  
+
     private constructor() {
       this.config = this.loadConfiguration();
     }
-  
+
     static getInstance(): ConfigurationManager {
       if (!ConfigurationManager.instance) {
         ConfigurationManager.instance = new ConfigurationManager();
       }
       return ConfigurationManager.instance;
     }
-  
+
     /**
      * Get the current configuration
      */
     getConfig(): AppConfiguration {
       return { ...this.config, ...this.overrides };
     }
-  
+
     /**
      * Get a specific configuration value by path
+     * Using generic type parameters instead of 'any' for better type safety
      */
     get<T>(path: string): T {
       const config = this.getConfig();
       return this.getByPath(config, path) as T;
     }
-  
+
     /**
      * Set configuration overrides (useful for testing)
+     * Using unknown instead of any for better type safety
      */
-    setOverride(path: string, value: any): void {
+    setOverride(path: string, value: unknown): void {
       this.setByPath(this.overrides, path, value);
     }
-  
+
     /**
      * Clear all overrides
      */
     clearOverrides(): void {
       this.overrides = {};
     }
-  
+
     /**
      * Reload configuration from environment
      */
     reload(): void {
       this.config = this.loadConfiguration();
     }
-  
+
     /**
      * Load configuration based on environment variables
      */
@@ -151,20 +153,20 @@ export interface AppConfiguration {
       const nodeEnv = (process.env.NODE_ENV || 'development') as 'development' | 'staging' | 'production';
       const isDevelopment = nodeEnv === 'development';
       const isProduction = nodeEnv === 'production';
-  
+
       return {
         // Environment
         nodeEnv,
         isDevelopment,
         isProduction,
-  
+
         // API Configuration
         api: {
           baseUrl: process.env.NEXT_PUBLIC_API_URL || (isDevelopment ? 'http://localhost:3000' : ''),
           timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000'),
           retries: parseInt(process.env.NEXT_PUBLIC_API_RETRIES || '3'),
         },
-  
+
         // XMTP Configuration
         xmtp: {
           env: (process.env.NEXT_PUBLIC_XMTP_ENV as 'dev' | 'production') || (isProduction ? 'production' : 'dev'),
@@ -175,7 +177,7 @@ export interface AppConfiguration {
           maxMessageLength: parseInt(process.env.NEXT_PUBLIC_XMTP_MAX_MESSAGE_LENGTH || '1000'),
           pollingInterval: parseInt(process.env.NEXT_PUBLIC_XMTP_POLLING_INTERVAL || '5000'),
         },
-  
+
         // AgentKit Configuration
         agent: {
           model: process.env.NEXT_PUBLIC_AGENT_MODEL || 'gpt-4',
@@ -186,7 +188,7 @@ export interface AppConfiguration {
           slippageTolerance: parseFloat(process.env.NEXT_PUBLIC_AGENT_SLIPPAGE_TOLERANCE || '0.01'),
           networkId: process.env.NEXT_PUBLIC_NETWORK_ID || (isProduction ? 'base-mainnet' : 'base-sepolia'),
         },
-  
+
         // UI Configuration
         ui: {
           theme: (process.env.NEXT_PUBLIC_UI_THEME as 'light' | 'dark' | 'auto') || 'auto',
@@ -197,7 +199,7 @@ export interface AppConfiguration {
           maxFileSize: parseInt(process.env.NEXT_PUBLIC_UI_MAX_FILE_SIZE || '10485760'), // 10MB
           paginationSize: parseInt(process.env.NEXT_PUBLIC_UI_PAGINATION_SIZE || '20'),
         },
-  
+
         // Application Limits
         limits: {
           maxGroupMembers: parseInt(process.env.NEXT_PUBLIC_MAX_GROUP_MEMBERS || '50'),
@@ -208,7 +210,7 @@ export interface AppConfiguration {
           maxChatHistorySize: parseInt(process.env.NEXT_PUBLIC_MAX_CHAT_HISTORY_SIZE || '500'),
           maxErrorRetries: parseInt(process.env.NEXT_PUBLIC_MAX_ERROR_RETRIES || '3'),
         },
-  
+
         // Feature Flags
         features: {
           enableAnalytics: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === 'true',
@@ -219,7 +221,7 @@ export interface AppConfiguration {
           enablePerformanceTracking: process.env.NEXT_PUBLIC_ENABLE_PERFORMANCE_TRACKING !== 'false',
           enableErrorReporting: process.env.NEXT_PUBLIC_ENABLE_ERROR_REPORTING !== 'false' && isProduction,
         },
-  
+
         // Security Configuration
         security: {
           sessionTimeout: parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT || '3600000'), // 1 hour
@@ -231,7 +233,7 @@ export interface AppConfiguration {
             xmtp: parseInt(process.env.NEXT_PUBLIC_RATE_LIMIT_XMTP || '30'),
           },
         },
-  
+
         // Logging Configuration
         logging: {
           level: (process.env.NEXT_PUBLIC_LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 
@@ -243,41 +245,50 @@ export interface AppConfiguration {
         },
       };
     }
-  
+
     /**
      * Get value from object by dot notation path
+     * Using proper typing instead of 'any' - unknown is safer when we can't guarantee the type
      */
-    private getByPath(obj: any, path: string): any {
-      return path.split('.').reduce((current, key) => current?.[key], obj);
+    private getByPath(obj: unknown, path: string): unknown {
+      return path.split('.').reduce((current: unknown, key: string) => {
+        // Type guard to ensure we're working with an object
+        if (current && typeof current === 'object' && key in current) {
+          return (current as Record<string, unknown>)[key];
+        }
+        return undefined;
+      }, obj);
     }
-  
+
     /**
      * Set value in object by dot notation path
+     * Using Record<string, unknown> instead of any for better type safety
      */
-    private setByPath(obj: any, path: string, value: any): void {
+    private setByPath(obj: Record<string, unknown>, path: string, value: unknown): void {
       const keys = path.split('.');
       const lastKey = keys.pop()!;
-      const target = keys.reduce((current, key) => {
-        if (current[key] === undefined) {
+      const target = keys.reduce((current: Record<string, unknown>, key: string) => {
+        if (current[key] === undefined || typeof current[key] !== 'object') {
           current[key] = {};
         }
-        return current[key];
+        return current[key] as Record<string, unknown>;
       }, obj);
       target[lastKey] = value;
     }
   }
-  
+
   // Export singleton instance and convenient access functions
   export const configManager = ConfigurationManager.getInstance();
   export const CONFIG = configManager.getConfig();
-  
+
   /**
    * Get configuration value by path
+   * Using generic type parameter instead of 'any' for better type inference
    */
-  export function getConfig<T = any>(path: string): T {
+  export function getConfig<T = unknown>(path: string): T {
     return configManager.get<T>(path);
   }
-  
+
   /**
    * Legacy exports for backwards compatibility
    */
@@ -285,7 +296,7 @@ export interface AppConfiguration {
     BASE_URL: CONFIG.api.baseUrl,
     TIMEOUT: CONFIG.api.timeout,
   };
-  
+
   export const UI_CONFIG = {
     THEME: CONFIG.ui.theme,
     ANIMATIONS: CONFIG.ui.animations,
@@ -293,7 +304,7 @@ export interface AppConfiguration {
     ANIMATION_DURATION: CONFIG.ui.animationDuration,
     PAGINATION_SIZE: CONFIG.ui.paginationSize,
   };
-  
+
   export const VALIDATION_RULES = {
     PROPOSAL_DESCRIPTION: {
       MIN_LENGTH: 10,
@@ -307,7 +318,7 @@ export interface AppConfiguration {
       PATTERN: /^0x[a-fA-F0-9]{40}$/,
     },
   };
-  
+
   export const APP_LIMITS = {
     MAX_GROUP_MEMBERS: CONFIG.limits.maxGroupMembers,
     MAX_PROPOSALS_PER_GROUP: CONFIG.limits.maxProposalsPerGroup,

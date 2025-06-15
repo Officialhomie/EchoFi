@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAgent } from '@/lib/agentkit/create-agent';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
+import { AgentActionParams, AgentResponse } from '@/types';
 
 /**
  * Health check endpoint - GET /api/agent
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
 /**
  * Handle action-based requests (legacy support for existing useAgent hook)
  */
-async function handleActionRequest(action: string, params: any) {
+async function handleActionRequest(action: string, params: AgentActionParams) {
   console.log(`🔄 Processing action: ${action}`);
 
   try {
@@ -285,7 +286,7 @@ async function handleGetBalance() {
 
 export { handleGetBalance };
 
-async function handleExecuteStrategy(params: any) {
+async function handleExecuteStrategy(params: AgentActionParams) {
   try {
     const { strategy, amount, asset = 'USDC' } = params;
     
@@ -326,7 +327,7 @@ async function handleGetWalletAddress() {
   }
 }
 
-async function handleAnalyzePerformance(params: any) {
+async function handleAnalyzePerformance(params: AgentActionParams) {
   try {
     const { timeframe = '7d' } = params;
     

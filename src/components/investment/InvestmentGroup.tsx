@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Input, Textarea, FormField } from '../ui/input';
 import { formatUSD, formatCrypto, getRelativeTime, formatAddress } from '../../lib/utils';
-import { LoadingSpinner } from '@/components/providers/AppProviders';
+import { LoadingSpinner } from '@/components/ui/loading';
 
 interface InvestmentGroupProps {
   groupId: string;
@@ -135,7 +135,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
         timestamp: Date.now(),
       };
 
-      await sendMessage(groupId, proposal, 'investment-proposal');
+      await sendMessage(groupId, JSON.stringify(proposal));
       setNewProposal({ title: '', description: '', amount: '', strategy: '' });
       setShowProposalForm(false);
       setFormErrors({});
@@ -159,7 +159,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
         votingPower: 1, // Could be dynamic based on contribution
       };
 
-      await sendMessage(groupId, voteMessage, 'investment-vote');
+      await sendMessage(groupId, JSON.stringify(voteMessage));
     } catch (error) {
       console.error('Failed to vote:', error);
     } finally {
@@ -177,8 +177,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
       // Send execution result to group
       await sendMessage(
         groupId, 
-        `✅ Proposal "${proposal.title}" executed successfully! ${result.summary}`,
-        'text'
+        `✅ Proposal "${proposal.title}" executed successfully! ${result.summary}`
       );
 
       // Refresh balance after execution
@@ -187,8 +186,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
       console.error('Proposal execution failed:', error);
       await sendMessage(
         groupId,
-        `❌ Failed to execute proposal "${proposal.title}": ${error}`,
-        'text'
+        `❌ Failed to execute proposal "${proposal.title}": ${error}`
       );
     } finally {
       setIsLoading(false);

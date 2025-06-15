@@ -1,11 +1,9 @@
-// src/components/agent/AgentStatus.tsx
 'use client';
 
 import { useState } from 'react';
 import { useInvestmentAgent } from '@/hooks/useAgent';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/loading';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 

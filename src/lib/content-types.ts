@@ -62,6 +62,9 @@ export class InvestmentProposalCodec implements ContentCodec<InvestmentProposal>
   }
 
   shouldPush(content: InvestmentProposal): boolean {
+    if(content) {
+      return true;
+    }
     return true;
   }
 
@@ -110,6 +113,9 @@ export class InvestmentVoteCodec implements ContentCodec<InvestmentVote> {
   }
 
   shouldPush(content: InvestmentVote): boolean {
+    if(content) {
+      return true;
+    }
     return true;
   }
 

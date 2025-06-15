@@ -31,5 +31,8 @@ export * from './config';
 // Utility types
 export * from './utils';
 
+// Dashboard and component types
+export * from './dashboard';
+
 // Re-export XMTP content types for convenience
 export type { InvestmentProposal, InvestmentVote } from '@/lib/content-types';
