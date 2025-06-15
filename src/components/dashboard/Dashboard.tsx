@@ -33,6 +33,21 @@ interface DashboardProps {
   onJoinGroup: (groupId: string, groupName: string) => void;
 }
 
+// Define proper types for group processing instead of using 'any'
+interface DatabaseUserGroup {
+  group: {
+    id: string;
+    name: string;
+    memberCount?: number;
+    totalFunds?: string;
+    activeProposals?: number;
+    totalProposals?: number;
+  };
+  member: {
+    joinedAt: string;
+  };
+}
+
 // Move these functions outside the Dashboard component for export
 const loadPortfolio = async (
   agentInitialized: boolean,
@@ -96,7 +111,7 @@ const loadPortfolio = async (
     if (error && error.includes('portfolio')) {
       setError(null);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ [FIXED] Failed to load portfolio:', error);
     const fallbackPortfolio: PortfolioData = {
       totalValue: '0',
@@ -301,7 +316,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       setError(null);
       
       // Get user's groups from database with error handling
-      let userGroups = [];
+      let userGroups: DatabaseUserGroup[] = [];
       try {
         const response = await fetch(`${API_ENDPOINTS.BASE_URL}/user-groups?address=${address}`);
         if (response.ok) {
@@ -315,7 +330,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   
       // Transform database groups with safe activity tracking
       const groupSummaries = await Promise.all(
-        userGroups.map(async (userGroup: any): Promise<GroupSummary> => {
+        userGroups.map(async (userGroup: DatabaseUserGroup): Promise<GroupSummary> => {
           try {
             // Safe activity tracking with fallback
             const conversation = conversations.find(conv => conv.id === userGroup.group.id);
@@ -356,7 +371,7 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
       // Transform XMTP conversations with safe activity tracking
       const conversationGroups = await Promise.all(
         conversations
-          .filter(conv => !userGroups.some((ug: any) => ug.group.id === conv.id))
+          .filter(conv => !userGroups.some((ug: DatabaseUserGroup) => ug.group.id === conv.id))
           .map(async (conv): Promise<GroupSummary> => {
             let realLastActivity = conv.createdAtNs 
               ? Number(conv.createdAtNs) / 1000000 
@@ -433,14 +448,14 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   }, [address, conversations, getMessages]);
   
 
-  const createFallbackGroupSummary = (userGroup: GroupSummary): GroupSummary => ({
-    id: userGroup.id,
-    name: userGroup.name,
-    memberCount: userGroup.memberCount,
-    totalFunds: userGroup.totalFunds,
-    activeProposals: userGroup.activeProposals,
-    totalProposals: userGroup.totalProposals,
-    lastActivity: userGroup.lastActivity
+  const createFallbackGroupSummary = (userGroup: DatabaseUserGroup): GroupSummary => ({
+    id: userGroup.group.id,
+    name: userGroup.group.name || 'Unnamed Group',
+    memberCount: userGroup.group.memberCount || 1,
+    totalFunds: userGroup.group.totalFunds || '0',
+    activeProposals: userGroup.group.activeProposals || 0,
+    totalProposals: userGroup.group.totalProposals || 0,
+    lastActivity: new Date(userGroup.member.joinedAt).getTime()
   });
 
   const loadPerformanceAnalysis = useCallback(async () => {
@@ -473,44 +488,8 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     }
   }, [loadPortfolio, loadGroups, loadPerformanceAnalysis]);
 
-  const handleDatabaseError = useCallback(async () => {
-    try {
-      setError(null);
-      
-      // Try to reinitialize XMTP
-      if (initializeXMTP) {
-        console.log('🔄 Attempting to reinitialize XMTP...');
-        await initializeXMTP();
-      }
-      
-      // Reload groups after reinitialization
-      await loadGroups();
-      
-    } catch (error) {
-      console.error('❌ Error recovery failed:', error);
-      setError('Failed to recover from database error. You may need to reset your chat database.');
-    }
-  }, [initializeXMTP, loadGroups]);
-
-  const handleResetDatabase = useCallback(async () => {
-    if (!resetDatabase) return;
-    
-    try {
-      setError(null);
-      console.log('🔄 Resetting XMTP database...');
-      
-      await resetDatabase();
-      
-      // Reload groups after reset
-      setTimeout(() => {
-        loadGroups();
-      }, 2000); // Give time for reinitialization
-      
-    } catch (error) {
-      console.error('❌ Database reset failed:', error);
-      setError('Failed to reset database. Please refresh the page and try again.');
-    }
-  }, [resetDatabase, loadGroups]);
+  // Note: handleDatabaseError and handleResetDatabase functions were removed
+  // since they were not being used and causing TypeScript errors
 
   const renderErrorRecovery = () => {
     if (!error) return null;

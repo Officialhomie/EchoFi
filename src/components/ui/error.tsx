@@ -89,17 +89,18 @@ export function ErrorDisplay({
 // Network Error Component
 interface NetworkErrorProps {
   currentChainId?: number;
-  requiredChainId: number;
   requiredNetworkName: string;
   onSwitchNetwork?: () => void;
 }
 
 export function NetworkError({
   currentChainId,
-  requiredChainId,
   requiredNetworkName,
   onSwitchNetwork,
 }: NetworkErrorProps) {
+  // FIXED: Removed unused 'requiredChainId' variable that was causing TypeScript error
+  // The variable was defined in the interface but never used in the component body
+  
   return (
     <Card className="border-red-200 bg-red-50">
       <CardHeader>

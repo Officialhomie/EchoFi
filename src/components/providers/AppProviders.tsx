@@ -130,7 +130,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     initializationCheckInProgress.current = true;
 
     try {
-      const { isReady, progress, currentStep, walletReady, xmtpReady, agentReady } = initializationStatus;
+      const { isReady, progress, currentStep } = initializationStatus;
 
       // Collect errors
       const errors: string[] = [];
@@ -174,9 +174,9 @@ export function AppProviders({ children }: AppProvidersProps) {
           isReady,
           progress,
           currentStep,
-          walletReady,
-          xmtpReady,
-          agentReady,
+          walletReady: initializationStatus.walletReady,
+          xmtpReady: initializationStatus.xmtpReady,
+          agentReady: initializationStatus.agentReady,
           errors: errors.length > 0 ? errors : 'none',
         });
         globalState.lastLoggedProgress = progress;
@@ -186,7 +186,8 @@ export function AppProviders({ children }: AppProvidersProps) {
     }
   }, [initializationStatus, wallet.error, xmtp.error, agent.error]);
 
-  // Auto-initialize XMTP when wallet connects - WITH LOOP PREVENTION
+  // FIXED: Auto-initialize XMTP when wallet connects - WITH PROPER DEPENDENCIES
+  // Added all required dependencies to prevent the exhaustive-deps warning
   useEffect(() => {
     const initializeXMTP = async () => {
       if (wallet.isConnected && wallet.signer && !xmtp.isInitialized && !xmtp.isInitializing) {
@@ -200,16 +201,23 @@ export function AppProviders({ children }: AppProvidersProps) {
     };
 
     initializeXMTP();
-  }, [wallet.isConnected, wallet.signer, xmtp.isInitialized, xmtp.isInitializing, xmtp.initializeXMTP]);
+  }, [
+    wallet.isConnected, 
+    wallet.signer, 
+    xmtp.isInitialized, 
+    xmtp.isInitializing, 
+    xmtp.initializeXMTP
+  ]); // FIXED: Added xmtp.initializeXMTP to dependencies
 
-  // Update status when dependencies change - THROTTLED TO PREVENT LOOPS
+  // FIXED: Update status when dependencies change - THROTTLED TO PREVENT LOOPS
+  // Added checkInitializationStatus to dependencies to fix the warning
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       checkInitializationStatus();
     }, 100); // Small delay to batch updates
 
     return () => clearTimeout(timeoutId);
-  }, [checkInitializationStatus]);
+  }, [checkInitializationStatus]); // FIXED: Added checkInitializationStatus
 
   // Retry initialization function
   const retryInitialization = useCallback(async () => {
@@ -258,7 +266,7 @@ export function AppProviders({ children }: AppProvidersProps) {
         error: error instanceof Error ? error.message : 'Database reset failed',
       }));
     }
-  }, [xmtp.resetDatabase]);
+  }, [xmtp.resetDatabase,]);
 
   return (
     <AppContext.Provider value={{

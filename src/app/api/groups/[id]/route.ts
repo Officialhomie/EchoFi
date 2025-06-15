@@ -5,10 +5,10 @@ import { getGroupAnalytics } from '@/lib/db-queries';
 // Handles GET /api/groups/[id] (fetch group details and members)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const groupId = params.id;
+    const groupId = context.params.id;
 
     const analytics = await getGroupAnalytics(groupId);
     if (!analytics.group) {

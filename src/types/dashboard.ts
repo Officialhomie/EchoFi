@@ -87,7 +87,7 @@ export interface GroupChatState {
 // Contract Types
 export interface ContractConfig {
   address: Address;
-  abi: any[]; // We'll keep this as any[] since it's a complex ABI type
+  abi: readonly unknown[];
   chainId: number;
 }
 
@@ -110,4 +110,4 @@ export interface DebugMetrics {
   memoryUsage: number;
   cpuUsage: number;
   networkLatency: number;
-} 
+}

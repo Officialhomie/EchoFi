@@ -65,6 +65,31 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
     }
   }, [isInitialized, getBalance]);
 
+  // FIXED: Added missing dependency 'updateProposalVotes' to the dependency array
+  // This was causing the React hooks/exhaustive-deps warning
+  const updateProposalVotes = useCallback((vote: InvestmentVote) => {
+    setProposals(prev => prev.map(proposal => {
+      if (proposal.id === vote.proposalId) {
+        const updatedVotes = [...proposal.votes.filter(v => v.voterAddress !== vote.voterAddress), vote];
+        const voteCount = updatedVotes.reduce(
+          (acc, v) => {
+            acc[v.vote]++;
+            return acc;
+          },
+          { approve: 0, reject: 0, abstain: 0 }
+        );
+        
+        return {
+          ...proposal,
+          votes: updatedVotes,
+          voteCount,
+          userVote: vote.voterAddress === address ? vote : proposal.userVote,
+        };
+      }
+      return proposal;
+    }));
+  }, [address]); 
+
   const streamMessageUpdates = useCallback(async () => {
     if (client) {
       try {
@@ -90,7 +115,7 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
         console.error('Failed to setup message streaming:', error);
       }
     }
-  }, [client, groupId, streamMessages, loadBalance]);
+  }, [client, groupId, streamMessages, loadBalance, updateProposalVotes]); // FIXED: Now includes updateProposalVotes
 
   useEffect(() => {
     streamMessageUpdates();
@@ -191,29 +216,6 @@ export function InvestmentGroup({ groupId, groupName }: InvestmentGroupProps) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const updateProposalVotes = (vote: InvestmentVote) => {
-    setProposals(prev => prev.map(proposal => {
-      if (proposal.id === vote.proposalId) {
-        const updatedVotes = [...proposal.votes.filter(v => v.voterAddress !== vote.voterAddress), vote];
-        const voteCount = updatedVotes.reduce(
-          (acc, v) => {
-            acc[v.vote]++;
-            return acc;
-          },
-          { approve: 0, reject: 0, abstain: 0 }
-        );
-        
-        return {
-          ...proposal,
-          votes: updatedVotes,
-          voteCount,
-          userVote: vote.voterAddress === address ? vote : proposal.userVote,
-        };
-      }
-      return proposal;
-    }));
   };
 
   const getProposalStatus = (proposal: ProposalWithVotes) => {

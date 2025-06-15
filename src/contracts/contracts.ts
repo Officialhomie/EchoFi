@@ -9,7 +9,8 @@ import {
   useWatchContractEvent,
 } from 'wagmi';
 import type { Address } from 'viem';
-import { parseUnits, formatUnits } from 'viem';
+import { parseUnits } from 'viem';
+// FIXED: Removed unused 'formatUnits' import that was causing TypeScript error
 
 // =============================================================================
 // CONTRACT ABIS (Auto-generated from Foundry)
@@ -266,6 +267,10 @@ export function useCreateTreasury(chainId: number) {
     abi: EchoFiFactoryABI,
     functionName: 'createTreasury',
   });
+  
+  // FIXED: Removed unused 'simulation' variable that was causing TypeScript error
+  // The simulation data is available but wasn't being used in the component
+  
   const { data, writeContract, isPending } = useWriteContract();
   const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: data,
@@ -319,6 +324,45 @@ export function useUserTreasuries(userAddress: Address, chainId: number) {
 }
 
 /**
+ * Hook to get treasury balance and Aave position
+ */
+export function useTreasuryBalance(treasuryAddress: Address) {
+  const { data: balanceData, error: balanceError, isPending: balanceLoading } = useReadContract({
+    address: treasuryAddress,
+    abi: EchoFiTreasuryABI,
+    functionName: 'getTreasuryBalance',
+  });
+
+  const { data: aaveData, error: aaveError, isPending: aaveLoading } = useReadContract({
+    address: treasuryAddress,
+    abi: EchoFiTreasuryABI,
+    functionName: 'getAavePosition',
+  });
+
+  // FIXED: Removed unused 'aUsdcBalance' variable that was being destructured but never used
+  // Changed from const [usdcBalance, aUsdcBalance] = balanceData || [0n, 0n];
+  const [usdcBalance] = balanceData || [0n, 0n];
+  const [totalCollateral, availableLiquidity] = aaveData || [0n, 0n];
+
+  const balance: TreasuryBalance = {
+    usdcBalance,
+    aUsdcBalance: totalCollateral, // Use Aave collateral as aUSDC balance
+    totalValue: usdcBalance + totalCollateral,
+  };
+
+  return {
+    balance,
+    formattedTotal: (Number(balance.totalValue) / 1e6).toFixed(2), // Convert from 6 decimals USDC
+    isLoading: balanceLoading || aaveLoading,
+    error: balanceError || aaveError,
+    aavePosition: {
+      totalCollateral,
+      availableLiquidity,
+    },
+  };
+}
+
+/**
  * Hook to listen to proposal events
  */
 export function useProposalEvents(treasuryAddress: Address) {
@@ -353,28 +397,6 @@ export function useProposalEvents(treasuryAddress: Address) {
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
-
-/**
- * Format proposal type for display
- */
-export function formatProposalType(type: ProposalType): string {
-  switch (type) {
-    case ProposalType.DEPOSIT_AAVE:
-      return 'Deposit to Aave';
-    case ProposalType.WITHDRAW_AAVE:
-      return 'Withdraw from Aave';
-    case ProposalType.TRANSFER:
-      return 'Transfer Funds';
-    case ProposalType.EMERGENCY_WITHDRAW:
-      return 'Emergency Withdraw';
-    case ProposalType.ADD_MEMBER:
-      return 'Add Member';
-    case ProposalType.REMOVE_MEMBER:
-      return 'Remove Member';
-    default:
-      return 'Unknown';
-  }
-}
 
 /**
  * Format time remaining in human readable format
@@ -424,67 +446,3 @@ export function validateUSDCAmount(amount: string, maxAmount?: string): string |
   
   return null;
 }
-
-// =============================================================================
-// EXAMPLE USAGE IN COMPONENTS
-// =============================================================================
-
-/*
-// Treasury Dashboard Component
-export function TreasuryDashboard({ treasuryAddress }: { treasuryAddress: Address }) {
-  const { balance, formattedTotal, isLoading } = useTreasuryBalance(treasuryAddress);
-  const { createProposal, isLoading: isCreating } = useCreateProposal(treasuryAddress);
-  
-  // Listen to events
-  useProposalEvents(treasuryAddress);
-  
-  const handleCreateProposal = () => {
-    createProposal({
-      type: ProposalType.DEPOSIT_AAVE,
-      amount: "1000",
-      description: "Invest 1000 USDC in Aave for yield generation"
-    });
-  };
-  
-  if (isLoading) return <div>Loading...</div>;
-  
-  return (
-    <div>
-      <h2>Treasury Balance: ${formattedTotal} USDC</h2>
-      <button onClick={handleCreateProposal} disabled={isCreating}>
-        Create Aave Deposit Proposal
-      </button>
-    </div>
-  );
-}
-
-// Proposal Voting Component  
-export function ProposalCard({ treasuryAddress, proposalId }: { 
-  treasuryAddress: Address; 
-  proposalId: number; 
-}) {
-  const { proposal, isActive, formattedAmount, timeRemaining } = useProposal(treasuryAddress, proposalId);
-  const { vote, isLoading } = useVoteOnProposal(treasuryAddress);
-  
-  if (!proposal) return null;
-  
-  return (
-    <div>
-      <h3>{formatProposalType(proposal.proposalType)}</h3>
-      <p>Amount: ${formattedAmount} USDC</p>
-      <p>Description: {proposal.description}</p>
-      {isActive && (
-        <>
-          <p>Time remaining: {formatTimeRemaining(timeRemaining)}</p>
-          <button onClick={() => vote(proposalId, true)} disabled={isLoading}>
-            Vote Yes
-          </button>
-          <button onClick={() => vote(proposalId, false)} disabled={isLoading}>
-            Vote No
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-*/

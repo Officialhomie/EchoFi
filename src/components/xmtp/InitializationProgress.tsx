@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// FIXED: Removed unused 'useEffect' import that was causing TypeScript error
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,7 +13,7 @@ import {
   Loader2, 
   Database, 
   Shield, 
-  Users, 
+  // FIXED: Removed unused 'Users' import that was causing TypeScript error
   RefreshCw,
   Zap,
   Network

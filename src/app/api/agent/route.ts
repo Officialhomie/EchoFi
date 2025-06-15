@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAgent } from '@/lib/agentkit/create-agent';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
-import { AgentActionParams, AgentResponse } from '@/types';
+import { AgentActionParams } from '@/types';
 
 /**
  * Health check endpoint - GET /api/agent
@@ -284,7 +284,7 @@ async function handleGetBalance() {
   }
 }
 
-export { handleGetBalance };
+// export { handleGetBalance };
 
 async function handleExecuteStrategy(params: AgentActionParams) {
   try {
