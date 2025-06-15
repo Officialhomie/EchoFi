@@ -17,10 +17,6 @@ import {
 } from '@/types/providers';
 
 // =============================================================================
-// TYPES
-// =============================================================================
-
-// =============================================================================
 // CONTEXT CREATION
 // =============================================================================
 
@@ -187,7 +183,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   }, [initializationStatus, wallet.error, xmtp.error, agent.error]);
 
   // FIXED: Auto-initialize XMTP when wallet connects - WITH PROPER DEPENDENCIES
-  // The dependency array now includes only the primitive values and stable functions
+  // The dependency array now includes the xmtp object reference to ensure proper updates
   useEffect(() => {
     const initializeXMTP = async () => {
       if (wallet.isConnected && wallet.signer && !xmtp.isInitialized && !xmtp.isInitializing) {
@@ -206,7 +202,8 @@ export function AppProviders({ children }: AppProvidersProps) {
     wallet.signer, 
     xmtp.isInitialized, 
     xmtp.isInitializing, 
-    xmtp.initializeXMTP  // This is now properly included as it's a stable function
+    xmtp.initializeXMTP,  // This ensures the effect reruns if XMTP changes
+    xmtp  // FIXED: Added missing xmtp dependency
   ]);
 
   // FIXED: Update status when dependencies change - THROTTLED TO PREVENT LOOPS
@@ -229,7 +226,8 @@ export function AppProviders({ children }: AppProvidersProps) {
     statusCheckNeeded.current = true;
   }, [wallet.isConnected, wallet.isConnecting, xmtp.isInitialized, xmtp.isInitializing]);
 
-  // Retry initialization function
+  // FIXED: Retry initialization function - Added missing dependencies
+  // This ensures the callback has access to the latest wallet and xmtp state
   const retryInitialization = useCallback(async () => {
     console.log('🔄 Retrying initialization...');
     setAppState(prev => ({
@@ -259,9 +257,20 @@ export function AppProviders({ children }: AppProvidersProps) {
         error: error instanceof Error ? error.message : 'Retry failed',
       }));
     }
-  }, [wallet.isConnected, wallet.isConnecting, wallet.connect, xmtp.isInitialized, xmtp.isInitializing, xmtp.initializeXMTP, clearError]);
+  }, [
+    wallet.isConnected, 
+    wallet.isConnecting, 
+    wallet.connect, 
+    xmtp.isInitialized, 
+    xmtp.isInitializing, 
+    xmtp.initializeXMTP, 
+    clearError,
+    wallet,  // FIXED: Added missing wallet dependency
+    xmtp     // FIXED: Added missing xmtp dependency
+  ]);
 
-  // Reset XMTP database function - now includes only the resetDatabase function
+  // FIXED: Reset XMTP database function - Added missing dependencies
+  // This ensures the function has access to the latest xmtp state
   const resetXMTPDatabase = useCallback(async () => {
     try {
       console.log('🔧 Resetting XMTP database...');
@@ -276,7 +285,10 @@ export function AppProviders({ children }: AppProvidersProps) {
         error: error instanceof Error ? error.message : 'Database reset failed',
       }));
     }
-  }, [xmtp.resetDatabase]); // Only include the resetDatabase function
+  }, [
+    xmtp.resetDatabase, 
+    xmtp  // FIXED: Added missing xmtp dependency
+  ]);
 
   return (
     <AppContext.Provider value={{

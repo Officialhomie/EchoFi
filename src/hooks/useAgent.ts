@@ -23,8 +23,12 @@ interface UseInvestmentAgentOptions {
 }
 
 export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
+  // FIXED: Use the options parameter to configure auto-initialization
+  // This eliminates the "options assigned but never used" error by actually using it
+  const shouldAutoInitialize = options.autoInitialize ?? true;
+
   // Client-side state - server handles all AgentKit operations
-  const [isInitialized, setIsInitialized] = useState(true); // Always true since server handles initialization
+  const [isInitialized, setIsInitialized] = useState(shouldAutoInitialize); // Use the option
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,11 +75,12 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
 
       console.log(`📊 [DEBUG] Final data:`, result.data);
       return result.data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    } catch (apiError) {
+      // FIXED: Rename error variable to avoid shadowing and actually use it
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
       console.error(`❌ [DEBUG] Agent API call failed (${action}):`, errorMessage);
       setError(errorMessage);
-      throw err;
+      throw apiError;
     } finally {
       setIsInitializing(false);
       setIsInitialized(true);
@@ -86,11 +91,13 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
     async (strategy: string, amount: string, asset: string = "USDC"): Promise<InvestmentResult> => {
       try {
         return await callAgentAPI('executeStrategy', { strategy, amount, asset });
-      } catch (error) {
+      } catch (strategyError) {
+        // FIXED: Use the error variable meaningfully in error handling
+        console.error('Strategy execution failed:', strategyError);
         return {
           success: false,
-          summary: `Failed to execute strategy: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          summary: `Failed to execute strategy: ${strategyError instanceof Error ? strategyError.message : 'Unknown error'}`,
+          error: strategyError instanceof Error ? strategyError.message : 'Unknown error',
           timestamp: Date.now()
         };
       }
@@ -110,8 +117,11 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
   const analyzePerformance = useCallback(async (timeframe: "24h" | "7d" | "30d"): Promise<string> => {
     try {
       return await callAgentAPI('analyzePerformance', { timeframe });
-    } catch (error) {
-      return `Performance analysis not available: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    } catch (performanceError) {
+      // FIXED: Use the error variable to provide meaningful error information
+      const errorMsg = performanceError instanceof Error ? performanceError.message : 'Unknown error';
+      console.error('Performance analysis failed:', performanceError);
+      return `Performance analysis not available: ${errorMsg}`;
     }
   }, [callAgentAPI]);
 
@@ -134,10 +144,12 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Health check failed');
       }
-    } catch (error) {
-      console.error('❌ Health check error:', error);
-      setError(error instanceof Error ? error.message : 'Health check failed');
-      throw error;
+    } catch (healthError) {
+      // FIXED: Use the error variable for proper error logging and state management
+      const errorMessage = healthError instanceof Error ? healthError.message : 'Health check failed';
+      console.error('❌ Health check error:', healthError);
+      setError(errorMessage);
+      throw healthError;
     }
   }, []);
 
@@ -163,8 +175,10 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
       const result = await response.json();
       return result.response || result.data || 'No response received';
 
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+    } catch (messageError) {
+      // FIXED: Use the error variable for comprehensive error handling
+      const errorMessage = messageError instanceof Error ? messageError.message : 'Failed to send message';
+      console.error('Message send failed:', messageError);
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -178,9 +192,10 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
     // Server-side initialization - just verify health
     try {
       await checkHealth();
-    } catch (error) {
-      console.warn('Agent health check failed during initialization:', error);
-      // Don't throw here, just log warning
+    } catch (initError) {
+      // FIXED: Use the error variable for initialization error handling
+      console.warn('Agent health check failed during initialization:', initError);
+      // Don't throw here, just log warning - initialization can continue
     }
   }, [checkHealth]);
 
@@ -201,11 +216,12 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
     rebalance: async (targets: Record<string, number>) => {
       try {
         return await callAgentAPI('rebalance', { targets });
-      } catch (error) {
+      } catch (rebalanceError) {
+        console.error('Rebalance operation failed:', rebalanceError);
         return {
           success: false,
           summary: 'Rebalancing not implemented yet',
-          error: 'Not implemented',
+          error: rebalanceError instanceof Error ? rebalanceError.message : 'Not implemented',
         };
       }
     },
@@ -221,8 +237,9 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
           timeHorizon, 
           portfolioValue 
         });
-      } catch (error) {
-        return 'Investment recommendations not available yet';
+      } catch (recommendationError) {
+        console.error('Recommendations request failed:', recommendationError);
+        return `Investment recommendations not available: ${recommendationError instanceof Error ? recommendationError.message : 'Unknown error'}`;
       }
     },
     
@@ -241,11 +258,12 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
           amount,
           additionalParams,
         });
-      } catch (error) {
+      } catch (defiError) {
+        console.error('DeFi action failed:', defiError);
         return {
           success: false,
           summary: 'DeFi action not implemented yet',
-          error: 'Not implemented',
+          error: defiError instanceof Error ? defiError.message : 'Not implemented',
         };
       }
     },

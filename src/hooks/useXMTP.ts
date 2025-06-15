@@ -712,9 +712,9 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   }, []);
 
   /**
-   * Refresh conversations with enhanced error handling
-   * FIXED: Add repairSequenceId dependency to prevent exhaustive-deps warning
-   */
+     * Refresh conversations with enhanced error handling
+     * FIXED: Add isInitializing dependency to prevent exhaustive-deps warning
+     */
   const refreshConversations = useCallback(async () => {
     if (!xmtpManager.current) return;
 
@@ -753,7 +753,11 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         setError(errorMessage);
       }
     }
-  }, [error, repairSequenceId]); // FIXED: Add repairSequenceId to dependencies
+  }, [
+    error, 
+    repairSequenceId,
+    isInitializing
+  ]);
 
   /**
    * Initialize XMTP with comprehensive error handling
@@ -855,7 +859,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
 
   /**
    * Reset database with comprehensive cleanup
-   * FIXED: Add isInitializing and refreshConversations to prevent exhaustive-deps warning
    */
   const resetDatabase = useCallback(async () => {
     if (!xmtpManager.current) return;

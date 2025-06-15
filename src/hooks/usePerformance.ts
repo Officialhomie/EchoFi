@@ -349,48 +349,78 @@ export function useExpensiveCalculation<T, D extends readonly unknown[]>(
 
   const loggerInstance = logger || Logger.getInstance();
 
-  // FIXED: Use useMemo with proper dependency array handling
-  // Convert the deps array to individual dependencies that useMemo can track
+  // FIXED: Convert deps array to a stable string representation for dependency tracking
+  // This solves the spread element issue by creating a dependency that useMemo can track
+  const depsString = useMemo(() => {
+    try {
+      // Create a stable string representation of the dependencies
+      // This allows useMemo to properly track changes without using spread syntax
+      return JSON.stringify(deps);
+    } catch (jsonError) {
+      // Fallback for non-serializable dependencies - use timestamp to force recalculation
+      console.warn('Dependencies not serializable, forcing recalculation:', jsonError);
+      return Date.now().toString();
+    }
+  }, [deps]);
+
+  // FIXED: Use the stable string dependency instead of spread operator
   const memoizedValue = useMemo(() => {
     setResult(prev => ({ ...prev, isCalculating: true, error: null }));
 
     try {
       const startTime = performance.now();
       
-      // Use timeout for long calculations
-      const calculationPromise = Promise.resolve(calculateFn());
+      // Create a promise that resolves with the calculation result
+      const calculationPromise = new Promise<T>((resolve) => {
+        // Run calculation synchronously but wrap in promise for timeout handling
+        const calculationResult = calculateFn();
+        resolve(calculationResult);
+      });
+      
+      // Create timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Calculation timeout')), timeout);
       });
 
+      // Race the calculation against the timeout
       Promise.race([calculationPromise, timeoutPromise])
         .then(value => {
           const duration = performance.now() - startTime;
           
           if (enableProfiling && duration > 100) {
-            loggerInstance.info('Expensive calculation completed', { duration, component: 'useExpensiveCalculation' });
+            loggerInstance.info('Expensive calculation completed', { 
+              duration, 
+              component: 'useExpensiveCalculation' 
+            });
           }
 
           setResult({ value, isCalculating: false, error: null });
           return value;
         })
-        .catch(error => {
-          loggerInstance.error('Calculation failed', error);
+        .catch(calculationError => {
+          loggerInstance.error('Calculation failed', calculationError);
           setResult({ 
             value: fallback, 
             isCalculating: false, 
-            error: error instanceof Error ? error : new Error(String(error))
+            error: calculationError instanceof Error ? calculationError : new Error(String(calculationError))
           });
         });
 
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+    } catch (syncError) {
+      const err = syncError instanceof Error ? syncError : new Error(String(syncError));
       loggerInstance.error('Calculation error', err);
       setResult({ value: fallback, isCalculating: false, error: err });
     }
 
     return fallback;
-  }, [calculateFn, timeout, fallback, enableProfiling, loggerInstance, ...deps]);
+  }, [
+    calculateFn, 
+    timeout, 
+    fallback, 
+    enableProfiling, 
+    loggerInstance,
+    depsString  // FIXED: Use the stable string dependency instead of ...deps
+  ]);
 
   return result.value !== undefined ? result : { value: memoizedValue, isCalculating: false, error: null };
 }

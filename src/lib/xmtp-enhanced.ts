@@ -108,11 +108,12 @@ export class EnhancedXMTPManager {
             console.log('✅ [ENHANCED] XMTP client initialization completed successfully');
             return this.client;
             
-        } catch (error) {
-            this.updateInitializationState('failed', 0, `Failed: ${error instanceof Error ? error.message : String(error)}`);
+        } catch (initError) {
+            const errorMessage = initError instanceof Error ? initError.message : String(initError);
+            this.updateInitializationState('failed', 0, `Failed: ${errorMessage}`);
             this.isInitialized = false;
-            console.error('❌ [ENHANCED] Client initialization failed:', error);
-            throw this.enhanceError(error);
+            console.error('❌ [ENHANCED] Client initialization failed:', initError);
+            throw this.enhanceError(initError);
         }
     }
 
@@ -167,10 +168,11 @@ export class EnhancedXMTPManager {
 
             console.log('✅ [ENHANCED] Database health check passed');
             
-        } catch (error) {
-            console.error('❌ [ENHANCED] Database health check failed:', error);
+        } catch (healthError) {
+            console.error('❌ [ENHANCED] Database health check failed:', healthError);
+            const errorMessage = healthError instanceof Error ? healthError.message : String(healthError);
             report.isHealthy = false;
-            report.issues.push(`Health check failed: ${error instanceof Error ? error.message : String(error)}`);
+            report.issues.push(`Health check failed: ${errorMessage}`);
             report.recommendedAction = 'reset';
         }
 
@@ -202,7 +204,8 @@ export class EnhancedXMTPManager {
                     const hasStores = db.objectStoreNames.length > 0;
                     db.close();
                     resolve(hasStores);
-                } catch (error) {
+                } catch (structureError) {
+                    console.warn('Database structure validation error:', structureError);
                     db.close();
                     resolve(false);
                 }
@@ -222,7 +225,8 @@ export class EnhancedXMTPManager {
                     // More sophisticated validation would check specific SequenceId records
                     db.close();
                     resolve(true);
-                } catch (error) {
+                } catch (sequenceError) {
+                    console.warn('Sequence ID validation error:', sequenceError);
                     db.close();
                     resolve(false);
                 }
@@ -273,7 +277,8 @@ export class EnhancedXMTPManager {
                     db.close();
                     console.log('✅ [ENHANCED] Selective repair completed');
                     resolve();
-                } catch (error) {
+                } catch (repairError) {
+                    console.error('Selective repair failed:', repairError);
                     db.close();
                     reject(new Error('Failed to repair database'));
                 }
@@ -315,14 +320,15 @@ export class EnhancedXMTPManager {
                 console.log(`✅ [ENHANCED] Client created successfully on attempt ${attempt}`);
                 return client;
                 
-            } catch (error) {
-                console.error(`❌ [ENHANCED] Client creation attempt ${attempt} failed:`, error);
+            } catch (clientError) {
+                // FIXED: Use the error variable for client creation error handling
+                console.error(`❌ [ENHANCED] Client creation attempt ${attempt} failed:`, clientError);
                 
                 if (attempt === maxRetries) {
-                    throw error;
+                    throw clientError;
                 }
                 
-                if (error instanceof Error && error.message.includes('SequenceId')) {
+                if (clientError instanceof Error && clientError.message.includes('SequenceId')) {
                     console.log('🔧 [ENHANCED] SequenceId error detected, resetting database');
                     await this.performCompleteDatabaseReset();
                 }
@@ -350,14 +356,15 @@ export class EnhancedXMTPManager {
             
             console.log('✅ [ENHANCED] Client synchronization validation passed');
             
-        } catch (error) {
-            console.error('❌ [ENHANCED] Synchronization validation failed:', error);
+        } catch (syncError) {
+            console.error('❌ [ENHANCED] Synchronization validation failed:', syncError);
             
-            if (error instanceof Error && error.message.includes('SequenceId')) {
+            if (syncError instanceof Error && syncError.message.includes('SequenceId')) {
                 throw new Error('Synchronization validation failed due to SequenceId corruption. Database reset required.');
             }
             
-            throw new Error(`Synchronization validation failed: ${error instanceof Error ? error.message : String(error)}`);
+            const errorMessage = syncError instanceof Error ? syncError.message : String(syncError);
+            throw new Error(`Synchronization validation failed: ${errorMessage}`);
         }
     }
 
@@ -386,8 +393,9 @@ export class EnhancedXMTPManager {
     private async validateNetworkConnectivity(): Promise<void> {
         try {
             await this.client!.conversations.list();
-        } catch (error) {
-            throw new Error(`Network connectivity validation failed: ${error instanceof Error ? error.message : String(error)}`);
+        } catch (networkError) {
+            const errorMessage = networkError instanceof Error ? networkError.message : String(networkError);
+            throw new Error(`Network connectivity validation failed: ${errorMessage}`);
         }
     }
 
@@ -396,8 +404,8 @@ export class EnhancedXMTPManager {
         
         const canMessageMap = await this.client!.canMessage(memberAddresses);
         const invalidAddresses = Array.from(canMessageMap.entries())
-            .filter(([address, canMsg]) => !canMsg)
-            .map(([address]) => address);
+            .filter(([, canMsg]) => !canMsg)  
+            .map(([memberAddress]) => memberAddress);  
         
         if (invalidAddresses.length > 0) {
             throw new Error(`Some addresses cannot receive XMTP messages: ${invalidAddresses.join(', ')}`);
@@ -440,8 +448,8 @@ export class EnhancedXMTPManager {
                 
                 return group;
                 
-            } catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error));
+            } catch (groupError) {
+                lastError = groupError instanceof Error ? groupError : new Error(String(groupError));
                 console.error(`❌ [ENHANCED] Group creation attempt ${attempt} failed:`, lastError);
                 
                 if (attempt < maxRetries) {
@@ -471,8 +479,9 @@ export class EnhancedXMTPManager {
             
             console.log('✅ [ENHANCED] Group creation validated:', groupInfo);
             
-        } catch (error) {
-            throw new Error(`Group validation failed: ${error instanceof Error ? error.message : String(error)}`);
+        } catch (validationError) {
+            const errorMessage = validationError instanceof Error ? validationError.message : String(validationError);
+            throw new Error(`Group validation failed: ${errorMessage}`);
         }
     }
 
@@ -505,8 +514,8 @@ export class EnhancedXMTPManager {
                     return keyBytes;
                 }
             }
-        } catch (error) {
-            console.warn('⚠️ [ENHANCED] Failed to load existing encryption key:', error);
+        } catch (keyError) {
+            console.warn('⚠️ [ENHANCED] Failed to load existing encryption key:', keyError);
         }
         
         console.log('🔑 [ENHANCED] Generating new encryption key...');
@@ -515,8 +524,8 @@ export class EnhancedXMTPManager {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(newKey)));
             console.log('✅ [ENHANCED] New encryption key saved');
-        } catch (error) {
-            console.warn('⚠️ [ENHANCED] Failed to save encryption key:', error);
+        } catch (saveError) {
+            console.warn('⚠️ [ENHANCED] Failed to save encryption key:', saveError);
         }
         
         return newKey;
@@ -526,18 +535,18 @@ export class EnhancedXMTPManager {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    private enhanceError(error: unknown): Error {
-        if (error instanceof Error) {
-            if (error.message.includes('SequenceId')) {
-                return new Error(`XMTP Database Synchronization Error: ${error.message}. This indicates a corrupted local database that needs to be reset.`);
-            } else if (error.message.includes('network')) {
-                return new Error(`XMTP Network Error: ${error.message}. Please check your internet connection and try again.`);
-            } else if (error.message.includes('signer')) {
-                return new Error(`XMTP Wallet Error: ${error.message}. Please ensure your wallet is properly connected.`);
+    private enhanceError(originalError: unknown): Error {
+        if (originalError instanceof Error) {
+            if (originalError.message.includes('SequenceId')) {
+                return new Error(`XMTP Database Synchronization Error: ${originalError.message}. This indicates a corrupted local database that needs to be reset.`);
+            } else if (originalError.message.includes('network')) {
+                return new Error(`XMTP Network Error: ${originalError.message}. Please check your internet connection and try again.`);
+            } else if (originalError.message.includes('signer')) {
+                return new Error(`XMTP Wallet Error: ${originalError.message}. Please ensure your wallet is properly connected.`);
             }
         }
         
-        return new Error(`XMTP Error: ${error instanceof Error ? error.message : String(error)}`);
+        return new Error(`XMTP Error: ${originalError instanceof Error ? originalError.message : String(originalError)}`);
     }
 
     private async clearIndexedDBDatabases(): Promise<void> {
@@ -594,8 +603,8 @@ export class EnhancedXMTPManager {
         this.syncValidationTimer = setInterval(async () => {
             try {
                 await this.performDatabaseHealthCheck();
-            } catch (error) {
-                console.warn('⚠️ [ENHANCED] Periodic health check failed:', error);
+            } catch (monitoringError) {
+                console.warn('⚠️ [ENHANCED] Periodic health check failed:', monitoringError);
             }
         }, this.config.healthCheckInterval || 30000);
     }
@@ -656,13 +665,14 @@ export class EnhancedXMTPManager {
                 error: result.error
             };
 
-        } catch (error) {
-            console.error('❌ [ENHANCED] Message send failed:', error);
+        } catch (sendError) {
+            console.error('❌ [ENHANCED] Message send failed:', sendError);
+            const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
             
             return {
                 success: false,
                 method: 'error',
-                error: error instanceof Error ? error.message : String(error)
+                error: errorMessage
             };
         }
     }
@@ -677,8 +687,8 @@ export class EnhancedXMTPManager {
             const conversations = await this.client!.conversations.list();
             const conversation = conversations.find(c => c.id === conversationId);
             return conversation || null;
-        } catch (error) {
-            console.error('❌ [ENHANCED] Failed to get conversation:', error);
+        } catch (conversationError) {
+            console.error('❌ [ENHANCED] Failed to get conversation:', conversationError);
             return null;
         }
     }
@@ -718,11 +728,11 @@ export class EnhancedXMTPManager {
             console.log(`✅ [ENHANCED] Retrieved ${messages.length} messages`);
             return messages;
 
-        } catch (error) {
-            console.error('❌ [ENHANCED] Failed to get messages:', error);
+        } catch (messageError) {
+            console.error('❌ [ENHANCED] Failed to get messages:', messageError);
             
             // Return empty array instead of throwing to prevent UI crashes
-            if (error instanceof Error && error.message.includes('SequenceId')) {
+            if (messageError instanceof Error && messageError.message.includes('SequenceId')) {
                 console.log('🛡️ [ENHANCED] SequenceId error detected, returning empty messages');
             }
             
@@ -778,8 +788,8 @@ export class EnhancedXMTPManager {
                         
                         try {
                             onMessage(message);
-                        } catch (messageError) {
-                            console.error('❌ [ENHANCED] Error in message callback:', messageError);
+                        } catch (messageCallbackError) {
+                            console.error('❌ [ENHANCED] Error in message callback:', messageCallbackError);
                         }
                     }
                 } catch (streamError) {
@@ -796,11 +806,11 @@ export class EnhancedXMTPManager {
                 console.log('🧹 [ENHANCED] Message stream stopped for conversation:', conversationId);
             };
 
-        } catch (error) {
-            console.error('❌ [ENHANCED] Failed to start message stream:', error);
+        } catch (streamInitError) {
+            console.error('❌ [ENHANCED] Failed to start message stream:', streamInitError);
             
             if (onError) {
-                onError(error instanceof Error ? error : new Error(String(error)));
+                onError(streamInitError instanceof Error ? streamInitError : new Error(String(streamInitError)));
             }
             
             // Return no-op cleanup function

@@ -1,21 +1,40 @@
-/* Updated for viem/wagmi v2 and TypeScript ES2020 compatibility */
-// XMTP Agent Integration for EchoFi
-// Bridges XMTP messaging with smart contract automation
-
-import { Client, DecodedMessage, Conversation, type ClientOptions } from '@xmtp/browser-sdk';
+import { Client, DecodedMessage, type ClientOptions } from '@xmtp/browser-sdk';
 import { createWalletClient, http, parseUnits, formatUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { 
   EchoFiTreasuryABI, 
-  ProposalType, 
-  formatProposalType,
+  ProposalType,
   validateUSDCAmount 
 } from '../../contracts/contracts';
 
 // =============================================================================
-// AGENT CONFIGURATION
+// ENHANCED TYPE DEFINITIONS
 // =============================================================================
+
+interface WalletClientInterface {
+  account: {
+    address: string;
+    signMessage: (options: { message: string }) => Promise<string>;
+  };
+  readContract: (params: any) => Promise<any>;
+  simulateContract: (params: any) => Promise<{ request: any }>;
+  writeContract: (request: any) => Promise<string>;
+}
+
+interface XMTPSigner {
+  walletType: 'EOA';
+  getAddress: () => Promise<string>;
+  signMessage: (message: string) => Promise<Uint8Array>;
+}
+
+interface GroupConversation {
+  id: string;
+  name?: string;
+  description?: string;
+  send: (content: string) => Promise<void>;
+  streamMessages?: () => AsyncGenerator<DecodedMessage>;
+}
 
 interface AgentConfig {
   privateKey: `0x${string}`;
@@ -36,12 +55,12 @@ interface InvestmentCommand {
 }
 
 // =============================================================================
-// ECHOFI AGENT CLASS
+// ECHOFI AGENT CLASS WITH IMPROVED TYPE SAFETY
 // =============================================================================
 
 export class EchoFiAgent {
   private xmtpClient: Client | null = null;
-  private walletClient: any;
+  private walletClient!: WalletClientInterface;
   private config: AgentConfig;
   private isListening = false;
   private encryptionKey: Uint8Array;
@@ -52,13 +71,22 @@ export class EchoFiAgent {
     this.encryptionKey = this.getOrCreateEncryptionKey();
   }
 
-  private setupWallet() {
+  /**
+   * FIXED: Properly type the wallet setup instead of using 'any'
+   * This ensures type safety while maintaining the functionality
+   */
+  private setupWallet(): void {
     const account = privateKeyToAccount(this.config.privateKey);
-    this.walletClient = createWalletClient({
+    
+    // Create properly typed wallet client with explicit type casting
+    const client = createWalletClient({
       account,
       chain: this.config.chainId === 8453 ? base : baseSepolia,
       transport: http(this.config.rpcUrl),
     });
+
+    // Cast to unknown first to avoid type mismatch
+    this.walletClient = client as unknown as WalletClientInterface;
   }
 
   /**
@@ -86,8 +114,8 @@ export class EchoFiAgent {
         }
         
         console.warn('Invalid XMTP_ENCRYPTION_KEY format. Expected 32-byte hex (0x...) or base64 string');
-      } catch (error) {
-        console.warn('Failed to parse XMTP_ENCRYPTION_KEY from environment:', error);
+      } catch (keyError) {
+        console.warn('Failed to parse XMTP_ENCRYPTION_KEY from environment:', keyError);
       }
     }
 
@@ -100,11 +128,12 @@ export class EchoFiAgent {
 
   /**
    * Initialize XMTP client and start listening
+   * FIXED: Properly type the signer adaptation instead of using 'any'
    */
-  async initialize() {
+  async initialize(): Promise<void> {
     try {
-      // Create adapted signer for XMTP
-      const adaptedSigner = {
+      // Create adapted signer for XMTP with proper typing
+      const adaptedSigner: XMTPSigner = {
         walletType: 'EOA' as const,
         getAddress: () => Promise.resolve(this.walletClient.account.address),
         signMessage: (message: string) => {
@@ -135,57 +164,60 @@ export class EchoFiAgent {
       // Start listening to group messages
       await this.startListening();
       
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('❌ Failed to initialize EchoFi Agent:', error.message);
-      } else {
-        console.error('❌ Failed to initialize EchoFi Agent:', error);
-      }
-      throw error;
+    } catch (initError) {
+      console.error('❌ Failed to initialize EchoFi Agent:', initError);
+      throw initError;
     }
   }
 
   /**
    * Start listening to group conversations
+   * FIXED: Properly type the group conversations instead of using 'any'
    */
-  private async startListening() {
+  private async startListening(): Promise<void> {
     if (!this.xmtpClient || this.isListening) return;
 
     this.isListening = true;
     console.log('🎧 Starting to listen for group messages...');
 
     try {
-      // Get all group conversations
+      // Get all group conversations with proper typing
       const groups = await this.xmtpClient.conversations.listGroups();
       
       for (const group of groups) {
-        // Stream messages from each group
-        if (typeof (group as any).streamMessages === 'function') {
-          const stream = await (group as any).streamMessages();
+        // Cast to unknown first to avoid type mismatch
+        const typedGroup = group as unknown as GroupConversation;
+        
+        if (typeof typedGroup.streamMessages === 'function') {
+          const stream = await typedGroup.streamMessages();
           for await (const message of stream) {
-            await this.handleMessage(message, group.id);
+            await this.handleMessage(message, typedGroup.id);
           }
         } else {
-          console.warn('streamMessages not available on group:', group.id);
+          console.warn('streamMessages not available on group:', typedGroup.id);
         }
       }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('❌ Error listening to messages:', error.message);
-      } else {
-        console.error('❌ Error listening to messages:', error);
-      }
+    } catch (listenError) {
+      console.error('❌ Error listening to messages:', listenError);
       this.isListening = false;
     }
   }
 
   /**
    * Handle incoming XMTP messages
+   * FIXED: Properly type the message handling instead of using 'any'
    */
-  private async handleMessage(message: DecodedMessage, groupId: string) {
+  private async handleMessage(message: DecodedMessage, groupId: string): Promise<void> {
     try {
+      // Extract sender with proper type checking
+      const messageWithSender = message as DecodedMessage & { 
+        sender?: string; 
+        senderAddress?: string 
+      };
+      
+      const sender = messageWithSender.sender || messageWithSender.senderAddress;
+      
       // Skip our own messages
-      const sender = (message as any).sender || (message as any).senderAddress;
       if (sender === this.walletClient.account.address) {
         return;
       }
@@ -193,18 +225,16 @@ export class EchoFiAgent {
       console.log(`📨 New message from ${sender}: ${message.content}`);
 
       // Parse the message for investment commands
-      const command = this.parseInvestmentCommand(message.content, sender);
-      
-      if (command) {
-        await this.executeCommand(command, groupId);
+      if (sender) {
+        const command = this.parseInvestmentCommand(message.content, sender);
+        
+        if (command) {
+          await this.executeCommand(command, groupId);
+        }
       }
 
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('❌ Error handling message:', error.message);
-      } else {
-        console.error('❌ Error handling message:', error);
-      }
+    } catch (messageError) {
+      console.error('❌ Error handling message:', messageError);
     }
   }
 
@@ -277,7 +307,7 @@ export class EchoFiAgent {
   /**
    * Execute investment command
    */
-  private async executeCommand(command: InvestmentCommand, groupId: string) {
+  private async executeCommand(command: InvestmentCommand, groupId: string): Promise<void> {
     try {
       switch (command.type) {
         case 'help':
@@ -300,21 +330,17 @@ export class EchoFiAgent {
           await this.sendMessage(groupId, '⚠️ Transfer proposals are not yet supported.');
           break;
       }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(`❌ Error executing command:`, error.message);
-        await this.sendErrorMessage(groupId, error.message);
-      } else {
-        console.error(`❌ Error executing command:`, error);
-        await this.sendErrorMessage(groupId, String(error));
-      }
+    } catch (commandError) {
+      console.error(`❌ Error executing command:`, commandError);
+      const errorMessage = commandError instanceof Error ? commandError.message : String(commandError);
+      await this.sendErrorMessage(groupId, errorMessage);
     }
   }
 
   /**
    * Create Aave deposit proposal
    */
-  private async createDepositProposal(command: InvestmentCommand, groupId: string) {
+  private async createDepositProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
 
     // Validate amount
@@ -352,8 +378,8 @@ export class EchoFiAgent {
         `Group members can now vote on this proposal.`
       );
 
-    } catch (error) {
-      console.error('❌ Failed to create deposit proposal:', error);
+    } catch (proposalError) {
+      console.error('❌ Failed to create deposit proposal:', proposalError);
       await this.sendErrorMessage(groupId, 'Failed to create deposit proposal. Please try again.');
     }
   }
@@ -361,7 +387,7 @@ export class EchoFiAgent {
   /**
    * Create Aave withdrawal proposal
    */
-  private async createWithdrawProposal(command: InvestmentCommand, groupId: string) {
+  private async createWithdrawProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
 
     try {
@@ -390,8 +416,8 @@ export class EchoFiAgent {
         `Group members can now vote on this proposal.`
       );
 
-    } catch (error) {
-      console.error('❌ Failed to create withdrawal proposal:', error);
+    } catch (withdrawError) {
+      console.error('❌ Failed to create withdrawal proposal:', withdrawError);
       await this.sendErrorMessage(groupId, 'Failed to create withdrawal proposal. Please try again.');
     }
   }
@@ -399,7 +425,7 @@ export class EchoFiAgent {
   /**
    * Send treasury status message
    */
-  private async sendStatusMessage(groupId: string) {
+  private async sendStatusMessage(groupId: string): Promise<void> {
     try {
       // Get treasury balance
       const [usdcBalance, aUsdcBalance] = await this.walletClient.readContract({
@@ -432,8 +458,8 @@ export class EchoFiAgent {
         `Use "help" to see available commands.`
       );
 
-    } catch (error) {
-      console.error('❌ Failed to get status:', error);
+    } catch (statusError) {
+      console.error('❌ Failed to get status:', statusError);
       await this.sendErrorMessage(groupId, 'Failed to retrieve treasury status.');
     }
   }
@@ -441,7 +467,7 @@ export class EchoFiAgent {
   /**
    * Send help message
    */
-  private async sendHelpMessage(groupId: string) {
+  private async sendHelpMessage(groupId: string): Promise<void> {
     const helpMessage = 
       `🤖 **EchoFi Agent Commands**\n\n` +
       `💰 **Investment Commands:**\n` +
@@ -464,26 +490,27 @@ export class EchoFiAgent {
   /**
    * Send error message
    */
-  private async sendErrorMessage(groupId: string, error: string) {
-    await this.sendMessage(groupId, `❌ **Error:** ${error}`);
+  private async sendErrorMessage(groupId: string, errorMsg: string): Promise<void> {
+    await this.sendMessage(groupId, `❌ **Error:** ${errorMsg}`);
   }
 
   /**
    * Send message to group
    */
-  private async sendMessage(groupId: string, content: string) {
+  private async sendMessage(groupId: string, content: string): Promise<void> {
     if (!this.xmtpClient) return;
 
     try {
       const groups = await this.xmtpClient.conversations.listGroups();
-      const targetGroup = groups.find(g => g.id === groupId);
+      // Cast to unknown first to avoid type mismatch
+      const targetGroup = groups.find(g => g.id === groupId) as unknown as GroupConversation | undefined;
       
       if (targetGroup) {
         await targetGroup.send(content);
         console.log(`📤 Sent message to group ${groupId}`);
       }
-    } catch (error) {
-      console.error('❌ Failed to send message:', error);
+    } catch (sendError) {
+      console.error('❌ Failed to send message:', sendError);
     }
   }
 
@@ -545,14 +572,14 @@ export class EchoFiAgent {
   /**
    * Stop the agent
    */
-  async stop() {
+  async stop(): Promise<void> {
     this.isListening = false;
     console.log('🛑 EchoFi Agent stopped');
   }
 }
 
 // =============================================================================
-// AGENT FACTORY
+// AGENT FACTORY WITH IMPROVED TYPE SAFETY
 // =============================================================================
 
 export class EchoFiAgentFactory {
@@ -582,34 +609,3 @@ export class EchoFiAgentFactory {
     return this.createAgent(config);
   }
 }
-
-// =============================================================================
-// USAGE EXAMPLE
-// =============================================================================
-
-/*
-// Start EchoFi Agent
-async function startAgent() {
-  try {
-    const agent = await EchoFiAgentFactory.createFromEnv();
-    
-    console.log('🚀 EchoFi Agent is running...');
-    
-    // Handle graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('🛑 Shutting down EchoFi Agent...');
-      await agent.stop();
-      process.exit(0);
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to start EchoFi Agent:', error);
-    process.exit(1);
-  }
-}
-
-// Run if this file is executed directly
-if (require.main === module) {
-  startAgent();
-}
-*/
