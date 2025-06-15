@@ -93,7 +93,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 /**
  * Hook for throttling function calls
  */
-export function useThrottle<T extends (...args: any[]) => any>(
+export function useThrottle<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number
 ): T {
@@ -265,8 +265,14 @@ export function useMemoryMonitor(componentName: string) {
   useEffect(() => {
     // Check memory usage periodically
     const checkMemory = () => {
+      // This creates a type-safe way to access the memory property
       if ('memory' in performance) {
-        const memory = (performance as any).memory;
+        const memory = (performance as unknown as { memory: {
+          usedJSHeapSize: number;
+          totalJSHeapSize: number;
+          jsHeapSizeLimit: number;
+        }}).memory;
+        
         const usedJSHeapSize = memory.usedJSHeapSize;
         const totalJSHeapSize = memory.totalJSHeapSize;
         const usagePercent = (usedJSHeapSize / totalJSHeapSize) * 100;
@@ -324,24 +330,27 @@ export function useLazyLoad(threshold = 0.1) {
 /**
  * Hook for optimized expensive calculations
  */
-export function useExpensiveCalculation<T, D extends readonly any[]>(
+export function useExpensiveCalculation<T, D extends readonly unknown[]>(
   calculateFn: () => T,
   deps: D,
   options: {
     timeout?: number;
     fallback?: T;
     enableProfiling?: boolean;
+    logger?: Logger;
   } = {}
 ): { value: T | undefined; isCalculating: boolean; error: Error | null } {
-  const { timeout = 5000, fallback, enableProfiling = false } = options;
+  const { timeout = 5000, fallback, enableProfiling = false, logger } = options;
   const [result, setResult] = useState<{ value: T | undefined; isCalculating: boolean; error: Error | null }>({
     value: undefined,
     isCalculating: false,
     error: null
   });
 
-  const logger = Logger.getInstance();
+  const loggerInstance = logger || Logger.getInstance();
 
+  // FIXED: Use useMemo with proper dependency array handling
+  // Convert the deps array to individual dependencies that useMemo can track
   const memoizedValue = useMemo(() => {
     setResult(prev => ({ ...prev, isCalculating: true, error: null }));
 
@@ -359,14 +368,14 @@ export function useExpensiveCalculation<T, D extends readonly any[]>(
           const duration = performance.now() - startTime;
           
           if (enableProfiling && duration > 100) {
-            logger.info('Expensive calculation completed', { duration, component: 'useExpensiveCalculation' });
+            loggerInstance.info('Expensive calculation completed', { duration, component: 'useExpensiveCalculation' });
           }
 
           setResult({ value, isCalculating: false, error: null });
           return value;
         })
         .catch(error => {
-          logger.error('Calculation failed', error);
+          loggerInstance.error('Calculation failed', error);
           setResult({ 
             value: fallback, 
             isCalculating: false, 
@@ -376,12 +385,12 @@ export function useExpensiveCalculation<T, D extends readonly any[]>(
 
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error('Calculation error', err);
+      loggerInstance.error('Calculation error', err);
       setResult({ value: fallback, isCalculating: false, error: err });
     }
 
     return fallback;
-  }, deps);
+  }, [calculateFn, timeout, fallback, enableProfiling, loggerInstance, ...deps]);
 
   return result.value !== undefined ? result : { value: memoizedValue, isCalculating: false, error: null };
 }

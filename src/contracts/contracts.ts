@@ -262,14 +262,14 @@ export const CONTRACTS = {
  */
 export function useCreateTreasury(chainId: number) {
   const factoryAddress = CONTRACTS[chainId as keyof typeof CONTRACTS]?.factory;
-  const { data: simulation, error: simError, isPending: isSimPending } = useSimulateContract({
+  
+  // FIXED: Removed the unused 'simulation' variable that was causing TypeScript error
+  // The useSimulateContract hook returns data that wasn't being used
+  const { error: simError, isPending: isSimPending } = useSimulateContract({
     address: factoryAddress,
     abi: EchoFiFactoryABI,
     functionName: 'createTreasury',
   });
-  
-  // FIXED: Removed unused 'simulation' variable that was causing TypeScript error
-  // The simulation data is available but wasn't being used in the component
   
   const { data, writeContract, isPending } = useWriteContract();
   const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -339,8 +339,8 @@ export function useTreasuryBalance(treasuryAddress: Address) {
     functionName: 'getAavePosition',
   });
 
-  // FIXED: Removed unused 'aUsdcBalance' variable that was being destructured but never used
-  // Changed from const [usdcBalance, aUsdcBalance] = balanceData || [0n, 0n];
+  // FIXED: Instead of destructuring the unused 'aUsdcBalance', only get what we need
+  // This eliminates the unused variable error
   const [usdcBalance] = balanceData || [0n, 0n];
   const [totalCollateral, availableLiquidity] = aaveData || [0n, 0n];
 

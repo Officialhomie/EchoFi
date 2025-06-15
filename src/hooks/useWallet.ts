@@ -40,9 +40,22 @@ const detectWallet = () => {
   return null;
 };
 
+// This creates a type-safe interface for chain data
+interface ChainConfig {
+  chainId: string;
+  chainName: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  rpcUrls: string[];
+  blockExplorerUrls: string[];
+}
+
 // Chain configuration for Base and Base Sepolia
-const getChainData = (chainId: number) => {
-  const chains: Record<number, any> = {
+const getChainData = (chainId: number): ChainConfig | undefined => {
+  const chains: Record<number, ChainConfig> = {
     8453: { // Base Mainnet
       chainId: '0x2105',
       chainName: 'Base',
@@ -61,15 +74,23 @@ const getChainData = (chainId: number) => {
   return chains[chainId];
 };
 
+// FIXED: Improve window.ethereum typing for better type safety
+// Instead of using 'any', we create a proper interface
+interface EthereumProvider {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on(event: 'accountsChanged', callback: (accounts: string[]) => void): void;
+  on(event: 'chainChanged', callback: (chainId: string) => void): void;
+  on(event: 'disconnect', callback: () => void): void;
+  removeListener(event: 'accountsChanged', callback: (accounts: string[]) => void): void;
+  removeListener(event: 'chainChanged', callback: (chainId: string) => void): void;
+  removeListener(event: 'disconnect', callback: () => void): void;
+  isMetaMask?: boolean;
+  selectedAddress?: string;
+}
+
 declare global {
   interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on: (event: string, callback: (...args: any[]) => void) => void;
-      removeListener: (event: string, callback: (...args: any[]) => void) => void;
-      isMetaMask?: boolean;
-      selectedAddress?: string;
-    };
+    ethereum?: EthereumProvider;
   }
 }
 
@@ -89,6 +110,20 @@ export function useWallet(): UseWalletReturn {
   const clearError = useCallback(() => {
     setError(null);
   }, []);
+
+  const disconnect = useCallback(() => {
+    console.log('🔌 Disconnecting wallet...');
+    setWalletState({
+      isConnected: false,
+      address: null,
+      chainId: null,
+      balance: null,
+      provider: null,
+      signer: null,
+    });
+    clearError();
+    console.log('✅ Wallet disconnected successfully');
+  }, [clearError]);
 
   // Enhanced connection check with proper error handling
   const checkConnection = useCallback(async () => {
@@ -137,20 +172,24 @@ export function useWallet(): UseWalletReturn {
 
     console.log('🔧 Setting up wallet event listeners...');
 
-    const handleAccountsChanged = (accounts: string[]) => {
-      console.log('📡 Accounts changed:', accounts);
-      if (accounts.length === 0) {
-        console.log('🔌 Wallet disconnected');
-        disconnect();
-      } else {
-        console.log('🔄 Account switched, refreshing connection...');
-        checkConnection();
+    const handleAccountsChanged = (accounts: unknown) => {
+      if (Array.isArray(accounts) && accounts.every(acc => typeof acc === 'string')) {
+        console.log('📡 Accounts changed:', accounts);
+        if (accounts.length === 0) {
+          console.log('🔌 Wallet disconnected');
+          disconnect();
+        } else {
+          console.log('🔄 Account switched, refreshing connection...');
+          checkConnection();
+        }
       }
     };
 
-    const handleChainChanged = (chainId: string) => {
-      console.log('🔗 Chain changed to:', chainId);
-      checkConnection();
+    const handleChainChanged = (chainId: unknown) => {
+      if (typeof chainId === 'string') {
+        console.log('🔗 Chain changed to:', chainId);
+        checkConnection();
+      }
     };
 
     const handleDisconnect = () => {
@@ -174,7 +213,7 @@ export function useWallet(): UseWalletReturn {
       console.error('❌ Error setting up event listeners:', err);
       return () => {};
     }
-  }, [checkConnection]);
+  }, [checkConnection, disconnect]);
 
   // Enhanced connection function
   const connect = useCallback(async () => {
@@ -238,18 +277,24 @@ export function useWallet(): UseWalletReturn {
         setError(`Please switch to Base or Base Sepolia network. Currently on chain ${network.chainId}`);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) { // FIXED: Replace 'any' with 'unknown' for better type safety
       console.error('❌ Wallet connection failed:', err);
       
       let errorMessage = 'Failed to connect wallet';
       
-      if (err.code === 4001) {
-        errorMessage = 'Connection rejected by user';
-      } else if (err.code === -32002) {
-        errorMessage = 'Connection request already pending';
-      } else if (err.message?.includes('User rejected')) {
-        errorMessage = 'Connection cancelled by user';
-      } else if (err.message) {
+      // FIXED: Improve error handling with proper type checking
+      if (err && typeof err === 'object' && 'code' in err) {
+        const error = err as { code: number; message?: string };
+        if (error.code === 4001) {
+          errorMessage = 'Connection rejected by user';
+        } else if (error.code === -32002) {
+          errorMessage = 'Connection request already pending';
+        } else if (error.message?.includes('User rejected')) {
+          errorMessage = 'Connection cancelled by user';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } else if (err instanceof Error) {
         errorMessage = err.message;
       }
       
@@ -259,20 +304,6 @@ export function useWallet(): UseWalletReturn {
       setIsConnecting(false);
     }
   }, [isConnecting, clearError]);
-
-  const disconnect = useCallback(() => {
-    console.log('🔌 Disconnecting wallet...');
-    setWalletState({
-      isConnected: false,
-      address: null,
-      chainId: null,
-      balance: null,
-      provider: null,
-      signer: null,
-    });
-    clearError();
-    console.log('✅ Wallet disconnected successfully');
-  }, [clearError]);
 
   const switchChain = useCallback(async (targetChainId: number) => {
     const ethereum = detectWallet();
@@ -289,21 +320,27 @@ export function useWallet(): UseWalletReturn {
       });
       
       console.log('✅ Chain switched successfully');
-    } catch (err: any) {
+    } catch (err: unknown) { // FIXED: Replace 'any' with 'unknown'
       console.error('❌ Chain switch failed:', err);
       
-      // If the chain hasn't been added to the wallet
-      if (err.code === 4902) {
-        const chainData = getChainData(targetChainId);
-        if (chainData) {
-          console.log('➕ Adding new chain to wallet...');
-          await ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [chainData],
-          });
-          console.log('✅ Chain added successfully');
+      // FIXED: Improve error handling with proper type checking
+      if (err && typeof err === 'object' && 'code' in err) {
+        const error = err as { code: number };
+        // If the chain hasn't been added to the wallet
+        if (error.code === 4902) {
+          const chainData = getChainData(targetChainId);
+          if (chainData) {
+            console.log('➕ Adding new chain to wallet...');
+            await ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [chainData],
+            });
+            console.log('✅ Chain added successfully');
+          } else {
+            throw new Error(`Unsupported chain ID: ${targetChainId}`);
+          }
         } else {
-          throw new Error(`Unsupported chain ID: ${targetChainId}`);
+          throw err;
         }
       } else {
         throw err;
@@ -329,6 +366,7 @@ export function useWallet(): UseWalletReturn {
   }, [walletState.provider, walletState.address]);
 
   // Initialize wallet check and event listeners
+  // FIXED: Add all necessary dependencies to prevent the exhaustive-deps warning
   useEffect(() => {
     console.log('🏁 Initializing wallet hook...');
     checkConnection();

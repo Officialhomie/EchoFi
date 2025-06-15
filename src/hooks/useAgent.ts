@@ -28,7 +28,7 @@ export function useInvestmentAgent(options: UseInvestmentAgentOptions = {}) {
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const callAgentAPI = useCallback(async (action: string, params?: any) => {
+  const callAgentAPI = useCallback(async (action: string, params?: Record<string, unknown>) => {
     console.log(`🔄 [DEBUG] Calling agent API: ${action}`, params);
     setIsInitializing(true);
     setError(null);
