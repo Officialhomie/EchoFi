@@ -255,14 +255,14 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (balance < amount) return false;
         
         // Use SafeERC20's safeApprove and handle errors with return values
-        usdc.safeApprove(address(AAVE_POOL), amount);
+        usdc.forceApprove(address(AAVE_POOL), amount);
         
         try AAVE_POOL.supply(USDC, amount, address(this), 0) {
             emit SuppliedToAave(amount, 0);
             return true;
         } catch {
             // Reset approval on failure
-            usdc.safeApprove(address(AAVE_POOL), 0);
+            usdc.forceApprove(address(AAVE_POOL), 0);
             return false;
         }
     }
@@ -291,11 +291,9 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (balance < amount) return false;
         
         // SafeERC20's safeTransfer will revert on failure, so we wrap it in try-catch
-        try usdc.safeTransfer(to, amount) {
-            return true;
-        } catch {
-            return false;
-        }
+        usdc.safeTransfer(to, amount);
+        
+        return true;
     }
 
     /**

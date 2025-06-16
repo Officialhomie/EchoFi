@@ -245,6 +245,108 @@ contract EchoFiHelper {
     }
 
     /**
+    * @dev Check if a user can vote on a specific proposal
+    * @param _treasury Address of the treasury contract
+    * @param _proposalId ID of the proposal to check
+    * @param _user Address of the user to check
+    * @return canVote Boolean indicating if user can vote
+    * @return reason String explaining why user can or cannot vote
+    */
+    function canUserVote(address _treasury, uint256 _proposalId, address _user) 
+        external 
+        view 
+        returns (bool canVote, string memory reason) 
+    {
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
+        
+        // Check 1: Does user have voting power (is a member)?
+        uint256 userVotingPower = treasury.memberVotingPower(_user);
+        if (userVotingPower == 0) {
+            return (false, "User has no voting power");
+        }
+        
+        // Check 2: Does the proposal exist?
+        if (_proposalId >= treasury.proposalCount()) {
+            return (false, "Proposal does not exist");
+        }
+        
+        // Check 3: Get proposal details and check its status
+        try treasury.getProposal(_proposalId) returns (
+            uint256, // id
+            address, // proposer  
+            EchoFiTreasury.ProposalType, // proposalType
+            uint256, // amount
+            address, // target
+            bytes memory, // data
+            string memory, // description
+            uint256, // votesFor
+            uint256, // votesAgainst
+            uint256 deadline,
+            bool executed,
+            bool cancelled
+        ) {
+            // Check 4: Is proposal still active?
+            if (executed) {
+                return (false, "Proposal already executed");
+            }
+            
+            if (cancelled) {
+                return (false, "Proposal was cancelled");
+            }
+            
+            if (block.timestamp > deadline) {
+                return (false, "Voting period has ended");
+            }
+            
+            // Check 5: Has user already voted?
+            if (treasury.hasVoted(_proposalId, _user)) {
+                return (false, "User has already voted");
+            }
+            
+            // All checks passed - user can vote!
+            return (true, "Can vote");
+            
+        } catch {
+            // If we can't get proposal details, something is wrong
+            return (false, "Failed to retrieve proposal details");
+        }
+    }
+
+    /**
+    * @dev Check if a user has voted on a specific proposal
+    * @param _proposalId ID of the proposal to check
+    * @param _voter Address of the voter to check
+    * @return bool indicating whether the user has voted
+    * @notice This function provides access to the hasVoted mapping inside proposal structs
+    */
+    function hasVoted(uint256 _proposalId, address _voter) external view returns (bool) {
+        // Simple validation to prevent accessing invalid proposals
+        if (_proposalId >= proposalCount) {
+            return false; // Invalid proposal ID means user hasn't voted on it
+        }
+        
+        // Access the nested mapping through the proposal struct
+        return proposals[_proposalId].hasVoted[_voter];
+    }
+
+    /**
+    * @dev Get the vote choice for a user on a specific proposal
+    * @param _proposalId ID of the proposal to check
+    * @param _voter Address of the voter to check
+    * @return bool indicating the vote choice (true = for, false = against)
+    * @notice Returns false if user hasn't voted (check hasVoted first for accuracy)
+    */
+    function getVoteChoice(uint256 _proposalId, address _voter) external view returns (bool) {
+        // Simple validation to prevent accessing invalid proposals
+        if (_proposalId >= proposalCount) {
+            return false; // Invalid proposal ID
+        }
+        
+        // Access the nested mapping through the proposal struct
+        return proposals[_proposalId].voteChoice[_voter];
+    }
+
+    /**
      * @dev Get human-readable proposal status
      */
     function _getProposalStatus(

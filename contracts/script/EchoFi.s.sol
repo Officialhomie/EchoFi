@@ -63,9 +63,9 @@ contract DeployScript is Script {
 
         // Deploy EchoFiTreasury
         EchoFiTreasury treasury = new EchoFiTreasury(
-            config.initialMembers,
-            config.votingPowers,
-            config.aUsdc
+            config.aUsdc,          // ✅ address _aUSDC (first parameter)
+            config.initialMembers, // ✅ address[] _initialMembers (second parameter)
+            config.votingPowers   // ✅ uint256[] _votingPowers (third parameter)
         );
 
         vm.stopBroadcast();
