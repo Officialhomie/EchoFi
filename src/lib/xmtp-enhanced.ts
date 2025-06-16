@@ -1,8 +1,6 @@
-// src/lib/xmtp-enhanced.ts - Working Enhanced XMTP Manager
 import { 
     Client, 
-    Conversation, 
-    DecodedMessage,
+    Conversation,
     GroupPermissions,
     type ClientOptions
 } from '@xmtp/browser-sdk';
@@ -27,6 +25,7 @@ export interface GroupConfig {
 export interface BrowserSigner {
     getAddress(): Promise<string>;
     signMessage(message: string): Promise<Uint8Array>;
+    getChainId?: () => bigint;
 }
 
 export interface DatabaseHealthReport {
@@ -44,15 +43,54 @@ export interface InitializationState {
     issues: string[];
 }
 
+// FIXED: Enhanced XMTP Manager with Singleton Pattern to prevent multiple instances
 export class EnhancedXMTPManager {
+    // SINGLETON PATTERN - Prevents multiple instances and repeated signature requests
+    private static instance: EnhancedXMTPManager | null = null;
+    private static instancePromise: Promise<EnhancedXMTPManager> | null = null;
+    
     private client: Client | null = null;
     private isInitialized = false;
+    private isClientStable = false;
     private encryptionKey: Uint8Array | null = null;
     private config: XMTPConfig;
     private initializationState: InitializationState;
     private syncValidationTimer: NodeJS.Timeout | null = null;
+    private lastSignerAddress: string | null = null;
+    private clientCreationInProgress = false;
 
-    constructor(config: XMTPConfig = {}) {
+    // FIXED: Singleton getInstance method to prevent multiple instances
+    public static async getInstance(config: XMTPConfig = {}): Promise<EnhancedXMTPManager> {
+        if (this.instance && this.instance.isClientStable) {
+            console.log('✅ [ENHANCED] Reusing existing stable XMTP manager instance');
+            return this.instance;
+        }
+
+        // Prevent multiple simultaneous instance creation
+        if (this.instancePromise) {
+            console.log('⏳ [ENHANCED] Waiting for existing instance creation...');
+            return this.instancePromise;
+        }
+
+        this.instancePromise = this.createInstance(config);
+        
+        try {
+            this.instance = await this.instancePromise;
+            return this.instance;
+        } finally {
+            this.instancePromise = null;
+        }
+    }
+
+    private static async createInstance(config: XMTPConfig): Promise<EnhancedXMTPManager> {
+        console.log('🏗️ [ENHANCED] Creating new XMTP manager instance...');
+        const instance = new EnhancedXMTPManager(config);
+        await instance.initialize();
+        return instance;
+    }
+
+    // FIXED: Private constructor to enforce singleton pattern
+    private constructor(config: XMTPConfig = {}) {
         this.config = {
             maxRetries: 3,
             retryDelay: 2000,
@@ -69,13 +107,62 @@ export class EnhancedXMTPManager {
     }
 
     /**
-     * Enhanced initialization with comprehensive error handling
+     * FIXED: Initialize the manager instance (called once during creation)
+     */
+    private async initialize(): Promise<void> {
+        try {
+            console.log('🔧 [ENHANCED] Initializing XMTP manager...');
+            
+            // Pre-initialize setup
+            this.encryptionKey = await this.getOrCreateEncryptionKeyAsync();
+            
+            console.log('✅ [ENHANCED] XMTP manager initialized successfully');
+        } catch (error) {
+            console.error('❌ [ENHANCED] XMTP manager initialization failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * FIXED: Enhanced client initialization that prevents repeated signature requests
      */
     async initializeClient(signer: BrowserSigner, config: XMTPConfig = {}): Promise<Client> {
         this.config = { ...this.config, ...config };
         
+        // Get current signer address to check if re-initialization is needed
+        const currentSignerAddress = await signer.getAddress();
+        
+        // OPTIMIZATION: Return existing client if same signer and client is stable
+        if (
+            this.client && 
+            this.isClientStable && 
+            this.isInitialized && 
+            this.lastSignerAddress === currentSignerAddress &&
+            !this.clientCreationInProgress
+        ) {
+            console.log('✅ [ENHANCED] Reusing existing stable XMTP client for address:', currentSignerAddress);
+            return this.client;
+        }
+
+        // Prevent multiple simultaneous client creation attempts
+        if (this.clientCreationInProgress) {
+            console.log('⏳ [ENHANCED] Client creation already in progress, waiting...');
+            
+            // Wait for current creation to complete
+            while (this.clientCreationInProgress) {
+                await this.delay(500);
+            }
+            
+            // Return the client if it was successfully created
+            if (this.client && this.isClientStable && this.lastSignerAddress === currentSignerAddress) {
+                return this.client;
+            }
+        }
+
+        this.clientCreationInProgress = true;
+        
         try {
-            console.log('🚀 [ENHANCED] Starting XMTP client initialization...');
+            console.log('🚀 [ENHANCED] Starting XMTP client initialization for address:', currentSignerAddress);
             
             // Phase 1: Database Health Check
             this.updateInitializationState('database_check', 10, 'Checking database health');
@@ -87,9 +174,8 @@ export class EnhancedXMTPManager {
                 await this.performDatabaseRecovery(healthReport);
             }
 
-            // Phase 2: Prepare encryption
+            // Phase 2: Client Creation
             this.updateInitializationState('client_creation', 40, 'Setting up encryption');
-            this.encryptionKey = await this.getOrCreateEncryptionKeyAsync();
             
             // Phase 3: Create client with retry
             this.updateInitializationState('client_creation', 60, 'Creating XMTP client');
@@ -99,7 +185,10 @@ export class EnhancedXMTPManager {
             this.updateInitializationState('sync_validation', 80, 'Validating synchronization');
             await this.validateClientSynchronization();
             
+            // Mark as stable and store signer info
             this.isInitialized = true;
+            this.isClientStable = true;
+            this.lastSignerAddress = currentSignerAddress;
             this.updateInitializationState('ready', 100, 'Initialization complete');
             
             // Start monitoring
@@ -109,16 +198,19 @@ export class EnhancedXMTPManager {
             return this.client;
             
         } catch (initError) {
+            this.isClientStable = false;
             const errorMessage = initError instanceof Error ? initError.message : String(initError);
             this.updateInitializationState('failed', 0, `Failed: ${errorMessage}`);
             this.isInitialized = false;
             console.error('❌ [ENHANCED] Client initialization failed:', initError);
             throw this.enhanceError(initError);
+        } finally {
+            this.clientCreationInProgress = false;
         }
     }
 
     /**
-     * Database health diagnostics
+     * FIXED: Database health diagnostics with improved error handling
      */
     private async performDatabaseHealthCheck(): Promise<DatabaseHealthReport> {
         console.log('🔍 [ENHANCED] Performing database health check...');
@@ -139,7 +231,7 @@ export class EnhancedXMTPManager {
                 return report;
             }
 
-            const dbName = this.config.dbPath || 'echofi-xmtp';
+            const dbName = this.config.dbPath || 'echofi-xmtp-base';
             const dbExists = await this.checkDatabaseExists(dbName);
             
             if (!dbExists) {
@@ -200,12 +292,10 @@ export class EnhancedXMTPManager {
             request.onsuccess = () => {
                 const db = request.result;
                 try {
-                    // Basic validation - check if we can access the database
                     const hasStores = db.objectStoreNames.length > 0;
                     db.close();
                     resolve(hasStores);
-                } catch (structureError) {
-                    console.warn('Database structure validation error:', structureError);
+                } catch {
                     db.close();
                     resolve(false);
                 }
@@ -222,11 +312,9 @@ export class EnhancedXMTPManager {
                 
                 try {
                     // Simple validation - if we can open it, consider it valid for now
-                    // More sophisticated validation would check specific SequenceId records
                     db.close();
                     resolve(true);
-                } catch (sequenceError) {
-                    console.warn('Sequence ID validation error:', sequenceError);
+                } catch {
                     db.close();
                     resolve(false);
                 }
@@ -257,7 +345,8 @@ export class EnhancedXMTPManager {
         
         this.client = null;
         this.isInitialized = false;
-        this.encryptionKey = null;
+        this.isClientStable = false;
+        this.lastSignerAddress = null;
         
         console.log('✅ [ENHANCED] Complete database reset completed');
     }
@@ -265,7 +354,7 @@ export class EnhancedXMTPManager {
     private async performSelectiveRepair(): Promise<void> {
         console.log('🔨 [ENHANCED] Performing selective repair...');
         
-        const dbName = this.config.dbPath || 'echofi-xmtp';
+        const dbName = this.config.dbPath || 'echofi-xmtp-base';
         
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(dbName);
@@ -273,12 +362,10 @@ export class EnhancedXMTPManager {
                 const db = request.result;
                 
                 try {
-                    // Simple repair - close and reopen
                     db.close();
                     console.log('✅ [ENHANCED] Selective repair completed');
                     resolve();
-                } catch (repairError) {
-                    console.error('Selective repair failed:', repairError);
+                } catch {
                     db.close();
                     reject(new Error('Failed to repair database'));
                 }
@@ -288,7 +375,7 @@ export class EnhancedXMTPManager {
     }
 
     /**
-     * Enhanced client creation with retry
+     * FIXED: Enhanced client creation with retry and signature optimization
      */
     private async createClientWithRetry(signer: BrowserSigner): Promise<Client> {
         const maxRetries = this.config.maxRetries || 3;
@@ -301,13 +388,25 @@ export class EnhancedXMTPManager {
                 const clientOptions: ClientOptions = {
                     env: this.config.env || 'dev',
                     apiUrl: this.config.apiUrl,
-                    dbPath: this.config.dbPath || 'echofi-xmtp',
+                    dbPath: this.config.dbPath || 'echofi-xmtp-base',
                 };
 
+                // FIXED: Create adapted signer with proper chain ID support
                 const adaptedSigner = {
                     walletType: 'EOA' as const,
                     getAddress: () => signer.getAddress(),
-                    signMessage: (message: string) => signer.signMessage(message),
+                    signMessage: (message: string) => {
+                        console.log('🔐 [ENHANCED] XMTP requesting signature for message...');
+                        return signer.signMessage(message);
+                    },
+                    getChainId: () => {
+                        if (typeof signer.getChainId === 'function') {
+                            return signer.getChainId();
+                        }
+                        // Default to Base Sepolia for development
+                        return BigInt(84532);
+                    },
+                    getBlockNumber: () => BigInt(0),
                 };
 
                 if (attempt > 1) {
@@ -315,13 +414,13 @@ export class EnhancedXMTPManager {
                     await this.delay(retryDelay);
                 }
 
+                // This is where the signature request happens - only once per unique signer
                 const client = await Client.create(adaptedSigner, this.encryptionKey!, clientOptions);
                 
                 console.log(`✅ [ENHANCED] Client created successfully on attempt ${attempt}`);
                 return client;
                 
             } catch (clientError) {
-                // FIXED: Use the error variable for client creation error handling
                 console.error(`❌ [ENHANCED] Client creation attempt ${attempt} failed:`, clientError);
                 
                 if (attempt === maxRetries) {
@@ -369,53 +468,7 @@ export class EnhancedXMTPManager {
     }
 
     /**
-     * Pre-group creation validation
-     */
-    private async performPreGroupCreationValidation(memberAddresses: string[]): Promise<void> {
-        console.log('🔍 [ENHANCED] Performing pre-group creation validation...');
-        
-        this.ensureClientReady();
-        
-        const healthReport = await this.performDatabaseHealthCheck();
-        if (!healthReport.isHealthy) {
-            throw new Error(`Database health check failed: ${healthReport.issues.join(', ')}`);
-        }
-        
-        await this.validateNetworkConnectivity();
-        
-        if (memberAddresses.length > 0) {
-            await this.validateMemberAddresses(memberAddresses);
-        }
-        
-        console.log('✅ [ENHANCED] Pre-group creation validation passed');
-    }
-
-    private async validateNetworkConnectivity(): Promise<void> {
-        try {
-            await this.client!.conversations.list();
-        } catch (networkError) {
-            const errorMessage = networkError instanceof Error ? networkError.message : String(networkError);
-            throw new Error(`Network connectivity validation failed: ${errorMessage}`);
-        }
-    }
-
-    private async validateMemberAddresses(memberAddresses: string[]): Promise<void> {
-        console.log('🔍 [ENHANCED] Validating member addresses...');
-        
-        const canMessageMap = await this.client!.canMessage(memberAddresses);
-        const invalidAddresses = Array.from(canMessageMap.entries())
-            .filter(([, canMsg]) => !canMsg)  
-            .map(([memberAddress]) => memberAddress);  
-        
-        if (invalidAddresses.length > 0) {
-            throw new Error(`Some addresses cannot receive XMTP messages: ${invalidAddresses.join(', ')}`);
-        }
-        
-        console.log('✅ [ENHANCED] All member addresses validated successfully');
-    }
-
-    /**
-     * Enhanced group creation with atomic operations
+     * FIXED: Enhanced group creation with atomic operations and proper validation
      */
     async createInvestmentGroup(groupConfig: GroupConfig, memberAddresses: string[]): Promise<Conversation> {
         console.log('🚀 [ENHANCED] Starting atomic group creation...');
@@ -469,6 +522,52 @@ export class EnhancedXMTPManager {
         throw new Error(`Failed to create group after ${maxRetries} attempts. Last error: ${lastError?.message}`);
     }
 
+    /**
+     * Pre-group creation validation
+     */
+    private async performPreGroupCreationValidation(memberAddresses: string[]): Promise<void> {
+        console.log('🔍 [ENHANCED] Performing pre-group creation validation...');
+        
+        this.ensureClientReady();
+        
+        const healthReport = await this.performDatabaseHealthCheck();
+        if (!healthReport.isHealthy) {
+            throw new Error(`Database health check failed: ${healthReport.issues.join(', ')}`);
+        }
+        
+        await this.validateNetworkConnectivity();
+        
+        if (memberAddresses.length > 0) {
+            await this.validateMemberAddresses(memberAddresses);
+        }
+        
+        console.log('✅ [ENHANCED] Pre-group creation validation passed');
+    }
+
+    private async validateNetworkConnectivity(): Promise<void> {
+        try {
+            await this.client!.conversations.list();
+        } catch (networkError) {
+            const errorMessage = networkError instanceof Error ? networkError.message : String(networkError);
+            throw new Error(`Network connectivity validation failed: ${errorMessage}`);
+        }
+    }
+
+    private async validateMemberAddresses(memberAddresses: string[]): Promise<void> {
+        console.log('🔍 [ENHANCED] Validating member addresses...');
+        
+        const canMessageMap = await this.client!.canMessage(memberAddresses);
+        const invalidAddresses = Array.from(canMessageMap.entries())
+            .filter(([, canMsg]) => !canMsg)  
+            .map(([memberAddress]) => memberAddress);  
+        
+        if (invalidAddresses.length > 0) {
+            throw new Error(`Some addresses cannot receive XMTP messages: ${invalidAddresses.join(', ')}`);
+        }
+        
+        console.log('✅ [ENHANCED] All member addresses validated successfully');
+    }
+
     private async validateGroupCreation(group: Conversation): Promise<void> {
         try {
             const groupInfo = {
@@ -491,7 +590,7 @@ export class EnhancedXMTPManager {
     }
 
     /**
-     * Utility methods
+     * FIXED: Utility methods with proper error handling
      */
     private updateInitializationState(phase: InitializationState['phase'], progress: number, operation: string): void {
         this.initializationState = {
@@ -503,7 +602,7 @@ export class EnhancedXMTPManager {
     }
 
     private async getOrCreateEncryptionKeyAsync(): Promise<Uint8Array> {
-        const STORAGE_KEY = 'xmtp_encryption_key_v2';
+        const STORAGE_KEY = 'xmtp_encryption_key_base_v2';
         
         try {
             const storedKey = localStorage.getItem(STORAGE_KEY);
@@ -514,8 +613,8 @@ export class EnhancedXMTPManager {
                     return keyBytes;
                 }
             }
-        } catch (keyError) {
-            console.warn('⚠️ [ENHANCED] Failed to load existing encryption key:', keyError);
+        } catch {
+            console.warn('⚠️ [ENHANCED] Failed to load existing encryption key');
         }
         
         console.log('🔑 [ENHANCED] Generating new encryption key...');
@@ -524,8 +623,8 @@ export class EnhancedXMTPManager {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(newKey)));
             console.log('✅ [ENHANCED] New encryption key saved');
-        } catch (saveError) {
-            console.warn('⚠️ [ENHANCED] Failed to save encryption key:', saveError);
+        } catch {
+            console.warn('⚠️ [ENHANCED] Failed to save encryption key');
         }
         
         return newKey;
@@ -550,7 +649,7 @@ export class EnhancedXMTPManager {
     }
 
     private async clearIndexedDBDatabases(): Promise<void> {
-        const dbName = this.config.dbPath || 'echofi-xmtp';
+        const dbName = this.config.dbPath || 'echofi-xmtp-base';
         
         return new Promise((resolve, reject) => {
             const deleteRequest = indexedDB.deleteDatabase(dbName);
@@ -576,11 +675,14 @@ export class EnhancedXMTPManager {
             key.includes('xmtp') || key.includes('XMTP')
         );
         
-        keysToRemove.forEach(key => {
+        // Don't remove the encryption key
+        const filteredKeys = keysToRemove.filter(key => !key.includes('encryption_key'));
+        
+        filteredKeys.forEach(key => {
             localStorage.removeItem(key);
         });
         
-        console.log(`✅ [ENHANCED] Cleared ${keysToRemove.length} XMTP localStorage entries`);
+        console.log(`✅ [ENHANCED] Cleared ${filteredKeys.length} XMTP localStorage entries`);
     }
 
     private async clearSessionStorage(): Promise<void> {
@@ -603,8 +705,8 @@ export class EnhancedXMTPManager {
         this.syncValidationTimer = setInterval(async () => {
             try {
                 await this.performDatabaseHealthCheck();
-            } catch (monitoringError) {
-                console.warn('⚠️ [ENHANCED] Periodic health check failed:', monitoringError);
+            } catch {
+                console.warn('⚠️ [ENHANCED] Periodic health check failed');
             }
         }, this.config.healthCheckInterval || 30000);
     }
@@ -612,209 +714,6 @@ export class EnhancedXMTPManager {
     private ensureClientReady(): void {
         if (!this.client || !this.isInitialized) {
             throw new Error('XMTP client not initialized. Call initializeClient() first.');
-        }
-    }
-
-    /**
-     * Enhanced message sending with hybrid delivery system
-     */
-    async sendMessage(
-        conversationId: string,
-        content: string,
-        options: {
-            retries?: number;
-            timeout?: number;
-            preferredMethod?: 'xmtp' | 'api' | 'auto';
-            requireConfirmation?: boolean;
-        } = {}
-    ): Promise<{ success: boolean; messageId?: string; method: string; error?: string }> {
-        this.ensureClientReady();
-
-        try {
-            console.log('🚀 [ENHANCED] Starting message send operation...');
-            
-            // Get conversation
-            const conversation = await this.getConversationById(conversationId);
-            if (!conversation) {
-                throw new Error('Conversation not found');
-            }
-
-            // Import and use enhanced message manager
-            const { EnhancedMessageManager } = await import('./message-manager-enhanced');
-            
-            const messageManager = new EnhancedMessageManager(conversation, {
-                fallbackApiEndpoint: '/api/messages/send',
-                maxRetries: options.retries || 3,
-                operationTimeout: options.timeout || 10000
-            });
-
-            // Send message using hybrid system
-            const result = await messageManager.sendMessage(content, {
-                retries: options.retries || 3,
-                timeout: options.timeout || 10000,
-                preferredMethod: options.preferredMethod || 'auto',
-                requireConfirmation: options.requireConfirmation || false
-            });
-
-            console.log('📊 [ENHANCED] Message send result:', result);
-            
-            return {
-                success: result.success,
-                messageId: result.messageId,
-                method: result.method,
-                error: result.error
-            };
-
-        } catch (sendError) {
-            console.error('❌ [ENHANCED] Message send failed:', sendError);
-            const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
-            
-            return {
-                success: false,
-                method: 'error',
-                error: errorMessage
-            };
-        }
-    }
-
-    /**
-     * Get conversation by ID
-     */
-    async getConversationById(conversationId: string): Promise<Conversation | null> {
-        this.ensureClientReady();
-
-        try {
-            const conversations = await this.client!.conversations.list();
-            const conversation = conversations.find(c => c.id === conversationId);
-            return conversation || null;
-        } catch (conversationError) {
-            console.error('❌ [ENHANCED] Failed to get conversation:', conversationError);
-            return null;
-        }
-    }
-
-    /**
-     * Get messages from a conversation with enhanced error handling
-     */
-    async getMessages(
-        conversationId: string,
-        limit?: number
-    ): Promise<DecodedMessage[]> {
-        this.ensureClientReady();
-
-        try {
-            const conversation = await this.getConversationById(conversationId);
-            if (!conversation) {
-                throw new Error('Conversation not found');
-            }
-
-            // Import enhanced message manager for health checks
-            const { EnhancedMessageManager } = await import('./message-manager-enhanced');
-            const messageManager = new EnhancedMessageManager(conversation);
-
-            // Perform health check before getting messages
-            const healthReport = await messageManager.getHealthStatus();
-            
-            if (!healthReport.isHealthy) {
-                console.log('🔧 [ENHANCED] Conversation unhealthy, attempting recovery...');
-                await messageManager.forceRecovery();
-            }
-
-            // Get messages
-            const messages = await conversation.messages({
-                limit: limit ? BigInt(limit) : undefined
-            });
-
-            console.log(`✅ [ENHANCED] Retrieved ${messages.length} messages`);
-            return messages;
-
-        } catch (messageError) {
-            console.error('❌ [ENHANCED] Failed to get messages:', messageError);
-            
-            // Return empty array instead of throwing to prevent UI crashes
-            if (messageError instanceof Error && messageError.message.includes('SequenceId')) {
-                console.log('🛡️ [ENHANCED] SequenceId error detected, returning empty messages');
-            }
-            
-            return [];
-        }
-    }
-
-    /**
-     * Stream messages from a conversation with enhanced error handling
-     */
-    async streamMessages(
-        conversationId: string,
-        onMessage: (message: DecodedMessage) => void,
-        onError?: (error: Error) => void
-    ): Promise<() => void> {
-        this.ensureClientReady();
-
-        try {
-            const conversation = await this.getConversationById(conversationId);
-            if (!conversation) {
-                throw new Error('Conversation not found');
-            }
-
-            // Import enhanced message manager
-            const { EnhancedMessageManager } = await import('./message-manager-enhanced');
-            const messageManager = new EnhancedMessageManager(conversation);
-
-            // Perform health check before streaming
-            const healthReport = await messageManager.getHealthStatus();
-            
-            if (!healthReport.isHealthy) {
-                console.log('🔧 [ENHANCED] Conversation unhealthy for streaming, attempting recovery...');
-                try {
-                    await messageManager.forceRecovery();
-                } catch (recoveryError) {
-                    console.warn('⚠️ [ENHANCED] Recovery failed, continuing with streaming attempt:', recoveryError);
-                }
-            }
-
-            // Start streaming
-            console.log('🔄 [ENHANCED] Starting message stream for conversation:', conversationId);
-            
-            const streamPromise = this.client!.conversations.streamAllMessages();
-            let isActive = true;
-
-            (async () => {
-                try {
-                    const stream = await streamPromise;
-                    for await (const message of stream) {
-                        if (!isActive) break;
-                        if (!message || message.conversationId !== conversationId) continue;
-                        if (message.senderInboxId === this.client!.inboxId) continue;
-                        
-                        try {
-                            onMessage(message);
-                        } catch (messageCallbackError) {
-                            console.error('❌ [ENHANCED] Error in message callback:', messageCallbackError);
-                        }
-                    }
-                } catch (streamError) {
-                    console.error('❌ [ENHANCED] Message stream error:', streamError);
-                    if (onError) {
-                        onError(streamError instanceof Error ? streamError : new Error(String(streamError)));
-                    }
-                }
-            })();
-
-            // Return cleanup function
-            return () => {
-                isActive = false;
-                console.log('🧹 [ENHANCED] Message stream stopped for conversation:', conversationId);
-            };
-
-        } catch (streamInitError) {
-            console.error('❌ [ENHANCED] Failed to start message stream:', streamInitError);
-            
-            if (onError) {
-                onError(streamInitError instanceof Error ? streamInitError : new Error(String(streamInitError)));
-            }
-            
-            // Return no-op cleanup function
-            return () => {};
         }
     }
 
@@ -842,10 +741,13 @@ export class EnhancedXMTPManager {
             address: this.client.accountAddress,
             inboxId: this.client.inboxId,
             installationId: this.client.installationId,
-            isReady: this.isInitialized
+            isReady: this.isInitialized && this.isClientStable
         };
     }
 
+    /**
+     * FIXED: Enhanced cleanup with singleton reset
+     */
     async cleanup(): Promise<void> {
         if (this.syncValidationTimer) {
             clearInterval(this.syncValidationTimer);
@@ -854,6 +756,26 @@ export class EnhancedXMTPManager {
         
         this.client = null;
         this.isInitialized = false;
+        this.isClientStable = false;
+        this.lastSignerAddress = null;
+        this.clientCreationInProgress = false;
         this.encryptionKey = null;
+        
+        // Reset singleton instance
+        EnhancedXMTPManager.instance = null;
+        
+        console.log('🧹 [ENHANCED] XMTP manager cleanup completed');
+    }
+
+    /**
+     * Static method to reset singleton (for testing or forced reinitialization)
+     */
+    public static resetInstance(): void {
+        if (this.instance) {
+            this.instance.cleanup();
+        }
+        this.instance = null;
+        this.instancePromise = null;
+        console.log('🔄 [ENHANCED] XMTP manager singleton reset');
     }
 }

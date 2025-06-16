@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 
 export interface WalletState {
@@ -20,17 +20,15 @@ export interface UseWalletReturn extends WalletState {
   clearError: () => void;
 }
 
-// Enhanced MetaMask detection
+// Enhanced MetaMask detection with proper typing
 const detectWallet = () => {
   if (typeof window === 'undefined') return null;
   
-  // Check for MetaMask specifically
   if (window.ethereum?.isMetaMask) {
     console.log('✅ MetaMask detected');
     return window.ethereum;
   }
   
-  // Check for other Web3 wallets
   if (window.ethereum) {
     console.log('✅ Web3 wallet detected (non-MetaMask)');
     return window.ethereum;
@@ -40,7 +38,6 @@ const detectWallet = () => {
   return null;
 };
 
-// This creates a type-safe interface for chain data
 interface ChainConfig {
   chainId: string;
   chainName: string;
@@ -53,7 +50,7 @@ interface ChainConfig {
   blockExplorerUrls: string[];
 }
 
-// Chain configuration for Base and Base Sepolia
+// Base Sepolia is the default chain instead of Ethereum mainnet
 const getChainData = (chainId: number): ChainConfig | undefined => {
   const chains: Record<number, ChainConfig> = {
     8453: { // Base Mainnet
@@ -63,7 +60,7 @@ const getChainData = (chainId: number): ChainConfig | undefined => {
       rpcUrls: ['https://mainnet.base.org'],
       blockExplorerUrls: ['https://basescan.org'],
     },
-    84532: { // Base Sepolia
+    84532: { // Base Sepolia - DEFAULT TESTNET
       chainId: '0x14a34',
       chainName: 'Base Sepolia',
       nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
@@ -74,8 +71,7 @@ const getChainData = (chainId: number): ChainConfig | undefined => {
   return chains[chainId];
 };
 
-// FIXED: Improve window.ethereum typing for better type safety
-// Instead of using 'any', we create a proper interface
+// Proper Ethereum provider interface with complete typing
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on(event: 'accountsChanged', callback: (accounts: string[]) => void): void;
@@ -94,6 +90,13 @@ declare global {
   }
 }
 
+// FIXED: Enhanced signer interface without circular references
+interface EnhancedSignerMethods {
+  getChainId: () => number;
+  originalGetAddress: () => Promise<string>;
+  originalSignMessage: (message: string) => Promise<string>;
+}
+
 export function useWallet(): UseWalletReturn {
   const [walletState, setWalletState] = useState<WalletState>({
     isConnected: false,
@@ -106,6 +109,11 @@ export function useWallet(): UseWalletReturn {
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Refs to track connection state and prevent duplicate operations
+  const lastConnectedAddress = useRef<string | null>(null);
+  const lastConnectedChainId = useRef<number | null>(null);
+  const connectionInProgress = useRef(false);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -121,11 +129,13 @@ export function useWallet(): UseWalletReturn {
       provider: null,
       signer: null,
     });
+    lastConnectedAddress.current = null;
+    lastConnectedChainId.current = null;
     clearError();
     console.log('✅ Wallet disconnected successfully');
   }, [clearError]);
 
-  // Enhanced connection check with proper error handling
+  // FIXED: Enhanced connection check WITHOUT circular references
   const checkConnection = useCallback(async () => {
     const ethereum = detectWallet();
     if (!ethereum) return;
@@ -133,28 +143,57 @@ export function useWallet(): UseWalletReturn {
     try {
       console.log('🔍 Checking existing wallet connection...');
       
-      // Check if already connected
       const accounts = await ethereum.request({ method: 'eth_accounts' }) as string[];
       
       if (accounts.length > 0) {
         console.log('✅ Wallet already connected:', accounts[0]);
         
         const provider = new BrowserProvider(ethereum);
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
+        const originalSigner = await provider.getSigner();
+        const address = await originalSigner.getAddress();
         const network = await provider.getNetwork();
         const balance = await provider.getBalance(address);
+
+        const chainId = Number(network.chainId);
+
+        // FIXED: Create enhanced signer WITHOUT circular references
+        // Store original methods separately to avoid recursion
+        const enhancedMethods: EnhancedSignerMethods = {
+          getChainId: () => chainId,
+          originalGetAddress: () => originalSigner.getAddress(),
+          originalSignMessage: (message: string) => originalSigner.signMessage(message),
+        };
+
+        // Create a proxy signer that extends the original but adds our methods
+        const enhancedSigner = Object.create(originalSigner);
+        enhancedSigner.getChainId = enhancedMethods.getChainId;
+        // Keep the original async methods intact
+        enhancedSigner.getAddress = enhancedMethods.originalGetAddress;
+        enhancedSigner.signMessage = enhancedMethods.originalSignMessage;
 
         setWalletState({
           isConnected: true,
           address,
-          chainId: Number(network.chainId),
+          chainId,
           balance: balance.toString(),
           provider,
-          signer,
+          signer: enhancedSigner,
         });
+
+        lastConnectedAddress.current = address;
+        lastConnectedChainId.current = chainId;
         
         clearError();
+        
+        // Validate we're on a supported chain (Base or Base Sepolia)
+        const supportedChains = [8453, 84532];
+        if (!supportedChains.includes(chainId)) {
+          console.warn('⚠️ Connected to unsupported network:', chainId);
+          setError(`Please switch to Base Sepolia (testnet) or Base Mainnet. Currently on chain ${chainId}`);
+        } else {
+          console.log('✅ Connected to supported network:', chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia');
+        }
+        
         console.log('✅ Wallet state restored successfully');
       } else {
         console.log('ℹ️ No connected accounts found');
@@ -165,7 +204,7 @@ export function useWallet(): UseWalletReturn {
     }
   }, [clearError]);
 
-  // Enhanced event listeners with better error handling
+  // Enhanced event listeners with better error handling and deduplication
   const setupEventListeners = useCallback(() => {
     const ethereum = detectWallet();
     if (!ethereum) return () => {};
@@ -178,7 +217,7 @@ export function useWallet(): UseWalletReturn {
         if (accounts.length === 0) {
           console.log('🔌 Wallet disconnected');
           disconnect();
-        } else {
+        } else if (accounts[0] !== lastConnectedAddress.current) {
           console.log('🔄 Account switched, refreshing connection...');
           checkConnection();
         }
@@ -187,8 +226,13 @@ export function useWallet(): UseWalletReturn {
 
     const handleChainChanged = (chainId: unknown) => {
       if (typeof chainId === 'string') {
-        console.log('🔗 Chain changed to:', chainId);
-        checkConnection();
+        const newChainId = parseInt(chainId, 16);
+        console.log('🔗 Chain changed to:', newChainId);
+        
+        if (newChainId !== lastConnectedChainId.current) {
+          lastConnectedChainId.current = newChainId;
+          checkConnection();
+        }
       }
     };
 
@@ -215,13 +259,14 @@ export function useWallet(): UseWalletReturn {
     }
   }, [checkConnection, disconnect]);
 
-  // Enhanced connection function
+  // FIXED: Enhanced connection function with Base Sepolia as default
   const connect = useCallback(async () => {
-    if (isConnecting) {
+    if (isConnecting || connectionInProgress.current) {
       console.log('⏳ Connection already in progress...');
       return;
     }
     
+    connectionInProgress.current = true;
     setIsConnecting(true);
     clearError();
     
@@ -235,7 +280,6 @@ export function useWallet(): UseWalletReturn {
 
       console.log('📞 Requesting account access...');
       
-      // Request account access with proper error handling
       const accounts = await ethereum.request({ 
         method: 'eth_requestAccounts' 
       }) as string[];
@@ -246,43 +290,75 @@ export function useWallet(): UseWalletReturn {
 
       console.log('✅ Account access granted:', accounts[0]);
       
-      // Create provider and signer
       const provider = new BrowserProvider(ethereum);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
+      const originalSigner = await provider.getSigner();
+      const address = await originalSigner.getAddress();
       const network = await provider.getNetwork();
       const balance = await provider.getBalance(address);
+
+      const chainId = Number(network.chainId);
+
+      // FIXED: Create enhanced signer WITHOUT circular references
+      const enhancedMethods: EnhancedSignerMethods = {
+        getChainId: () => chainId,
+        originalGetAddress: () => originalSigner.getAddress(),
+        originalSignMessage: (message: string) => originalSigner.signMessage(message),
+      };
+
+      // Create a proxy signer that extends the original but adds our methods
+      const enhancedSigner = Object.create(originalSigner);
+      enhancedSigner.getChainId = enhancedMethods.getChainId;
+      // Keep the original async methods intact to prevent recursion
+      enhancedSigner.getAddress = enhancedMethods.originalGetAddress;
+      enhancedSigner.signMessage = enhancedMethods.originalSignMessage;
 
       const newState = {
         isConnected: true,
         address,
-        chainId: Number(network.chainId),
+        chainId,
         balance: balance.toString(),
         provider,
-        signer,
+        signer: enhancedSigner,
       };
 
       setWalletState(newState);
+      lastConnectedAddress.current = address;
+      lastConnectedChainId.current = chainId;
 
       console.log('✅ Wallet connected successfully:', {
         address,
-        chainId: Number(network.chainId),
+        chainId,
         networkName: network.name,
       });
 
-      // Check if on correct network (Base or Base Sepolia)
+      // Check if on supported network and suggest Base Sepolia for testnet
       const supportedChains = [8453, 84532]; // Base mainnet and sepolia
-      if (!supportedChains.includes(Number(network.chainId))) {
-        console.warn('⚠️ Connected to unsupported network:', network.chainId);
-        setError(`Please switch to Base or Base Sepolia network. Currently on chain ${network.chainId}`);
+      if (!supportedChains.includes(chainId)) {
+        console.warn('⚠️ Connected to unsupported network:', chainId);
+        
+        // Automatically suggest switching to Base Sepolia for development
+        const isMainnet = process.env.NODE_ENV === 'production';
+        const targetChain = isMainnet ? 8453 : 84532;
+        const targetChainName = isMainnet ? 'Base Mainnet' : 'Base Sepolia';
+        
+        setError(`Please switch to ${targetChainName} network. Currently on chain ${chainId}. Attempting to switch automatically...`);
+        
+        try {
+          await switchChain(targetChain);
+        } catch (switchError) {
+          console.error('❌ Failed to auto-switch chain:', switchError);
+          setError(`Please manually switch to ${targetChainName} network in your wallet.`);
+        }
+      } else {
+        console.log('✅ Connected to supported network:', 
+          chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia');
       }
 
-    } catch (err: unknown) { // FIXED: Replace 'any' with 'unknown' for better type safety
+    } catch (err: unknown) {
       console.error('❌ Wallet connection failed:', err);
       
       let errorMessage = 'Failed to connect wallet';
       
-      // FIXED: Improve error handling with proper type checking
       if (err && typeof err === 'object' && 'code' in err) {
         const error = err as { code: number; message?: string };
         if (error.code === 4001) {
@@ -302,9 +378,11 @@ export function useWallet(): UseWalletReturn {
       throw new Error(errorMessage);
     } finally {
       setIsConnecting(false);
+      connectionInProgress.current = false;
     }
   }, [isConnecting, clearError]);
 
+  // Enhanced chain switching with proper error handling
   const switchChain = useCallback(async (targetChainId: number) => {
     const ethereum = detectWallet();
     if (!ethereum) {
@@ -320,13 +398,20 @@ export function useWallet(): UseWalletReturn {
       });
       
       console.log('✅ Chain switched successfully');
-    } catch (err: unknown) { // FIXED: Replace 'any' with 'unknown'
+      
+      // Update our tracking
+      lastConnectedChainId.current = targetChainId;
+      
+      // Refresh connection to update state
+      setTimeout(() => {
+        checkConnection();
+      }, 1000);
+      
+    } catch (err: unknown) {
       console.error('❌ Chain switch failed:', err);
       
-      // FIXED: Improve error handling with proper type checking
       if (err && typeof err === 'object' && 'code' in err) {
         const error = err as { code: number };
-        // If the chain hasn't been added to the wallet
         if (error.code === 4902) {
           const chainData = getChainData(targetChainId);
           if (chainData) {
@@ -336,6 +421,12 @@ export function useWallet(): UseWalletReturn {
               params: [chainData],
             });
             console.log('✅ Chain added successfully');
+            
+            // Update tracking after successful addition
+            lastConnectedChainId.current = targetChainId;
+            setTimeout(() => {
+              checkConnection();
+            }, 1000);
           } else {
             throw new Error(`Unsupported chain ID: ${targetChainId}`);
           }
@@ -346,7 +437,7 @@ export function useWallet(): UseWalletReturn {
         throw err;
       }
     }
-  }, []);
+  }, [checkConnection]);
 
   const refreshBalance = useCallback(async () => {
     if (walletState.provider && walletState.address) {
@@ -365,14 +456,34 @@ export function useWallet(): UseWalletReturn {
     }
   }, [walletState.provider, walletState.address]);
 
-  // Initialize wallet check and event listeners
-  // FIXED: Add all necessary dependencies to prevent the exhaustive-deps warning
+  // Initialize wallet check and event listeners with proper dependency management
   useEffect(() => {
     console.log('🏁 Initializing wallet hook...');
     checkConnection();
     const cleanup = setupEventListeners();
     return cleanup;
   }, [checkConnection, setupEventListeners]);
+
+  // Auto-switch to Base Sepolia on first connection if not on supported network
+  useEffect(() => {
+    if (walletState.isConnected && walletState.chainId) {
+      const supportedChains = [8453, 84532];
+      if (!supportedChains.includes(walletState.chainId)) {
+        console.log('⚠️ Wallet connected to unsupported chain, suggesting Base Sepolia...');
+        
+        // For development, default to Base Sepolia
+        const targetChain = process.env.NODE_ENV === 'production' ? 8453 : 84532;
+        
+        setTimeout(async () => {
+          try {
+            await switchChain(targetChain);
+          } catch (switchError) {
+            console.warn('Failed to auto-switch to supported chain:', switchError);
+          }
+        }, 2000); // Give user time to see the connection first
+      }
+    }
+  }, [walletState.isConnected, walletState.chainId, switchChain]);
 
   return {
     ...walletState,
