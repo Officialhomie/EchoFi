@@ -29,6 +29,6 @@
     "**/*.ts", 
     "**/*.tsx", 
     ".next/types/**/*.ts"
-  ],
+, "scripts/test-db.ts"  ],
   "exclude": ["node_modules"]
 }

@@ -194,7 +194,6 @@ export class EnhancedXMTPManager {
             // Start monitoring
             this.startHealthMonitoring();
             
-            console.log('✅ [ENHANCED] XMTP client initialization completed successfully');
             return this.client;
             
         } catch (initError) {
@@ -210,7 +209,7 @@ export class EnhancedXMTPManager {
     }
 
     /**
-     * FIXED: Database health diagnostics with improved error handling
+     Database health diagnostics with improved error handling
      */
     private async performDatabaseHealthCheck(): Promise<DatabaseHealthReport> {
         console.log('🔍 [ENHANCED] Performing database health check...');

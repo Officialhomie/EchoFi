@@ -1,6 +1,3 @@
-// src/components/providers/AppProviders.tsx - FINAL FIX FOR REPEATED SIGNATURE REQUESTS
-// This version tracks user rejection and prevents auto-retry loops
-
 'use client';
 
 import { createContext, useContext, useCallback, useEffect, useMemo, useRef } from 'react';
@@ -19,10 +16,7 @@ import {
   GlobalState
 } from '@/types/providers';
 
-// =============================================================================
-// ENHANCED STATE TRACKING FOR USER INTERACTIONS
-// =============================================================================
-
+// Enhanced state tracking for user interactions
 interface UserInteractionState {
   hasRejectedXMTPSignature: boolean;
   lastRejectionTime: number | null;
@@ -32,10 +26,7 @@ interface UserInteractionState {
   manualRetryRequested: boolean;
 }
 
-// =============================================================================
-// CONTEXT CREATION
-// =============================================================================
-
+// Context creation
 const AppContext = createContext<AppContextType | null>(null);
 
 export function useApp(): AppContextType {
@@ -46,10 +37,7 @@ export function useApp(): AppContextType {
   return context;
 }
 
-// =============================================================================
-// FINAL FIXED APP PROVIDERS - PREVENTS SIGNATURE REQUEST LOOPS
-// =============================================================================
-
+// FIXED: App Providers with enhanced error state clearing
 export function AppProviders({ children }: AppProvidersProps) {
   const wallet = useWallet();
   const xmtp = useXMTP();
@@ -64,12 +52,12 @@ export function AppProviders({ children }: AppProvidersProps) {
     retryCount: 0,
   });
 
-  // CRITICAL: Track user interactions to prevent signature loops
+  // Track user interactions to prevent signature loops
   const [userInteraction, setUserInteraction] = useState<UserInteractionState>({
     hasRejectedXMTPSignature: false,
     lastRejectionTime: null,
     autoRetryAttempts: 0,
-    maxAutoRetryAttempts: 2, // Only try twice automatically
+    maxAutoRetryAttempts: 2,
     lastAutoRetryTime: null,
     manualRetryRequested: false,
   });
@@ -88,6 +76,12 @@ export function AppProviders({ children }: AppProvidersProps) {
   const xmtpInitializationInProgress = useRef(false);
   const lastErrorRef = useRef<string | null>(null);
   const stateUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // ADDED: Track success states to trigger error clearing
+  const lastSuccessStatesRef = useRef({
+    xmtpInitialized: false,
+    walletConnected: false,
+  });
 
   // Clear error function
   const clearError = useCallback(() => {
@@ -98,7 +92,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     lastErrorRef.current = null;
   }, []);
 
-  // FIXED: Enhanced status calculation with user interaction awareness
+  // FIXED: Enhanced status calculation with automatic error clearing on success
   const initializationStatus = useMemo<InitializationStatus>(() => {
     const walletReady = wallet.isConnected && !wallet.isConnecting && !wallet.error;
     const xmtpReady = xmtp.isInitialized && !xmtp.error;
@@ -137,6 +131,52 @@ export function AppProviders({ children }: AppProvidersProps) {
       currentStep = 'Connecting wallet';
     }
 
+    // CRITICAL FIX: Detect success state changes and trigger error clearing
+    const currentSuccessStates = {
+      xmtpInitialized: xmtpReady,
+      walletConnected: walletReady,
+    };
+
+    const xmtpJustSucceeded = !lastSuccessStatesRef.current.xmtpInitialized && currentSuccessStates.xmtpInitialized;
+    const walletJustConnected = !lastSuccessStatesRef.current.walletConnected && currentSuccessStates.walletConnected;
+
+    if (xmtpJustSucceeded || walletJustConnected) {
+      console.log('✅ [PROVIDERS] Success state detected, clearing errors:', {
+        xmtpJustSucceeded,
+        walletJustConnected,
+        xmtpReady,
+        walletReady
+      });
+      
+      // Schedule error clearing on next tick to ensure state updates properly
+      setTimeout(() => {
+        setAppState(prev => {
+          if (prev.error) {
+            console.log('🧹 [PROVIDERS] Automatically clearing error after success:', prev.error);
+            return {
+              ...prev,
+              error: null,
+            };
+          }
+          return prev;
+        });
+        
+        // Reset user interaction state on success
+        if (xmtpJustSucceeded) {
+          setUserInteraction(prev => ({
+            ...prev,
+            hasRejectedXMTPSignature: false,
+            lastRejectionTime: null,
+            autoRetryAttempts: 0,
+            lastAutoRetryTime: null,
+          }));
+        }
+      }, 100);
+    }
+
+    // Update success state tracking
+    lastSuccessStatesRef.current = currentSuccessStates;
+
     return {
       isReady,
       progress,
@@ -157,7 +197,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     userInteraction.hasRejectedXMTPSignature,
   ]);
 
-  // FIXED: Debounced initialization check
+  // FIXED: Enhanced initialization check with better error state management
   const checkInitializationStatus = useCallback(() => {
     if (initializationCheckInProgress.current) {
       return;
@@ -173,11 +213,19 @@ export function AppProviders({ children }: AppProvidersProps) {
       try {
         const { isReady, progress, currentStep } = initializationStatus;
 
-        // Collect errors with better categorization
+        // Collect errors with better categorization and success state awareness
         const errors: string[] = [];
-        if (wallet.error) errors.push(`Wallet: ${wallet.error}`);
-        if (xmtp.error) {
-          // CRITICAL: Detect user rejection vs technical errors
+        const isXMTPSuccessful = xmtp.isInitialized && !xmtp.error;
+        const isWalletSuccessful = wallet.isConnected && !wallet.error;
+
+        // Only add wallet errors if wallet isn't successful
+        if (wallet.error && !isWalletSuccessful) {
+          errors.push(`Wallet: ${wallet.error}`);
+        }
+
+        // Only add XMTP errors if XMTP isn't successful
+        if (xmtp.error && !isXMTPSuccessful) {
+          // Detect user rejection vs technical errors
           if (xmtp.error.includes('user rejected') || xmtp.error.includes('User rejected')) {
             setUserInteraction(prev => ({
               ...prev,
@@ -185,43 +233,68 @@ export function AppProviders({ children }: AppProvidersProps) {
               lastRejectionTime: Date.now(),
             }));
             errors.push(`Messaging: User declined to sign for secure messaging`);
+          } else if (xmtp.error.includes('already in progress')) {
+            // Don't show "already in progress" as an error if XMTP is actually successful
+            if (!isXMTPSuccessful) {
+              errors.push(`Messaging: Initialization in progress`);
+            }
           } else {
             errors.push(`Messaging: ${xmtp.error}`);
           }
         }
-        if (agent.error) errors.push(`Agent: ${agent.error}`);
 
+        // Only add agent errors if they're not transient
+        if (agent.error && !agent.error.includes('not initialized')) {
+          errors.push(`Agent: ${agent.error}`);
+        }
+
+        // CRITICAL: If everything is working, clear any lingering errors
         const currentError = errors.length > 0 ? errors.join('; ') : null;
+        
+        // Enhanced error change detection
         const errorChanged = currentError !== lastErrorRef.current;
+        const shouldClearError = isReady && currentError !== null;
 
-        // Only update state if something meaningful changed
-        setAppState(prev => {
-          const shouldUpdate = 
-            prev.isReady !== isReady ||
-            Math.abs(prev.initializationProgress - progress) >= 5 ||
-            prev.currentStep !== currentStep ||
-            errorChanged;
-
-          if (!shouldUpdate) {
-            return prev;
-          }
-
-          return {
+        if (shouldClearError) {
+          console.log('🧹 [PROVIDERS] All systems ready, clearing any lingering errors');
+          setAppState(prev => ({
             ...prev,
             isReady,
             initializationProgress: progress,
             currentStep,
-            error: currentError,
-          };
-        });
+            error: null, // Clear error when everything is ready
+          }));
+          lastErrorRef.current = null;
+        } else {
+          // Only update state if something meaningful changed
+          setAppState(prev => {
+            const shouldUpdate = 
+              prev.isReady !== isReady ||
+              Math.abs(prev.initializationProgress - progress) >= 5 ||
+              prev.currentStep !== currentStep ||
+              errorChanged;
 
-        if (errorChanged) {
-          lastErrorRef.current = currentError;
+            if (!shouldUpdate) {
+              return prev;
+            }
+
+            return {
+              ...prev,
+              isReady,
+              initializationProgress: progress,
+              currentStep,
+              error: currentError,
+            };
+          });
+
+          if (errorChanged) {
+            lastErrorRef.current = currentError;
+          }
         }
 
         // Enhanced logging with reduced noise
         const globalState = global as GlobalState;
-        if (errorChanged || Math.abs(progress - (globalState.lastLoggedProgress || 0)) >= 25) {
+        if (errorChanged || shouldClearError || Math.abs(progress - (globalState.lastLoggedProgress || 0)) >= 25) {
           console.log('📊 [PROVIDERS] Initialization status update:', {
             isReady,
             progress: `${progress}%`,
@@ -231,6 +304,7 @@ export function AppProviders({ children }: AppProvidersProps) {
             agentReady: initializationStatus.agentReady,
             userRejectedXMTP: userInteraction.hasRejectedXMTPSignature,
             errors: errors.length > 0 ? errors : 'none',
+            errorCleared: shouldClearError,
           });
           globalState.lastLoggedProgress = progress;
         }
@@ -238,9 +312,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         initializationCheckInProgress.current = false;
       }
     }, 150);
-  }, [initializationStatus, wallet.error, xmtp.error, agent.error, userInteraction.hasRejectedXMTPSignature]);
+  }, [initializationStatus, wallet.error, xmtp.error, xmtp.isInitialized, wallet.isConnected, agent.error, userInteraction.hasRejectedXMTPSignature]);
 
-  // CRITICAL FIX: Smart XMTP auto-initialization that respects user choice
+  // ENHANCED: Smart XMTP auto-initialization that respects user choice and clears errors on success
   useEffect(() => {
     const initializeXMTPWhenReady = async () => {
       // Check if conditions are right for auto-initialization
@@ -248,7 +322,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       const chainIdChanged = wallet.chainId !== connectionStates.lastChainId;
       const connectionStateChanged = walletAddressChanged || chainIdChanged;
 
-      // CRITICAL: Don't auto-retry if user has rejected signature
+      // Don't auto-retry if user has rejected signature
       const shouldAttemptAutoInit = 
         wallet.isConnected && 
         wallet.signer && 
@@ -260,20 +334,11 @@ export function AppProviders({ children }: AppProvidersProps) {
 
       // PREVENT AUTO-RETRY CONDITIONS:
       const preventAutoRetry = 
-        userInteraction.hasRejectedXMTPSignature && !userInteraction.manualRetryRequested || // User rejected and no manual retry
-        userInteraction.autoRetryAttempts >= userInteraction.maxAutoRetryAttempts || // Too many auto attempts
-        (userInteraction.lastAutoRetryTime && (Date.now() - userInteraction.lastAutoRetryTime) < 30000); // Too soon since last attempt
+        userInteraction.hasRejectedXMTPSignature && !userInteraction.manualRetryRequested ||
+        userInteraction.autoRetryAttempts >= userInteraction.maxAutoRetryAttempts ||
+        (userInteraction.lastAutoRetryTime && (Date.now() - userInteraction.lastAutoRetryTime) < 30000);
 
       if (!shouldAttemptAutoInit || preventAutoRetry) {
-        if (preventAutoRetry && shouldAttemptAutoInit) {
-          console.log('🚫 [PROVIDERS] Preventing auto XMTP initialization:', {
-            userRejected: userInteraction.hasRejectedXMTPSignature,
-            manualRetryRequested: userInteraction.manualRetryRequested,
-            autoRetryAttempts: userInteraction.autoRetryAttempts,
-            maxAttempts: userInteraction.maxAutoRetryAttempts,
-            lastAttemptTime: userInteraction.lastAutoRetryTime,
-          });
-        }
         return;
       }
 
@@ -290,7 +355,7 @@ export function AppProviders({ children }: AppProvidersProps) {
         ...prev,
         autoRetryAttempts: prev.autoRetryAttempts + 1,
         lastAutoRetryTime: Date.now(),
-        manualRetryRequested: false, // Reset manual retry flag
+        manualRetryRequested: false,
       }));
 
       xmtpInitializationInProgress.current = true;
@@ -314,12 +379,25 @@ export function AppProviders({ children }: AppProvidersProps) {
           autoRetryAttempts: 0,
           lastAutoRetryTime: null,
         }));
+
+        // CRITICAL: Clear any lingering errors after successful initialization
+        setTimeout(() => {
+          setAppState(prev => {
+            if (prev.error) {
+              console.log('🧹 [PROVIDERS] Clearing error after successful XMTP initialization');
+              return {
+                ...prev,
+                error: null,
+              };
+            }
+            return prev;
+          });
+        }, 500);
         
         console.log('✅ [PROVIDERS] XMTP auto-initialization completed successfully');
       } catch (error) {
         console.error('❌ [PROVIDERS] Auto XMTP initialization failed:', error);
         
-        // Don't reset initialization state here - let the user interaction detection handle it
         setConnectionStates(prev => ({
           ...prev,
           xmtpInitialized: false,
@@ -392,6 +470,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     setAppState(prev => ({
       ...prev,
       retryCount: prev.retryCount + 1,
+      error: null, // Clear error immediately on manual retry
     }));
     
     clearError();
@@ -403,7 +482,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       lastRejectionTime: null,
       autoRetryAttempts: 0,
       lastAutoRetryTime: null,
-      manualRetryRequested: true, // Mark as manual retry
+      manualRetryRequested: true,
     }));
 
     // Reset connection states to force re-initialization
@@ -439,6 +518,12 @@ export function AppProviders({ children }: AppProvidersProps) {
     try {
       console.log('🔧 [PROVIDERS] Resetting XMTP database...');
       
+      // Clear error state immediately
+      setAppState(prev => ({
+        ...prev,
+        error: null,
+      }));
+      
       // Reset all XMTP-related states
       setConnectionStates(prev => ({
         ...prev,
@@ -451,7 +536,7 @@ export function AppProviders({ children }: AppProvidersProps) {
         lastRejectionTime: null,
         autoRetryAttempts: 0,
         lastAutoRetryTime: null,
-        manualRetryRequested: true, // Mark as manual action
+        manualRetryRequested: true,
       }));
       
       if (xmtp.resetDatabase) {
@@ -499,10 +584,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   );
 }
 
-// =============================================================================
-// ERROR BOUNDARY COMPONENT - ENHANCED ERROR HANDLING
-// =============================================================================
-
+// Error Boundary Component - Enhanced error handling
 export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);

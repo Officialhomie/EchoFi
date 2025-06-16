@@ -1,3 +1,4 @@
+// src/hooks/useXMTP.ts - FIXED VERSION
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Client, Conversation, DecodedMessage, type ClientOptions, type Signer } from '@xmtp/browser-sdk';
 import { useWallet } from './useWallet';
@@ -68,7 +69,42 @@ export interface UseXMTPReturn {
 }
 
 // =============================================================================
-// ENHANCED XMTP MANAGER CLASS - SINGLETON PATTERN TO PREVENT RE-INITIALIZATION
+// FIXED WALLET TYPE DETECTION UTILITY
+// =============================================================================
+
+/**
+ * FIXED: Detect whether the connected wallet is an EOA or Smart Contract Wallet
+ * This is crucial for proper XMTP signer configuration
+ */
+function detectWalletType(walletProvider: any): 'EOA' | 'SCW' {
+  // Most browser wallets (MetaMask, Coinbase Wallet, etc.) are EOA wallets
+  // Smart contract wallets usually have specific identifiers
+  
+  if (typeof window !== 'undefined' && window.ethereum) {
+    // Check for common smart contract wallet indicators
+    const isArgentWallet = walletProvider?.isArgent || false;
+    const isGnosisSafe = walletProvider?.isGnosisSafe || false;
+    const isSmartWallet = walletProvider?.isSmartWallet || false;
+    
+    // Check for Coinbase Smart Wallet specifically
+    const isCoinbaseSmartWallet = walletProvider?.isCoinbaseWallet && 
+                                  walletProvider?.selectedAddress && 
+                                  walletProvider?.selectedAddress.startsWith('0x') &&
+                                  walletProvider?.accounts?.length > 0;
+    
+    if (isArgentWallet || isGnosisSafe || isSmartWallet || isCoinbaseSmartWallet) {
+      console.log('🔍 [XMTP] Detected Smart Contract Wallet');
+      return 'SCW';
+    }
+  }
+  
+  // Default to EOA for most cases (MetaMask, WalletConnect, etc.)
+  console.log('🔍 [XMTP] Detected EOA Wallet (MetaMask/WalletConnect)');
+  return 'EOA';
+}
+
+// =============================================================================
+// ENHANCED XMTP MANAGER CLASS WITH FIXED WALLET TYPE HANDLING
 // =============================================================================
 
 class EnhancedXMTPManager {
@@ -86,7 +122,9 @@ class EnhancedXMTPManager {
   };
   private lastSignerAddress: string | null = null;
 
-  // Singleton pattern to prevent multiple instances
+  // FIXED: Add initialization lock to prevent concurrent attempts
+  private initializationLock = false;
+
   public static getInstance(config: XMTPConfig = {}): EnhancedXMTPManager {
     if (!this.instance) {
       this.instance = new EnhancedXMTPManager(config);
@@ -99,8 +137,8 @@ class EnhancedXMTPManager {
       env: config.env || 'dev',
       enableLogging: config.enableLogging ?? true,
       dbPath: config.dbPath || 'echofi-xmtp-unified',
-      maxRetries: config.maxRetries || 3,
-      retryDelay: config.retryDelay || 2000,
+      maxRetries: config.maxRetries || 2, // REDUCED: Fewer retries to prevent loops
+      retryDelay: config.retryDelay || 3000, // INCREASED: Longer delay between retries
       healthCheckInterval: config.healthCheckInterval || 30000,
       encryptionKey: config.encryptionKey || this.generateEncryptionKey()
     };
@@ -108,10 +146,15 @@ class EnhancedXMTPManager {
   }
 
   /**
-   * FIXED: Stable client initialization that prevents repeated signature requests
-   * Only re-initializes if the signer address changes or client is corrupted
+   * FIXED: Stable client initialization with proper wallet type detection
+   * and initialization locking to prevent concurrent signature requests
    */
   async initializeClient(signer: Signer, config?: Partial<XMTPConfig>): Promise<Client> {
+    // FIXED: Check initialization lock to prevent concurrent attempts
+    if (this.initializationLock) {
+      throw new Error('XMTP initialization already in progress. Please wait for current attempt to complete.');
+    }
+
     // Get current signer address to check if we need to re-initialize
     const currentSignerAddress = await signer.getAddress();
     
@@ -126,36 +169,41 @@ class EnhancedXMTPManager {
       return this.client;
     }
 
-    // Update configuration if provided
-    if (config) {
-      this.config = { ...this.config, ...config };
-    }
-
-    this.updateInitializationState('connecting', 10, 'Creating XMTP client');
-    console.log('🚀 [ENHANCED] Initializing XMTP client for address:', currentSignerAddress);
+    // FIXED: Set initialization lock
+    this.initializationLock = true;
 
     try {
-      // Pre-initialization health check
-      await this.performPreInitHealthCheck();
-      this.updateInitializationState('connecting', 25, 'Health check completed');
+      // Update configuration if provided
+      if (config) {
+        this.config = { ...this.config, ...config };
+      }
 
-      // Client options with comprehensive configuration
+      this.updateInitializationState('connecting', 10, 'Preparing XMTP initialization');
+      console.log('🚀 [ENHANCED] Initializing XMTP client for address:', currentSignerAddress);
+
+      // FIXED: Pre-initialization cleanup to prevent database conflicts
+      await this.performPreInitCleanup();
+      this.updateInitializationState('connecting', 25, 'Pre-initialization cleanup completed');
+
+      // FIXED: Client options with unique database path to prevent conflicts
       const clientOptions: ClientOptions = {
         env: this.config.env,
-        dbPath: this.config.dbPath,
+        dbPath: `${this.config.dbPath}-${currentSignerAddress.slice(-8)}`, // Unique per address
       };
 
-      this.updateInitializationState('connecting', 40, 'Initializing XMTP client');
+      this.updateInitializationState('connecting', 40, 'Creating XMTP client');
 
-      // Initialize XMTP client - this is where the signature request happens
+      // FIXED: Initialize XMTP client with proper error handling
       console.log('🔐 [ENHANCED] Requesting signature for XMTP client initialization...');
+      console.log('💡 [ENHANCED] This signature request authenticates your wallet with XMTP');
+      
       this.client = await Client.create(signer, this.encryptionKey!, clientOptions);
 
-      this.updateInitializationState('syncing', 60, 'Synchronizing database');
+      this.updateInitializationState('syncing', 60, 'XMTP client created, synchronizing');
 
-      // Post-initialization database health check and repair
-      await this.performPostInitHealthCheck();
-      this.updateInitializationState('syncing', 80, 'Database sync completed');
+      // FIXED: Post-initialization validation
+      await this.validateClientInitialization();
+      this.updateInitializationState('syncing', 80, 'Client validation completed');
 
       // Verify client is properly initialized
       if (!this.client || !this.client.accountAddress) {
@@ -166,7 +214,7 @@ class EnhancedXMTPManager {
       this.isInitialized = true;
       this.isClientStable = true;
       this.lastSignerAddress = currentSignerAddress;
-      this.updateInitializationState('ready', 100, 'XMTP client ready');
+      this.updateInitializationState('ready', 100, 'XMTP client ready for messaging');
 
       if (this.config.enableLogging) {
         console.log('✅ [ENHANCED] XMTP client initialized successfully:', {
@@ -174,7 +222,7 @@ class EnhancedXMTPManager {
           inboxId: this.client.inboxId,
           installationId: this.client.installationId,
           env: this.config.env,
-          dbPath: this.config.dbPath
+          dbPath: clientOptions.dbPath
         });
       }
 
@@ -186,22 +234,92 @@ class EnhancedXMTPManager {
         error instanceof Error ? error.message : String(error)
       ]);
       
-      // Enhanced error handling for common issues
+      // FIXED: Enhanced error handling with specific recovery suggestions
       if (error instanceof Error) {
-        if (error.message.includes('SequenceId')) {
-          console.error('🔧 SequenceId error detected, attempting repair...');
-          await this.repairSequenceIdDatabase();
-          throw new Error('SequenceId database error detected and repair attempted. Please try again.');
+        if (error.message.includes('user rejected') || error.message.includes('User rejected')) {
+          throw new Error('Signature request was cancelled. XMTP requires a signature to create your secure messaging identity.');
         }
         
-        if (error.message.includes('database') || error.message.includes('sync')) {
-          console.error('🔧 Database sync error detected, attempting reset...');
-          await this.resetDatabase();
-          throw new Error('Database sync error detected. Database has been reset. Please try again.');
+        if (error.message.includes('SequenceId')) {
+          console.error('🔧 SequenceId error detected, database needs reset');
+          throw new Error('Database synchronization error detected. Please reset the XMTP database and try again.');
+        }
+        
+        if (error.message.includes('Smart contract wallet signature is invalid')) {
+          console.error('🔧 Smart contract wallet signature error detected');
+          throw new Error('Wallet signature verification failed. This may be due to wallet type configuration. Please try reconnecting your wallet.');
+        }
+        
+        if (error.message.includes('NoVerifier')) {
+          console.error('🔧 NoVerifier error - likely wallet type mismatch');
+          throw new Error('Wallet verification error. Please ensure you are using a supported wallet type.');
         }
       }
       
       throw error;
+    } finally {
+      // FIXED: Always release initialization lock
+      this.initializationLock = false;
+    }
+  }
+
+  /**
+   * FIXED: Pre-initialization cleanup to prevent conflicts
+   */
+  private async performPreInitCleanup(): Promise<void> {
+    try {
+      // Clear any stale XMTP data that might cause conflicts
+      await this.clearStaleXMTPData();
+    } catch (error) {
+      console.warn('⚠️ Pre-init cleanup warning:', error);
+    }
+  }
+
+  /**
+   * FIXED: Validate client initialization
+   */
+  private async validateClientInitialization(): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client initialization validation failed - no client instance');
+    }
+
+    try {
+      // Test basic client functionality
+      await this.client.conversations.listGroups();
+      console.log('✅ Client validation passed - basic functionality working');
+    } catch (error) {
+      console.warn('⚠️ Client validation warning:', error);
+      // Don't throw here - client might still be usable
+    }
+  }
+
+  /**
+   * FIXED: Clear stale XMTP data
+   */
+  private async clearStaleXMTPData(): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    try {
+      // Clear problematic localStorage entries
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes('xmtp_temp') || 
+          key.includes('xmtp_stale') ||
+          key.includes('sequence_temp')
+        )) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`🧹 Cleared stale data: ${key}`);
+      });
+
+    } catch (error) {
+      console.warn('⚠️ Error clearing stale XMTP data:', error);
     }
   }
 
@@ -209,7 +327,6 @@ class EnhancedXMTPManager {
    * Generate or retrieve XMTP encryption key with proper persistence
    */
   private generateEncryptionKey(): Uint8Array {
-    // Try to get key from localStorage for persistence
     const STORAGE_KEY = 'xmtp_encryption_key_v2';
     
     try {
@@ -225,7 +342,6 @@ class EnhancedXMTPManager {
       console.warn('⚠️ [ENHANCED] Failed to load existing encryption key:', error);
     }
 
-    // Generate new key and persist it
     console.log('🔑 [ENHANCED] Generating new encryption key...');
     const newKey = crypto.getRandomValues(new Uint8Array(32));
     
@@ -240,198 +356,15 @@ class EnhancedXMTPManager {
   }
 
   /**
-   * Pre-initialization health check
-   */
-  private async performPreInitHealthCheck(): Promise<void> {
-    try {
-      await this.checkForCorruptDatabases();
-      await this.clearStaleData();
-    } catch (error) {
-      console.warn('⚠️ Pre-init health check warning:', error);
-    }
-  }
-
-  /**
-   * Post-initialization health check and repair
-   */
-  private async performPostInitHealthCheck(): Promise<void> {
-    try {
-      await this.verifyDatabaseIntegrity();
-      await this.validateSequenceId();
-    } catch (error) {
-      console.warn('⚠️ Post-init health check detected issues:', error);
-      await this.repairSequenceIdDatabase();
-    }
-  }
-
-  /**
-   * Check for corrupt databases and clean them
-   */
-  private async checkForCorruptDatabases(): Promise<void> {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const databases = await indexedDB.databases();
-      for (const db of databases) {
-        if (db.name?.includes('xmtp') || db.name?.includes(this.config.dbPath)) {
-          try {
-            const openReq = indexedDB.open(db.name);
-            await new Promise((resolve, reject) => {
-              openReq.onsuccess = () => {
-                openReq.result.close();
-                resolve(null);
-              };
-              openReq.onerror = () => reject(openReq.error);
-              openReq.onblocked = () => reject(new Error('Database blocked'));
-            });
-          } catch (dbError) {
-            console.log(`🔧 Removing corrupt database: ${db.name}`, dbError);
-            indexedDB.deleteDatabase(db.name);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ Error checking for corrupt databases:', error);
-    }
-  }
-
-  /**
-   * Clear stale data that might cause conflicts
-   */
-  private async clearStaleData(): Promise<void> {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('xmtp') || key.includes('sequence')) && key !== 'xmtp_encryption_key_v2') {
-          keysToRemove.push(key);
-        }
-      }
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-      });
-
-      const sessionKeysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && (key.includes('xmtp') || key.includes('sequence'))) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      
-      sessionKeysToRemove.forEach(key => {
-        sessionStorage.removeItem(key);
-      });
-
-    } catch (error) {
-      console.warn('⚠️ Error clearing stale data:', error);
-    }
-  }
-
-  /**
-   * Verify database integrity
-   */
-  private async verifyDatabaseIntegrity(): Promise<void> {
-    if (!this.client) return;
-
-    try {
-      await this.client.conversations.listGroups();
-    } catch (error) {
-      throw new Error(`Database integrity check failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Validate SequenceId consistency
-   */
-  private async validateSequenceId(): Promise<void> {
-    console.log('🔍 Validating SequenceId consistency...');
-  }
-
-  /**
-   * Repair SequenceId database issues
-   */
-  async repairSequenceIdDatabase(): Promise<void> {
-    console.log('🔧 Starting SequenceId database repair...');
-    
-    try {
-      await this.clearSequenceData();
-      
-      if (this.client) {
-        this.client = null;
-        this.isInitialized = false;
-        this.isClientStable = false;
-      }
-      
-      await this.clearSequenceIndexedDB();
-      
-      console.log('✅ SequenceId database repair completed');
-      
-    } catch (error) {
-      console.error('❌ SequenceId repair failed:', error);
-      throw new Error(`SequenceId repair failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Clear sequence-related data
-   */
-  private async clearSequenceData(): Promise<void> {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const sequenceKeys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.toLowerCase().includes('sequence')) {
-          sequenceKeys.push(key);
-        }
-      }
-      sequenceKeys.forEach(key => localStorage.removeItem(key));
-
-      const sessionSequenceKeys = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.toLowerCase().includes('sequence')) {
-          sessionSequenceKeys.push(key);
-        }
-      }
-      sessionSequenceKeys.forEach(key => sessionStorage.removeItem(key));
-
-    } catch (error) {
-      console.warn('⚠️ Error clearing sequence data:', error);
-    }
-  }
-
-  /**
-   * Clear sequence-related IndexedDB entries
-   */
-  private async clearSequenceIndexedDB(): Promise<void> {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const databases = await indexedDB.databases();
-      for (const db of databases) {
-        if (db.name?.includes('sequence') || db.name?.includes(this.config.dbPath)) {
-          console.log(`🔧 Clearing sequence database: ${db.name}`);
-          indexedDB.deleteDatabase(db.name);
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ Error clearing sequence IndexedDB:', error);
-    }
-  }
-
-  /**
-   * Comprehensive database reset
+   * Comprehensive database reset with improved cleanup
    */
   async resetDatabase(): Promise<void> {
     console.log('🔄 Starting comprehensive XMTP database reset...');
     
     try {
+      // Release initialization lock if held
+      this.initializationLock = false;
+      
       await this.cleanup();
       await this.clearAllBrowserStorage();
       
@@ -458,10 +391,12 @@ class EnhancedXMTPManager {
       const databases = await indexedDB.databases();
       for (const db of databases) {
         if (db.name?.includes('xmtp') || db.name?.includes(this.config.dbPath)) {
+          console.log(`🗑️ Deleting database: ${db.name}`);
           indexedDB.deleteDatabase(db.name);
         }
       }
 
+      // Clear localStorage entries (but preserve encryption key)
       const localKeys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -469,8 +404,12 @@ class EnhancedXMTPManager {
           localKeys.push(key);
         }
       }
-      localKeys.forEach(key => localStorage.removeItem(key));
+      localKeys.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`🗑️ Cleared localStorage: ${key}`);
+      });
 
+      // Clear sessionStorage entries
       const sessionKeys = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
@@ -478,7 +417,10 @@ class EnhancedXMTPManager {
           sessionKeys.push(key);
         }
       }
-      sessionKeys.forEach(key => sessionStorage.removeItem(key));
+      sessionKeys.forEach(key => {
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ Cleared sessionStorage: ${key}`);
+      });
 
     } catch (error) {
       console.warn('⚠️ Error clearing browser storage:', error);
@@ -554,9 +496,9 @@ class EnhancedXMTPManager {
 
       if (errorMessage.includes('SequenceId')) {
         report.sequenceIdStatus = 'corrupted';
-        report.recommendations.push('Run SequenceId repair');
+        report.recommendations.push('Reset XMTP database');
       } else if (errorMessage.includes('database') || errorMessage.includes('sync')) {
-        report.recommendations.push('Reset database');
+        report.recommendations.push('Reset XMTP database');
       } else {
         report.recommendations.push('Reinitialize XMTP client');
       }
@@ -604,6 +546,7 @@ class EnhancedXMTPManager {
       this.isInitialized = false;
       this.isClientStable = false;
       this.lastSignerAddress = null;
+      this.initializationLock = false;
       console.log('🧹 XMTP manager cleanup completed');
     } catch (error) {
       console.error('❌ Error during XMTP cleanup:', error);
@@ -612,12 +555,12 @@ class EnhancedXMTPManager {
 }
 
 // =============================================================================
-// FIXED BROWSER SIGNER CREATION - PREVENTS REPEATED SIGNATURES
+// FIXED BROWSER SIGNER CREATION WITH PROPER WALLET TYPE DETECTION
 // =============================================================================
 
 /**
- * FIXED: Create browser-compatible signer from wallet signer with proper chain ID handling
- * This function is memoized to prevent repeated signer creation and signature requests
+ * FIXED: Create browser-compatible signer with proper wallet type detection
+ * This prevents the "Smart contract wallet signature is invalid" error
  */
 function createStableBrowserSigner(
   signer: {
@@ -629,8 +572,13 @@ function createStableBrowserSigner(
 ): Signer {
   console.log('🔧 Creating stable browser signer for chain ID:', currentChainId);
   
+  // FIXED: Detect actual wallet type instead of assuming SCW
+  const walletType = detectWalletType(typeof window !== 'undefined' ? window.ethereum : null);
+  
+  console.log('🔍 Detected wallet type:', walletType);
+  
   return {
-    walletType: 'SCW',
+    walletType, // FIXED: Use detected wallet type instead of hardcoded 'SCW'
     getAddress: async () => {
       if (typeof signer.getAddress === 'function') {
         return await signer.getAddress();
@@ -640,6 +588,8 @@ function createStableBrowserSigner(
     signMessage: async (message: string) => {
       if (typeof signer.signMessage === 'function') {
         console.log('🔐 XMTP requesting signature for message length:', message.length);
+        console.log('💡 This signature authenticates your messaging identity - it\'s safe to sign');
+        
         const signature = await signer.signMessage(message);
         const hexSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
         return new Uint8Array(Buffer.from(hexSignature, 'hex'));
@@ -647,7 +597,6 @@ function createStableBrowserSigner(
       throw new Error('Signer does not support signMessage');
     },
     getChainId: () => {
-      // FIXED: Use the current connected chain ID instead of defaulting to mainnet
       console.log('🔗 XMTP signer reporting chain ID:', currentChainId);
       return BigInt(currentChainId);
     },
@@ -658,12 +607,11 @@ function createStableBrowserSigner(
 }
 
 // =============================================================================
-// FIXED XMTP HOOK WITH STABLE INITIALIZATION
+// FIXED XMTP HOOK WITH IMPROVED ERROR HANDLING AND RETRY LOGIC
 // =============================================================================
 
 /**
- * FIXED: Unified XMTP Hook with stable signer creation and initialization
- * Prevents repeated signature requests and ensures correct chain ID usage
+ * FIXED: XMTP Hook with proper initialization management and error recovery
  */
 export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   const { signer, isConnected, chainId } = useWallet();
@@ -685,21 +633,37 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   // Manager and initialization tracking
   const xmtpManager = useRef<EnhancedXMTPManager | null>(null);
   const messageStreams = useRef<Map<string, () => void>>(new Map());
-  const initializationInProgress = useRef(false);
   const lastInitializedAddress = useRef<string | null>(null);
   const lastInitializedChainId = useRef<number | null>(null);
+  
+  // FIXED: Add retry tracking to prevent infinite loops
+  const retryCount = useRef(0);
+  const maxRetries = 2;
+  const retryDelay = 5000; // 5 seconds between retries
 
   /**
-   * FIXED: Stable XMTP initialization that only runs when necessary
+   * FIXED: Stable XMTP initialization with improved error handling and retry logic
    */
   const initializeXMTP = useCallback(async () => {
     if (!signer || !isConnected || !chainId) {
       setError('Wallet not connected or chain ID not available');
+      setInitializationState({
+        phase: 'starting',
+        progress: 0,
+        currentOperation: 'Waiting for wallet connection',
+        issues: []
+      });
       return;
     }
 
     // Get current address to check if we need to re-initialize
-    const currentAddress = await signer.getAddress();
+    let currentAddress: string;
+    try {
+      currentAddress = await signer.getAddress();
+    } catch (addressError) {
+      setError('Failed to get wallet address');
+      return;
+    }
     
     // OPTIMIZATION: Skip initialization if already initialized for same address and chain
     if (
@@ -711,12 +675,12 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       return;
     }
 
-    if (isInitializing || initializationInProgress.current) {
+    // FIXED: Prevent concurrent initialization attempts
+    if (isInitializing) {
       console.log('🔄 Initialization already in progress, skipping...');
       return;
     }
 
-    initializationInProgress.current = true;
     setIsInitializing(true);
     setError(null);
 
@@ -728,8 +692,8 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         env: config?.env || 'dev',
         enableLogging: config?.enableLogging ?? true,
         dbPath: config?.dbPath || 'echofi-xmtp-unified',
-        maxRetries: config?.maxRetries || 3,
-        retryDelay: config?.retryDelay || 2000,
+        maxRetries: 2, // REDUCED: Prevent retry loops
+        retryDelay: 3000,
         healthCheckInterval: config?.healthCheckInterval || 30000,
         ...config,
       });
@@ -746,16 +710,17 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         }
       }, 100);
 
-      // FIXED: Create stable browser-compatible signer with correct chain ID
+      // FIXED: Create stable browser-compatible signer with proper wallet type detection
       const browserSigner = createStableBrowserSigner(signer, chainId);
       
-      // Initialize client with singleton manager (prevents repeated signatures)
+      // Initialize client with singleton manager
       const xmtpClient = await xmtpManager.current.initializeClient(browserSigner, config);
       
       setClient(xmtpClient);
       setIsInitialized(true);
       lastInitializedAddress.current = currentAddress;
       lastInitializedChainId.current = chainId;
+      retryCount.current = 0; // Reset retry count on success
       
       // Perform initial health check
       const healthReport = await xmtpManager.current.performHealthCheck();
@@ -769,21 +734,54 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('❌ XMTP initialization failed:', errorMessage);
-      setError(errorMessage);
+      
+      // FIXED: Handle specific error types with appropriate recovery suggestions
+      let userFriendlyError = errorMessage;
+      
+      if (errorMessage.includes('user rejected') || errorMessage.includes('User rejected')) {
+        userFriendlyError = 'Signature request was cancelled. XMTP needs your signature to create a secure messaging identity.';
+        retryCount.current = 0; // Don't auto-retry on user rejection
+      } else if (errorMessage.includes('already in progress')) {
+        userFriendlyError = 'Initialization is already in progress. Please wait a moment and try again.';
+        retryCount.current = 0; // Don't auto-retry on concurrent attempts
+      } else if (errorMessage.includes('database') || errorMessage.includes('SequenceId')) {
+        userFriendlyError = 'Database synchronization error. Please reset the XMTP database and try again.';
+      } else if (errorMessage.includes('Smart contract wallet') || errorMessage.includes('NoVerifier')) {
+        userFriendlyError = 'Wallet verification error. Please try reconnecting your wallet or reset the XMTP database.';
+      }
+      
+      setError(userFriendlyError);
       
       setInitializationState({
         phase: 'failed',
         progress: 0,
         currentOperation: 'Initialization failed',
-        issues: [errorMessage]
+        issues: [userFriendlyError]
       });
+      
+      // FIXED: Implement intelligent retry logic
+      if (retryCount.current < maxRetries && 
+          !errorMessage.includes('user rejected') && 
+          !errorMessage.includes('already in progress')) {
+        
+        retryCount.current++;
+        console.log(`⏳ Scheduling retry attempt ${retryCount.current}/${maxRetries} in ${retryDelay/1000} seconds...`);
+        
+        setTimeout(() => {
+          if (!isInitialized && retryCount.current <= maxRetries) {
+            console.log(`🔄 Retry attempt ${retryCount.current}/${maxRetries}`);
+            initializeXMTP();
+          }
+        }, retryDelay);
+      }
       
     } finally {
       setIsInitializing(false);
-      initializationInProgress.current = false;
     }
   }, [signer, isConnected, chainId, config, isInitialized, isInitializing]);
 
+  // ... Rest of the hook methods remain the same ...
+  
   /**
    * Refresh conversations with enhanced error handling
    */
@@ -807,17 +805,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       if (errorMessage.includes('SequenceId') || 
           errorMessage.includes('database') || 
           errorMessage.includes('sync')) {
-        console.log('🔧 Database error detected, attempting automatic recovery...');
-        
-        try {
-          await repairSequenceId();
-          const convos = await xmtpManager.current!.getConversations();
-          setConversations(convos);
-          setError(null);
-        } catch (recoveryError) {
-          console.error('Recovery failed:', recoveryError);
-          setError('Database error detected. Please try resetting the database.');
-        }
+        setError('Database error detected. Please reset the XMTP database.');
       } else {
         setError(errorMessage);
       }
@@ -834,7 +822,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
 
     try {
       console.log('🔧 Starting SequenceId repair...');
-      await xmtpManager.current.repairSequenceIdDatabase();
+      await xmtpManager.current.resetDatabase();
       
       const healthReport = await xmtpManager.current.performHealthCheck();
       setDatabaseHealth(healthReport);
@@ -883,6 +871,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       setDatabaseHealth(null);
       lastInitializedAddress.current = null;
       lastInitializedChainId.current = null;
+      retryCount.current = 0; // Reset retry count
       
       messageStreams.current.forEach(stopStream => {
         try {
@@ -897,18 +886,14 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         env: config?.env || 'dev',
         enableLogging: config?.enableLogging ?? true,
         dbPath: config?.dbPath || 'echofi-xmtp-unified',
-        maxRetries: config?.maxRetries || 3,
-        retryDelay: config?.retryDelay || 2000,
+        maxRetries: 2,
+        retryDelay: 3000,
         healthCheckInterval: config?.healthCheckInterval || 30000,
         ...config,
       });
       
       console.log('✅ Database reset complete');
       
-      if (signer && isConnected && chainId) {
-        console.log('🔄 Reinitializing XMTP after database reset...');
-        await initializeXMTP();
-      }
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -917,7 +902,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     } finally {
       setIsInitializing(false);
     }
-  }, [signer, isConnected, chainId, initializeXMTP, config]);
+  }, [config]);
 
   // Placeholder implementations for future phases
   const createGroup = useCallback(async (name: string, description: string, members: string[]): Promise<Conversation> => {
@@ -988,6 +973,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       setDatabaseHealth(null);
       lastInitializedAddress.current = null;
       lastInitializedChainId.current = null;
+      retryCount.current = 0;
       setInitializationState({
         phase: 'starting',
         progress: 0,
@@ -1003,11 +989,11 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
 
   const clearError = useCallback(() => {
     setError(null);
+    retryCount.current = 0; // Reset retry count when manually clearing error
   }, []);
 
   /**
-   * FIXED: Auto-initialize XMTP when wallet connects with proper dependency management
-   * Only initializes when necessary to prevent repeated signature requests
+   * FIXED: Auto-initialize XMTP when wallet connects with improved dependency management
    */
   useEffect(() => {
     if (
@@ -1015,10 +1001,10 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       signer && 
       chainId &&
       !isInitialized && 
-      !isInitializing && 
-      !initializationInProgress.current
+      !isInitializing
     ) {
       console.log('🔄 Wallet connected on chain', chainId, ', auto-initializing XMTP...');
+      retryCount.current = 0; // Reset retry count for new connection
       initializeXMTP();
     }
   }, [isConnected, signer, chainId, isInitialized, isInitializing, initializeXMTP]);
@@ -1034,6 +1020,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       });
       lastInitializedAddress.current = null;
       lastInitializedChainId.current = null;
+      retryCount.current = 0;
     }
   }, [isConnected]);
 
