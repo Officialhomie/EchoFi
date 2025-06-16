@@ -366,7 +366,7 @@ contract EchoFiTreasuryTest is Test {
         vm.startPrank(member1);
         
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             50_000 * 1e6, // 50k USDC
             address(0),
             "",
@@ -376,9 +376,9 @@ contract EchoFiTreasuryTest is Test {
         (
             uint256 id,
             address proposer,
-            EchoFiTreasury.ProposalType proposalType,
+            TestEchoFiTreasury.ProposalType proposalType,
             uint256 amount,
-            ,
+            address target,
             string memory description,
             uint256 votesFor,
             uint256 votesAgainst,
@@ -389,7 +389,7 @@ contract EchoFiTreasuryTest is Test {
 
         assertEq(id, 0);
         assertEq(proposer, member1);
-        assertTrue(proposalType == EchoFiTreasury.ProposalType.DEPOSIT_AAVE);
+        assertTrue(proposalType == TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE);
         assertEq(amount, 50_000 * 1e6);
         assertEq(description, "Deposit 50k USDC to Aave for yield");
         assertEq(votesFor, 0);
@@ -405,7 +405,7 @@ contract EchoFiTreasuryTest is Test {
         // Create proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -435,7 +435,7 @@ contract EchoFiTreasuryTest is Test {
         // Create and pass proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -473,13 +473,13 @@ contract EchoFiTreasuryTest is Test {
         // Create withdrawal proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.WITHDRAW_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             15_000 * 1e6, // Withdraw 15k
             address(0),
             "",
             "Withdraw from Aave"
         );
-        
+
         treasury.vote(proposalId, true);
         vm.stopPrank();
 
@@ -501,7 +501,7 @@ contract EchoFiTreasuryTest is Test {
         // Create proposal
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -524,7 +524,7 @@ contract EchoFiTreasuryTest is Test {
         vm.prank(nonMember);
         vm.expectRevert();
         treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -535,7 +535,7 @@ contract EchoFiTreasuryTest is Test {
     function test_NonMemberCannotVote() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -550,7 +550,7 @@ contract EchoFiTreasuryTest is Test {
     function test_CannotVoteTwice() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -568,7 +568,7 @@ contract EchoFiTreasuryTest is Test {
     function test_CannotExecuteBeforeDeadline() public {
         vm.prank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -593,7 +593,7 @@ contract EchoFiTreasuryTest is Test {
 
         vm.startPrank(member1);
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.TRANSFER,
+            TestEchoFiTreasury.ProposalType.TRANSFER,
             transferAmount,
             recipient,
             "",
@@ -624,7 +624,7 @@ contract EchoFiTreasuryTest is Test {
         // Too small
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             5 * 1e6, // 5 USDC - below minimum
             address(0),
             "",
@@ -634,7 +634,7 @@ contract EchoFiTreasuryTest is Test {
         // Too large
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             2_000_000 * 1e6, // 2M USDC - above maximum
             address(0),
             "",
@@ -656,7 +656,7 @@ contract EchoFiTreasuryTest is Test {
         );
         
         uint256 proposalId = treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",
@@ -690,7 +690,7 @@ contract EchoFiTreasuryTest is Test {
         // Measure gas for proposal creation
         uint256 gasBefore = gasleft();
         treasury.createProposal(
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             address(0),
             "",

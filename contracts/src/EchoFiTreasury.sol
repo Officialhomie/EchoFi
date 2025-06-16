@@ -345,6 +345,45 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
+    * @dev Check if a user has voted on a specific proposal
+    * @param _proposalId ID of the proposal to check
+    * @param _voter Address of the voter to check
+    * @return bool indicating whether the user has voted
+    */
+    function hasVoted(uint256 _proposalId, address _voter) 
+        external 
+        view 
+        returns (bool) 
+    {
+        if (_proposalId >= proposalCount) {
+            return false; // Invalid proposal ID means user hasn't voted on it
+        }
+        
+        // Access the nested mapping through the proposal struct
+        return proposals[_proposalId].hasVoted[_voter];
+    }
+
+    /**
+    * @dev Get the vote choice for a user on a specific proposal
+    * @param _proposalId ID of the proposal to check
+    * @param _voter Address of the voter to check
+    * @return bool indicating the vote choice (true = for, false = against)
+    * @notice Returns false if user hasn't voted (check hasVoted first for accuracy)
+    */
+    function getVoteChoice(uint256 _proposalId, address _voter) 
+        external 
+        view 
+        returns (bool) 
+    {
+        if (_proposalId >= proposalCount) {
+            return false; // Invalid proposal ID
+        }
+        
+        // Access the nested mapping through the proposal struct
+        return proposals[_proposalId].voteChoice[_voter];
+    }
+
+    /**
      * @dev Add member with voting power (internal)
      */
     function _addMember(address member, uint256 votingPower) internal {
