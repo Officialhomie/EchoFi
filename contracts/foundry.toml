@@ -7,6 +7,10 @@ remappings = [
     "@forge-std/=lib/forge-std/src/"
 ]
 
+fs_permissions = [
+    { access = "read-write", path = "./deployments" }
+]
+
 # ✅ OPTIMIZED COMPILATION SETTINGS
 solc_version = "0.8.25"
 optimizer = true

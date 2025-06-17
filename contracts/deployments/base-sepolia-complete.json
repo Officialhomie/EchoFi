@@ -1,0 +1,19 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "isTestnet": true,
+  "deploymentBlock": 27192933,
+  "deploymentTimestamp": 1750154154,
+  "deployer": "0x0a8Cf29A55cAb0833A27A3A50A333614c602858a",
+  "contracts": {
+    "factory": "0x22e024c06a8D932587f0bDa6527CA951266c6FBB",
+    "helper": "0x63C163d9CDC0EB1751A79Bef7A64f5091C3d133F",
+    "agentExecutor": "0xb85702a8e35fc4F96F0E84D2496ff5D3708e31d0",
+    "sampleTreasury": "0xd604Bf4386Bd90413181bA78b54CeeA2b6A8237e"
+  },
+  "networkConfig": {
+    "aavePool": "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "aUsdc": "0x8E80d69DfE8cfeEb08bd5e5A2E18CC9Af3d1f1A0"
+  }
+}

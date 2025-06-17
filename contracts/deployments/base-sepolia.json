@@ -1,0 +1,10 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "treasuryAddress": "0x3a39a4504a1e93e80A22175Ef589f4Fe1F867247",
+  "aavePool": "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
+  "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "aUsdc": "0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB",
+  "deploymentBlock": 27190932,
+  "deploymentTimestamp": 1750150152
+}

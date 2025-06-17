@@ -1,71 +1,1632 @@
-Compiling 1 files with Solc 0.8.25
-Solc 0.8.25 finished in 14.01s
-Compiler run successful with warnings:
-Warning (2018): Function state mutability can be restricted to pure
-   --> test/EchoFiIntegrationTest.t.sol:311:5:
-    |
-311 |     function testArchitecturalConsiderations() public {
-    |     ^ (Relevant source part starts here and spans across multiple lines).
-
+No files changed, compilation skipped
 
 Ran 14 tests for test/EchoFiTreasury.t.sol:EchoFiTreasuryTest
 [PASS] test_CannotExecuteBeforeDeadline() (gas: 284202)
+Traces:
+  [284202] EchoFiTreasuryTest::test_CannotExecuteBeforeDeadline()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Test proposal")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Test proposal")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Voting still active)
+    │   └─ ← [Return]
+    ├─ [8188] TestEchoFiTreasury::executeProposal(0)
+    │   └─ ← [Revert] Voting still active
+    └─ ← [Return]
+
 [PASS] test_CannotVoteTwice() (gas: 222311)
+Traces:
+  [222311] EchoFiTreasuryTest::test_CannotVoteTwice()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Test proposal")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Test proposal")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Already voted)
+    │   └─ ← [Return]
+    ├─ [1832] TestEchoFiTreasury::vote(0, false)
+    │   └─ ← [Revert] Already voted
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] test_CreateProposal() (gas: 202726)
+Traces:
+  [202726] EchoFiTreasuryTest::test_CreateProposal()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [175619] TestEchoFiTreasury::createProposal(0, 50000000000 [5e10], 0x0000000000000000000000000000000000000000, 0x, "Deposit 50k USDC to Aave for yield")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 50000000000 [5e10], description: "Deposit 50k USDC to Aave for yield")
+    │   └─ ← [Return] 0
+    ├─ [9013] TestEchoFiTreasury::getProposal(0) [staticcall]
+    │   └─ ← [Return] 0, SHA-256: [0x0000000000000000000000000000000000000002], 0, 50000000000 [5e10], 0x0000000000000000000000000000000000000000, 0x4465706f7369742035306b205553444320746f204161766520666f72207969656c64, "", 0, 259201 [2.592e5], 0, false, true
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(SHA-256: [0x0000000000000000000000000000000000000002], SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(50000000000 [5e10], 50000000000 [5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("Deposit 50k USDC to Aave for yield", "Deposit 50k USDC to Aave for yield") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertGt(259201 [2.592e5], 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertFalse(false) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertFalse(false) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] test_Events() (gas: 423464)
+Traces:
+  [446164] EchoFiTreasuryTest::test_Events()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectEmit(true, true, false, true)
+    │   └─ ← [Return]
+    ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Test proposal")
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Test proposal")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Test proposal")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::expectEmit(true, true, false, true)
+    │   └─ ← [Return]
+    ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectEmit(true, false, false, true)
+    │   └─ ← [Return]
+    ├─ emit ProposalExecuted(proposalId: 0, success: true)
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [161601] TestEchoFiTreasury::executeProposal(0)
+    │   ├─ [24339] MockUSDC::approve(MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   ├─ emit Approval(owner: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], spender: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   └─ ← [Return] true
+    │   ├─ [2552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [80312] MockAavePool::supply(MockUSDC: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], 30000000000 [3e10], TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 0)
+    │   │   ├─ [30220] MockUSDC::transferFrom(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], to: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [44488] MockAUSDC::mint(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Stop]
+    │   ├─ [552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 30000000000 [3e10]
+    │   ├─ emit SuppliedToAave(amount: 30000000000 [3e10], aTokensReceived: 30000000000 [3e10])
+    │   ├─ emit ProposalExecuted(proposalId: 0, success: true)
+    │   └─ ← [Stop]
+    └─ ← [Return]
+
 [PASS] test_GasUsage() (gas: 145458)
 Logs:
   Gas used for proposal creation: 136016
 
-[PASS] test_InitialSetup() (gas: 58164)
-[PASS] test_InvalidProposalAmount() (gas: 25980)
-[PASS] test_NonMemberCannotPropose() (gas: 14725)
-[PASS] test_NonMemberCannotVote() (gas: 147879)
-[PASS] test_ProposalExecution_AaveDeposit() (gas: 423589)
-[PASS] test_ProposalExecution_AaveWithdraw() (gas: 729736)
-[PASS] test_QuorumRequirement() (gas: 238069)
-[PASS] test_TransferProposal() (gas: 423431)
-[PASS] test_VotingProcess() (gas: 337804)
-Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 10.22ms (5.48ms CPU time)
+Traces:
+  [145458] EchoFiTreasuryTest::test_GasUsage()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Gas test")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Gas test")
+    │   └─ ← [Return] 0
+    ├─ [0] console::log("Gas used for proposal creation:", 136016 [1.36e5]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
 
-Ran 8 tests for test/EchoFiIntegrationTest.t.sol:EchoFiIntegrationTest
+[PASS] test_InitialSetup() (gas: 58164)
+Traces:
+  [58164] EchoFiTreasuryTest::test_InitialSetup()
+    ├─ [2494] TestEchoFiTreasury::memberVotingPower(SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return] 40
+    ├─ [0] VM::assertEq(40, 40) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2494] TestEchoFiTreasury::memberVotingPower(RIPEMD-160: [0x0000000000000000000000000000000000000003]) [staticcall]
+    │   └─ ← [Return] 35
+    ├─ [0] VM::assertEq(35, 35) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2494] TestEchoFiTreasury::memberVotingPower(Identity: [0x0000000000000000000000000000000000000004]) [staticcall]
+    │   └─ ← [Return] 25
+    ├─ [0] VM::assertEq(25, 25) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2601] TestEchoFiTreasury::totalVotingPower() [staticcall]
+    │   └─ ← [Return] 100
+    ├─ [0] VM::assertEq(100, 100) [staticcall]
+    │   └─ ← [Return]
+    ├─ [15713] TestEchoFiTreasury::getTreasuryBalance() [staticcall]
+    │   ├─ [2552] MockUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 100000000000 [1e11]
+    │   ├─ [2552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] 100000000000 [1e11], 0
+    ├─ [0] VM::assertEq(100000000000 [1e11], 100000000000 [1e11]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [517] TestEchoFiTreasury::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [2873] TestEchoFiTreasury::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [627] TestEchoFiTreasury::VOTER_ROLE() [staticcall]
+    │   └─ ← [Return] 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf
+    ├─ [2873] TestEchoFiTreasury::hasRole(0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [231] TestEchoFiTreasury::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [2873] TestEchoFiTreasury::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_InvalidProposalAmount() (gas: 25980)
+Traces:
+  [25980] EchoFiTreasuryTest::test_InvalidProposalAmount()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Invalid amount)
+    │   └─ ← [Return]
+    ├─ [5589] TestEchoFiTreasury::createProposal(0, 5000000 [5e6], 0x0000000000000000000000000000000000000000, 0x, "Too small")
+    │   └─ ← [Revert] Invalid amount
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Invalid amount)
+    │   └─ ← [Return]
+    ├─ [7715] TestEchoFiTreasury::createProposal(0, 2000000000000 [2e12], 0x0000000000000000000000000000000000000000, 0x, "Too large")
+    │   └─ ← [Revert] Invalid amount
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_NonMemberCannotPropose() (gas: 14725)
+Traces:
+  [14725] EchoFiTreasuryTest::test_NonMemberCannotPropose()
+    ├─ [0] VM::prank(ModExp: [0x0000000000000000000000000000000000000005])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf4844814)
+    │   └─ ← [Return]
+    ├─ [3420] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Should fail")
+    │   └─ ← [Revert] AccessControlUnauthorizedAccount(0x0000000000000000000000000000000000000005, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1)
+    └─ ← [Return]
+
+[PASS] test_NonMemberCannotVote() (gas: 147879)
+Traces:
+  [147879] EchoFiTreasuryTest::test_NonMemberCannotVote()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Test proposal")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Test proposal")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::prank(ModExp: [0x0000000000000000000000000000000000000005])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf4844814)
+    │   └─ ← [Return]
+    ├─ [3046] TestEchoFiTreasury::vote(0, true)
+    │   └─ ← [Revert] AccessControlUnauthorizedAccount(0x0000000000000000000000000000000000000005, 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf)
+    └─ ← [Return]
+
+[PASS] test_ProposalExecution_AaveDeposit() (gas: 423589)
+Traces:
+  [446289] EchoFiTreasuryTest::test_ProposalExecution_AaveDeposit()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Deposit to Aave")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Deposit to Aave")
+    │   └─ ← [Return] 0
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [161601] TestEchoFiTreasury::executeProposal(0)
+    │   ├─ [24339] MockUSDC::approve(MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   ├─ emit Approval(owner: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], spender: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   └─ ← [Return] true
+    │   ├─ [2552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [80312] MockAavePool::supply(MockUSDC: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], 30000000000 [3e10], TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 0)
+    │   │   ├─ [30220] MockUSDC::transferFrom(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], to: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [44488] MockAUSDC::mint(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Stop]
+    │   ├─ [552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 30000000000 [3e10]
+    │   ├─ emit SuppliedToAave(amount: 30000000000 [3e10], aTokensReceived: 30000000000 [3e10])
+    │   ├─ emit ProposalExecuted(proposalId: 0, success: true)
+    │   └─ ← [Stop]
+    ├─ [2713] TestEchoFiTreasury::getTreasuryBalance() [staticcall]
+    │   ├─ [552] MockUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 70000000000 [7e10]
+    │   ├─ [552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 30000000000 [3e10]
+    │   └─ ← [Return] 70000000000 [7e10], 30000000000 [3e10]
+    ├─ [0] VM::assertEq(70000000000 [7e10], 70000000000 [7e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(30000000000 [3e10], 30000000000 [3e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2586] TestEchoFiTreasury::getProposal(0) [staticcall]
+    │   └─ ← [Return] 0, SHA-256: [0x0000000000000000000000000000000000000002], 0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x4465706f73697420746f2041617665, "", 0, 259201 [2.592e5], 1, false, true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_ProposalExecution_AaveWithdraw() (gas: 729736)
+Traces:
+  [775136] EchoFiTreasuryTest::test_ProposalExecution_AaveWithdraw()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Deposit to Aave")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Deposit to Aave")
+    │   └─ ← [Return] 0
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [161601] TestEchoFiTreasury::executeProposal(0)
+    │   ├─ [24339] MockUSDC::approve(MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   ├─ emit Approval(owner: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], spender: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   └─ ← [Return] true
+    │   ├─ [2552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [80312] MockAavePool::supply(MockUSDC: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], 30000000000 [3e10], TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 0)
+    │   │   ├─ [30220] MockUSDC::transferFrom(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], to: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [44488] MockAUSDC::mint(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 30000000000 [3e10])
+    │   │   │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], value: 30000000000 [3e10])
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Stop]
+    │   ├─ [552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 30000000000 [3e10]
+    │   ├─ emit SuppliedToAave(amount: 30000000000 [3e10], aTokensReceived: 30000000000 [3e10])
+    │   ├─ emit ProposalExecuted(proposalId: 0, success: true)
+    │   └─ ← [Stop]
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [120896] TestEchoFiTreasury::createProposal(1, 15000000000 [1.5e10], 0x0000000000000000000000000000000000000000, 0x, "Withdraw from Aave")
+    │   ├─ emit ProposalCreated(proposalId: 1, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 1, amount: 15000000000 [1.5e10], description: "Withdraw from Aave")
+    │   └─ ← [Return] 1
+    ├─ [72523] TestEchoFiTreasury::vote(1, true)
+    │   ├─ emit VoteCast(proposalId: 1, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [48623] TestEchoFiTreasury::vote(1, true)
+    │   ├─ emit VoteCast(proposalId: 1, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(1036801 [1.036e6])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [85866] TestEchoFiTreasury::executeProposal(1)
+    │   ├─ [24339] MockAUSDC::approve(MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 15000000000 [1.5e10])
+    │   │   ├─ emit Approval(owner: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], spender: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 15000000000 [1.5e10])
+    │   │   └─ ← [Return] true
+    │   ├─ [30227] MockAavePool::withdraw(MockUSDC: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], 15000000000 [1.5e10], TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6])
+    │   │   ├─ [25420] MockAUSDC::transferFrom(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], 15000000000 [1.5e10])
+    │   │   │   ├─ emit Transfer(from: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], to: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], value: 15000000000 [1.5e10])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [2934] MockUSDC::transfer(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], 15000000000 [1.5e10])
+    │   │   │   ├─ emit Transfer(from: MockAavePool: [0xc051134F56d56160E8c8ed9bB3c439c78AB27cCc], to: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], value: 15000000000 [1.5e10])
+    │   │   │   └─ ← [Return] true
+    │   │   └─ ← [Return] 15000000000 [1.5e10]
+    │   ├─ emit WithdrawnFromAave(aTokenAmount: 15000000000 [1.5e10], underlyingReceived: 15000000000 [1.5e10])
+    │   ├─ emit ProposalExecuted(proposalId: 1, success: true)
+    │   └─ ← [Stop]
+    ├─ [2713] TestEchoFiTreasury::getTreasuryBalance() [staticcall]
+    │   ├─ [552] MockUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 85000000000 [8.5e10]
+    │   ├─ [552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 15000000000 [1.5e10]
+    │   └─ ← [Return] 85000000000 [8.5e10], 15000000000 [1.5e10]
+    ├─ [0] VM::assertEq(85000000000 [8.5e10], 85000000000 [8.5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(15000000000 [1.5e10], 15000000000 [1.5e10]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_QuorumRequirement() (gas: 238069)
+Traces:
+  [238069] EchoFiTreasuryTest::test_QuorumRequirement()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Deposit to Aave")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Deposit to Aave")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(Identity: [0x0000000000000000000000000000000000000004])
+    │   └─ ← [Return]
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: Identity: [0x0000000000000000000000000000000000000004], support: true, votingPower: 25)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Insufficient support)
+    │   └─ ← [Return]
+    ├─ [14789] TestEchoFiTreasury::executeProposal(0)
+    │   └─ ← [Revert] Insufficient support
+    └─ ← [Return]
+
+[PASS] test_TransferProposal() (gas: 423431)
+Traces:
+  [426231] EchoFiTreasuryTest::test_TransferProposal()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [195519] TestEchoFiTreasury::createProposal(2, 10000000000 [1e10], 0x0000000000000000000000000000000000000123, 0x, "Transfer USDC to external address")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 2, amount: 10000000000 [1e10], description: "Transfer USDC to external address")
+    │   └─ ← [Return] 0
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [71499] TestEchoFiTreasury::executeProposal(0)
+    │   ├─ [29634] MockUSDC::transfer(0x0000000000000000000000000000000000000123, 10000000000 [1e10])
+    │   │   ├─ emit Transfer(from: TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6], to: 0x0000000000000000000000000000000000000123, value: 10000000000 [1e10])
+    │   │   └─ ← [Return] true
+    │   ├─ emit ProposalExecuted(proposalId: 0, success: true)
+    │   └─ ← [Stop]
+    ├─ [552] MockUSDC::balanceOf(0x0000000000000000000000000000000000000123) [staticcall]
+    │   └─ ← [Return] 10000000000 [1e10]
+    ├─ [0] VM::assertEq(10000000000 [1e10], 10000000000 [1e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [9213] TestEchoFiTreasury::getTreasuryBalance() [staticcall]
+    │   ├─ [552] MockUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 90000000000 [9e10]
+    │   ├─ [2552] MockAUSDC::balanceOf(TestEchoFiTreasury: [0x2c1DE3b4Dbb4aDebEbB5dcECAe825bE2a9fc6eb6]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] 90000000000 [9e10], 0
+    ├─ [0] VM::assertEq(90000000000 [9e10], 90000000000 [9e10]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_VotingProcess() (gas: 337804)
+Traces:
+  [337804] EchoFiTreasuryTest::test_VotingProcess()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130896] TestEchoFiTreasury::createProposal(0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x, "Deposit to Aave")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 30000000000 [3e10], description: "Deposit to Aave")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [76523] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: SHA-256: [0x0000000000000000000000000000000000000002], support: true, votingPower: 40)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [52623] TestEchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: RIPEMD-160: [0x0000000000000000000000000000000000000003], support: true, votingPower: 35)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(Identity: [0x0000000000000000000000000000000000000004])
+    │   └─ ← [Return]
+    ├─ [54635] TestEchoFiTreasury::vote(0, false)
+    │   ├─ emit VoteCast(proposalId: 0, voter: Identity: [0x0000000000000000000000000000000000000004], support: false, votingPower: 25)
+    │   └─ ← [Stop]
+    ├─ [2586] TestEchoFiTreasury::getProposal(0) [staticcall]
+    │   └─ ← [Return] 0, SHA-256: [0x0000000000000000000000000000000000000002], 0, 30000000000 [3e10], 0x0000000000000000000000000000000000000000, 0x4465706f73697420746f2041617665, "", 25, 259201 [2.592e5], 0, false, true
+    ├─ [0] VM::assertEq(75, 75) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(25, 25) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 9.78ms (3.81ms CPU time)
+
+Ran 9 tests for test/EchoFiIntegrationTest.t.sol:EchoFiIntegrationTest
 [PASS] testAgentExecutor() (gas: 45478)
+Traces:
+  [45478] EchoFiIntegrationTest::testAgentExecutor()
+    ├─ [2309] AgentExecutor::factory() [staticcall]
+    │   └─ ← [Return] EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8]
+    ├─ [0] VM::assertEq(EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2490] AgentExecutor::authorizedAgents(owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266]) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   └─ ← [Return]
+    ├─ [22548] AgentExecutor::addAgent(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [490] AgentExecutor::authorizedAgents(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] testArchitecturalConsiderations() (gas: 3757)
-[PASS] testCreateGroup() (gas: 2171632)
-[PASS] testCreateMultipleGroups() (gas: 4279611)
+Traces:
+  [3757] EchoFiIntegrationTest::testArchitecturalConsiderations()
+    ├─ [0] VM::assertTrue(true, "Integration test framework operational") [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[FAIL: EvmError: Revert] testCompleteWorkflow() (gas: 2499789)
+Traces:
+  [5886786] EchoFiIntegrationTest::setUp()
+    ├─ [0] VM::startPrank(owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   └─ ← [Return]
+    ├─ [569662] → new MockUSDC@0x88F59F8826af5e695B13cA934d6c7999875A9EeA
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266], value: 1000000000000 [1e12])
+    │   └─ ← [Return] 2271 bytes of code
+    ├─ [621728] → new MockWETH@0xCeF98e10D1e80378A9A74Ce074132B66CDD5e88d
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266], value: 1000000000000000000000 [1e21])
+    │   └─ ← [Return] 2532 bytes of code
+    ├─ [245894] → new MockDeFiProtocol@0x72cC13426cAfD2375FFABE56498437927805d3d2
+    │   └─ ← [Return] 1228 bytes of code
+    ├─ [569662] → new MockUSDC@0x98B3c60ADE6A87b229Aa7d91ad27c227d54d95C0
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266], value: 1000000000000 [1e12])
+    │   └─ ← [Return] 2271 bytes of code
+    ├─ [3339722] → new EchoFiFactory@0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   └─ ← [Return] 16118 bytes of code
+    ├─ [219333] → new AgentExecutor@0x0a6dA0C3010c30cBBbA9dFaF6868583D180818e7
+    │   └─ ← [Return] 873 bytes of code
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+  [2499789] EchoFiIntegrationTest::testCompleteWorkflow()
+    ├─ [0] VM::deal(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 10000000000000000000 [1e19])
+    │   └─ ← [Return]
+    ├─ [0] VM::startPrank(owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   └─ ← [Return]
+    ├─ [31570] MockUSDC::mint(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 100000000000 [1e11])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], value: 100000000000 [1e11])
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [2167156] EchoFiFactory::createGroup{value: 1000000000000000}("integration-test-group", "integration-xmtp-789")
+    │   ├─ [1808289] → new EchoFiTreasury@0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], creator: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], name: "integration-test-group", memberCount: 1, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [24880] MockUSDC::transfer(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], 50000000000 [5e10])
+    │   ├─ emit Transfer(from: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], to: EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], value: 50000000000 [5e10])
+    │   └─ ← [Return] true
+    ├─ [555] MockUSDC::balanceOf(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]) [staticcall]
+    │   └─ ← [Return] 50000000000 [5e10]
+    ├─ [0] VM::assertEq(50000000000 [5e10], 50000000000 [5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [150235] EchoFiTreasury::createProposal(2, 20000000000 [2e10], 0x0000000000000000000000000000000000000999, 0x, "Transfer 20k USDC for testing")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], proposalType: 2, amount: 20000000000 [2e10], description: "Transfer 20k USDC for testing")
+    │   └─ ← [Return] 0
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [68534] EchoFiTreasury::vote(0, true)
+    │   ├─ emit VoteCast(proposalId: 0, voter: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], support: true, votingPower: 100)
+    │   └─ ← [Stop]
+    ├─ [0] VM::warp(345601 [3.456e5])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [25182] EchoFiTreasury::executeProposal(0)
+    │   ├─ [0] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]) [staticcall]
+    │   │   └─ ← [Stop]
+    │   └─ ← [Revert] EvmError: Revert
+    └─ ← [Revert] EvmError: Revert
+
+[PASS] testCreateGroup() (gas: 2171743)
+Traces:
+  [2174543] EchoFiIntegrationTest::testCreateGroup()
+    ├─ [0] VM::startPrank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [0] VM::deal(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 1000000000000000000 [1e18])
+    │   └─ ← [Return]
+    ├─ [2144908] EchoFiFactory::createGroup{value: 1000000000000000}("test-group-1", "test-xmtp-group")
+    │   ├─ [1808289] → new EchoFiTreasury@0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], creator: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], name: "test-group-1", memberCount: 1, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]
+    ├─ [0] VM::assertNotEq(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6, creator: 0x328809Bc894f92807417D2dAD6b7C998c1aFdac6, name: "test-group-1", description: "XMTP Group: test-xmtp-group", memberCount: 1, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [0] VM::assertEq(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("test-group-1", "test-group-1") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(100, 100) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [1133] EchoFiFactory::getUserTreasuries(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return] [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] testCreateMultipleGroups() (gas: 4279743)
+Traces:
+  [4285343] EchoFiIntegrationTest::testCreateMultipleGroups()
+    ├─ [0] VM::deal(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 10000000000000000000 [1e19])
+    │   └─ ← [Return]
+    ├─ [0] VM::deal(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], 10000000000000000000 [1e19])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [2144908] EchoFiFactory::createGroup{value: 1000000000000000}("alice-investment-group", "alice-xmtp-123")
+    │   ├─ [1808289] → new EchoFiTreasury@0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], creator: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], name: "alice-investment-group", memberCount: 1, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]
+    ├─ [0] VM::prank(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e])
+    │   └─ ← [Return]
+    ├─ [2097108] EchoFiFactory::createGroup{value: 1000000000000000}("bob-trading-group", "bob-xmtp-456")
+    │   ├─ [1808289] → new EchoFiTreasury@0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403], creator: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], name: "bob-trading-group", memberCount: 1, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [584] EchoFiFactory::treasuryCount() [staticcall]
+    │   └─ ← [Return] 2
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6, creator: 0x328809Bc894f92807417D2dAD6b7C998c1aFdac6, name: "alice-investment-group", description: "XMTP Group: alice-xmtp-123", memberCount: 1, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403, creator: 0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e, name: "bob-trading-group", description: "XMTP Group: bob-xmtp-456", memberCount: 1, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [0] VM::assertEq(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("alice-investment-group", "alice-investment-group") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("bob-trading-group", "bob-trading-group") [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] testDeFiProtocolDeposit() (gas: 115732)
+Traces:
+  [149930] EchoFiIntegrationTest::testDeFiProtocolDeposit()
+    ├─ [0] VM::startPrank(owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   └─ ← [Return]
+    ├─ [31570] MockUSDC::mint(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 1000000000 [1e9])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], value: 1000000000 [1e9])
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::startPrank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [24344] MockUSDC::approve(MockDeFiProtocol: [0x72cC13426cAfD2375FFABE56498437927805d3d2], 1000000000 [1e9])
+    │   ├─ emit Approval(owner: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], spender: MockDeFiProtocol: [0x72cC13426cAfD2375FFABE56498437927805d3d2], value: 1000000000 [1e9])
+    │   └─ ← [Return] true
+    ├─ [72450] MockDeFiProtocol::deposit(MockUSDC: [0x88F59F8826af5e695B13cA934d6c7999875A9EeA], 1000000000 [1e9])
+    │   ├─ [25420] MockUSDC::transferFrom(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], MockDeFiProtocol: [0x72cC13426cAfD2375FFABE56498437927805d3d2], 1000000000 [1e9])
+    │   │   ├─ emit Transfer(from: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], to: MockDeFiProtocol: [0x72cC13426cAfD2375FFABE56498437927805d3d2], value: 1000000000 [1e9])
+    │   │   └─ ← [Return] true
+    │   ├─ emit Deposited(user: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], token: MockUSDC: [0x88F59F8826af5e695B13cA934d6c7999875A9EeA], amount: 1000000000 [1e9])
+    │   └─ ← [Stop]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [631] MockDeFiProtocol::getBalance(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], MockUSDC: [0x88F59F8826af5e695B13cA934d6c7999875A9EeA]) [staticcall]
+    │   └─ ← [Return] 1000000000 [1e9]
+    ├─ [0] VM::assertEq(1000000000 [1e9], 1000000000 [1e9]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] testFactoryStats() (gas: 4275843)
-[PASS] testFundAccounts() (gas: 197859)
-[PASS] testInsufficientCreationFee() (gas: 26932)
-Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 10.20ms (7.36ms CPU time)
+Traces:
+  [4281443] EchoFiIntegrationTest::testFactoryStats()
+    ├─ [2693] EchoFiFactory::getStats() [staticcall]
+    │   └─ ← [Return] 0, 0, 0, 0
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::deal(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 10000000000000000000 [1e19])
+    │   └─ ← [Return]
+    ├─ [0] VM::deal(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], 10000000000000000000 [1e19])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [2142908] EchoFiFactory::createGroup{value: 1000000000000000}("group1", "xmtp1")
+    │   ├─ [1808289] → new EchoFiTreasury@0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6], creator: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], name: "group1", memberCount: 1, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0xb8CfdD49cA15f42Ff846Ac891C7a167fa453B4B6]
+    ├─ [0] VM::prank(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e])
+    │   └─ ← [Return]
+    ├─ [2097108] EchoFiFactory::createGroup{value: 1000000000000000}("group2", "xmtp2")
+    │   ├─ [1808289] → new EchoFiTreasury@0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], sender: EchoFiFactory: [0xe95fEFbaa79748B66DEfb3D662A12541e4d5Cdc8])
+    │   │   ├─ emit MemberAdded(member: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], votingPower: 100)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403], creator: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], name: "group2", memberCount: 1, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0xbA8705b57aE3B39dbceb33b2ca1984cAE91B2403]
+    ├─ [5829] EchoFiFactory::getStats() [staticcall]
+    │   └─ ← [Return] 2, 2, 2, 2000000000000000 [2e15]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2000000000000000 [2e15], 2000000000000000 [2e15]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] testFundAccounts() (gas: 197993)
+Traces:
+  [197993] EchoFiIntegrationTest::testFundAccounts()
+    ├─ [0] VM::startPrank(owner: [0x7c8999dC9a822c1f0Df42023113EDB4FDd543266])
+    │   └─ ← [Return]
+    ├─ [31570] MockUSDC::mint(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 50000000000 [5e10])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], value: 50000000000 [5e10])
+    │   └─ ← [Stop]
+    ├─ [31624] MockWETH::mint(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 25000000000000000000 [2.5e19])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], value: 25000000000000000000 [2.5e19])
+    │   └─ ← [Stop]
+    ├─ [555] MockUSDC::balanceOf(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return] 50000000000 [5e10]
+    ├─ [0] VM::assertEq(50000000000 [5e10], 50000000000 [5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [577] MockWETH::balanceOf(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6]) [staticcall]
+    │   └─ ← [Return] 25000000000000000000 [2.5e19]
+    ├─ [0] VM::assertEq(25000000000000000000 [2.5e19], 25000000000000000000 [2.5e19]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [24770] MockUSDC::mint(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], 50000000000 [5e10])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], value: 50000000000 [5e10])
+    │   └─ ← [Stop]
+    ├─ [24824] MockWETH::mint(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], 25000000000000000000 [2.5e19])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e], value: 25000000000000000000 [2.5e19])
+    │   └─ ← [Stop]
+    ├─ [555] MockUSDC::balanceOf(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e]) [staticcall]
+    │   └─ ← [Return] 50000000000 [5e10]
+    ├─ [0] VM::assertEq(50000000000 [5e10], 50000000000 [5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [577] MockWETH::balanceOf(bob: [0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e]) [staticcall]
+    │   └─ ← [Return] 25000000000000000000 [2.5e19]
+    ├─ [0] VM::assertEq(25000000000000000000 [2.5e19], 25000000000000000000 [2.5e19]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [24770] MockUSDC::mint(charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0], 50000000000 [5e10])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0], value: 50000000000 [5e10])
+    │   └─ ← [Stop]
+    ├─ [24824] MockWETH::mint(charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0], 25000000000000000000 [2.5e19])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0], value: 25000000000000000000 [2.5e19])
+    │   └─ ← [Stop]
+    ├─ [555] MockUSDC::balanceOf(charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0]) [staticcall]
+    │   └─ ← [Return] 50000000000 [5e10]
+    ├─ [0] VM::assertEq(50000000000 [5e10], 50000000000 [5e10]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [577] MockWETH::balanceOf(charlie: [0xea475d60c118d7058beF4bDd9c32bA51139a74e0]) [staticcall]
+    │   └─ ← [Return] 25000000000000000000 [2.5e19]
+    ├─ [0] VM::assertEq(25000000000000000000 [2.5e19], 25000000000000000000 [2.5e19]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] testInsufficientCreationFee() (gas: 26954)
+Traces:
+  [26954] EchoFiIntegrationTest::testInsufficientCreationFee()
+    ├─ [0] VM::deal(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6], 1000000000000000000 [1e18])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(alice: [0x328809Bc894f92807417D2dAD6b7C998c1aFdac6])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 025dbdd400000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [8242] EchoFiFactory::createGroup{value: 500000000000000}("test-group", "test-xmtp")
+    │   └─ ← [Revert] InsufficientFee()
+    └─ ← [Return]
+
+Suite result: FAILED. 8 passed; 1 failed; 0 skipped; finished in 9.59ms (5.94ms CPU time)
 
 Ran 23 tests for test/EchoFiFactory.t.sol:EchoFiFactoryTest
-[PASS] testFuzz_CreateTreasury_ValidVotingPowers(uint8,uint256) (runs: 257, μ: 3007897, ~: 2906289)
+[PASS] testFuzz_CreateTreasury_ValidVotingPowers(uint8,uint256) (runs: 257, μ: 3004987, ~: 2902942)
+Traces:
+  [2327048] EchoFiFactoryTest::testFuzz_CreateTreasury_ValidVotingPowers(2, 540027654721333920440149471640 [5.4e29])
+    ├─ [0] console::log("Bound result", 2) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Bound result", 10258337832492489110 [1.025e19]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Bound result", 2) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Bound result", 26) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Fuzz Test Group", "Fuzz testing", [0x0000000000000000000000008E5CeFE85baA5997, 0x0000000000000000000000008E5cEfe85Baa5998], [26, 74])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000008E5CeFE85baA5997, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000008E5CeFE85baA5997, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000008E5CeFE85baA5997, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000008E5CeFE85baA5997, votingPower: 26)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000008E5cEfe85Baa5998, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000008E5cEfe85Baa5998, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000008E5cEfe85Baa5998, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000008E5cEfe85Baa5998, votingPower: 74)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Fuzz Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, creator: 0x0000000000000000000000000000000000000002, name: "Fuzz Test Group", description: "Fuzz testing", memberCount: 2, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(100, 100) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] test_CreateMultipleTreasuries() (gas: 4691444)
+Traces:
+  [4697044] EchoFiFactoryTest::test_CreateMultipleTreasuries()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 1", "First group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 1", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [2362692] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 2", "Second group", [0x0000000000000000000000000000000000000003, 0x0000000000000000000000000000000000000004, 0x0000000000000000000000000000000000000005], [50, 30, 20])
+    │   ├─ [2003615] → new EchoFiTreasury@0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 50)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: Identity: [0x0000000000000000000000000000000000000004], votingPower: 30)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: ModExp: [0x0000000000000000000000000000000000000005], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: ModExp: [0x0000000000000000000000000000000000000005], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: ModExp: [0x0000000000000000000000000000000000000005], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: ModExp: [0x0000000000000000000000000000000000000005], votingPower: 20)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1], creator: RIPEMD-160: [0x0000000000000000000000000000000000000003], name: "Group 2", memberCount: 3, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [584] EchoFiFactory::treasuryCount() [staticcall]
+    │   └─ ← [Return] 2
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [1434] EchoFiFactory::getUserTreasuries(RIPEMD-160: [0x0000000000000000000000000000000000000003]) [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, 0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] test_CreateTreasury_InsufficientFee() (gas: 30698)
+Traces:
+  [30698] EchoFiFactoryTest::test_CreateTreasury_InsufficientFee()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 025dbdd400000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [9652] EchoFiFactory::createTreasury{value: 999999999999999}("Test Group", "Description", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   └─ ← [Revert] InsufficientFee()
+    └─ ← [Return]
+
 [PASS] test_CreateTreasury_InvalidMemberCount() (gas: 30546)
+Traces:
+  [30546] EchoFiFactoryTest::test_CreateTreasury_InvalidMemberCount()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 4fdd01a000000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [11629] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description", [0x0000000000000000000000000000000000000002], [100])
+    │   └─ ← [Revert] InvalidMemberCount()
+    └─ ← [Return]
+
 [PASS] test_CreateTreasury_InvalidVotingPowers() (gas: 39053)
+Traces:
+  [39053] EchoFiFactoryTest::test_CreateTreasury_InvalidVotingPowers()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 118f5b2900000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [14801] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003, 0x0000000000000000000000000000000000000004], [40, 35, 20])
+    │   └─ ← [Revert] InvalidVotingPowers()
+    └─ ← [Return]
+
 [PASS] test_CreateTreasury_MismatchedArrays() (gas: 35207)
+Traces:
+  [35207] EchoFiFactoryTest::test_CreateTreasury_MismatchedArrays()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 118f5b2900000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [14027] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [50, 30, 20])
+    │   └─ ← [Revert] InvalidVotingPowers()
+    └─ ← [Return]
+
 [PASS] test_CreateTreasury_Success() (gas: 2482402)
+Traces:
+  [2485202] EchoFiFactoryTest::test_CreateTreasury_Success()
+    ├─ [0] VM::startPrank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectEmit(false, true, false, true)
+    │   └─ ← [Return]
+    ├─ emit TreasuryCreated(treasury: 0x0000000000000000000000000000000000000000, creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 3, treasuryId: 0)
+    ├─ [2436392] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "A test investment group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003, 0x0000000000000000000000000000000000000004], [40, 35, 25])
+    │   ├─ [2003615] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 40)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 35)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: Identity: [0x0000000000000000000000000000000000000004], votingPower: 25)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 3, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::stopPrank()
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [584] EchoFiFactory::treasuryCount() [staticcall]
+    │   └─ ← [Return] 1
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, creator: 0x0000000000000000000000000000000000000002, name: "Test Group", description: "A test investment group", memberCount: 3, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(SHA-256: [0x0000000000000000000000000000000000000002], SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("Test Group", "Test Group") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("A test investment group", "A test investment group") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(3, 3) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(100, 100) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertGt(1, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [1133] EchoFiFactory::getUserTreasuries(SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [1133] EchoFiFactory::getUserTreasuries(RIPEMD-160: [0x0000000000000000000000000000000000000003]) [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [1133] EchoFiFactory::getUserTreasuries(Identity: [0x0000000000000000000000000000000000000004]) [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
 [PASS] test_GasOptimization() (gas: 3461360)
 Logs:
   Gas used for creating 10-member treasury: 3451360
 
-[PASS] test_GetActiveTreasuries() (gas: 4418788)
-[PASS] test_GetStats() (gas: 6645319)
-[PASS] test_GetTreasuriesPagination() (gas: 11151893)
-[PASS] test_HelperContract_CanUserVote() (gas: 2471071)
-[PASS] test_HelperContract_GetTreasuryDetails() (gas: 2336623)
-[PASS] test_InitialSetup() (gas: 28163)
-[PASS] test_TreasuryNotFound() (gas: 30434)
-[PASS] test_UpdateCreationFee() (gas: 22774)
-[PASS] test_UpdateCreationFee_OnlyOwner() (gas: 13569)
-[PASS] test_UpdateMemberLimits() (gas: 25700)
-[PASS] test_UpdateMemberLimits_InvalidLimits() (gas: 17385)
-[PASS] test_UpdateTreasuryStatus() (gas: 2334758)
-[PASS] test_UpdateTreasuryStatus_Unauthorized() (gas: 2316936)
-[PASS] test_WithdrawFees() (gas: 2328960)
-[PASS] test_WithdrawFees_OnlyOwner() (gas: 13629)
-Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 73.16ms (73.72ms CPU time)
+Traces:
+  [3464160] EchoFiFactoryTest::test_GasOptimization()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [3437417] EchoFiFactory::createTreasury{value: 1000000000000000}("Large Group", "A group with 10 members", [0x0000000000000000000000000000000000000064, 0x0000000000000000000000000000000000000065, 0x0000000000000000000000000000000000000066, 0x0000000000000000000000000000000000000067, 0x0000000000000000000000000000000000000068, 0x0000000000000000000000000000000000000069, 0x000000000000000000000000000000000000006a, 0x000000000000000000000000000000000000006b, 0x000000000000000000000000000000000000006C, 0x000000000000000000000000000000000000006D], [10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+    │   ├─ [2687258] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000064, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000064, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000064, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000064, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000065, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000065, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000065, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000065, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000066, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000066, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000066, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000066, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000067, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000067, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000067, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000067, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000068, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000068, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000068, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000068, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x0000000000000000000000000000000000000069, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x0000000000000000000000000000000000000069, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x0000000000000000000000000000000000000069, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x0000000000000000000000000000000000000069, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x000000000000000000000000000000000000006a, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x000000000000000000000000000000000000006a, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x000000000000000000000000000000000000006a, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x000000000000000000000000000000000000006a, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x000000000000000000000000000000000000006b, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x000000000000000000000000000000000000006b, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x000000000000000000000000000000000000006b, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x000000000000000000000000000000000000006b, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x000000000000000000000000000000000000006C, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x000000000000000000000000000000000000006C, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x000000000000000000000000000000000000006C, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x000000000000000000000000000000000000006C, votingPower: 10)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: 0x000000000000000000000000000000000000006D, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: 0x000000000000000000000000000000000000006D, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: 0x000000000000000000000000000000000000006D, sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: 0x000000000000000000000000000000000000006D, votingPower: 10)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Large Group", memberCount: 10, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] console::log("Gas used for creating 10-member treasury:", 3451360 [3.451e6]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::assertLt(3451360 [3.451e6], 4000000 [4e6]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
 
-Ran 3 test suites in 164.42ms (93.58ms CPU time): 45 tests passed, 0 failed, 0 skipped (45 total tests)
+[PASS] test_GetActiveTreasuries() (gas: 4418788)
+Traces:
+  [4444288] EchoFiFactoryTest::test_GetActiveTreasuries()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 1", "Description for Group 1", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 1", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [2103306] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 2", "Description for Group 2", [0x0000000000000000000000000000000000000003, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1811469] → new EchoFiTreasury@0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 60)
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1], creator: RIPEMD-160: [0x0000000000000000000000000000000000000003], name: "Group 2", memberCount: 2, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [4642] EchoFiFactory::getActiveTreasuries() [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, 0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2443] EchoFiFactory::updateTreasuryStatus(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], false)
+    │   ├─ emit TreasuryStatusUpdated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], isActive: false)
+    │   └─ ← [Stop]
+    ├─ [3988] EchoFiFactory::getActiveTreasuries() [staticcall]
+    │   └─ ← [Return] [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1], EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_GetStats() (gas: 6645319)
+Traces:
+  [6673619] EchoFiFactoryTest::test_GetStats()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 1", "Description for Group 1", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 1", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [2103306] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 2", "Description for Group 2", [0x0000000000000000000000000000000000000003, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1811469] → new EchoFiTreasury@0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 60)
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1], creator: RIPEMD-160: [0x0000000000000000000000000000000000000003], name: "Group 2", memberCount: 2, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [0] VM::prank(Identity: [0x0000000000000000000000000000000000000004])
+    │   └─ ← [Return]
+    ├─ [2219689] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 3", "Description for Group 3", [0x0000000000000000000000000000000000000004, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x87eB331598F90376538a247E613959490834191b
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: Identity: [0x0000000000000000000000000000000000000004], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: Identity: [0x0000000000000000000000000000000000000004], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x87eB331598F90376538a247E613959490834191b], creator: Identity: [0x0000000000000000000000000000000000000004], name: "Group 3", memberCount: 2, treasuryId: 2)
+    │   └─ ← [Return] EchoFiTreasury: [0x87eB331598F90376538a247E613959490834191b]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2443] EchoFiFactory::updateTreasuryStatus(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], false)
+    │   ├─ emit TreasuryStatusUpdated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], isActive: false)
+    │   └─ ← [Stop]
+    ├─ [8240] EchoFiFactory::getStats() [staticcall]
+    │   └─ ← [Return] 3, 2, 4, 3000000000000000 [3e15]
+    ├─ [0] VM::assertEq(3, 3) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(4, 4) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertGt(3000000000000000 [3e15], 0) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_GetTreasuriesPagination() (gas: 11151893)
+Traces:
+  [11165893] EchoFiFactoryTest::test_GetTreasuriesPagination()
+    ├─ [0] VM::toString(0) [staticcall]
+    │   └─ ← [Return] "0"
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 0", "Description for Group 0", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 0", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::toString(1) [staticcall]
+    │   └─ ← [Return] "1"
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2197789] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 1", "Description for Group 1", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 1", memberCount: 2, treasuryId: 1)
+    │   └─ ← [Return] EchoFiTreasury: [0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1]
+    ├─ [0] VM::toString(2) [staticcall]
+    │   └─ ← [Return] "2"
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2197789] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 2", "Description for Group 2", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x87eB331598F90376538a247E613959490834191b
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x87eB331598F90376538a247E613959490834191b], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 2", memberCount: 2, treasuryId: 2)
+    │   └─ ← [Return] EchoFiTreasury: [0x87eB331598F90376538a247E613959490834191b]
+    ├─ [0] VM::toString(3) [staticcall]
+    │   └─ ← [Return] "3"
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2197789] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 3", "Description for Group 3", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0xA1049A822aC8d9087C4B8025E9EE9E287290d36B
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0xA1049A822aC8d9087C4B8025E9EE9E287290d36B], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 3", memberCount: 2, treasuryId: 3)
+    │   └─ ← [Return] EchoFiTreasury: [0xA1049A822aC8d9087C4B8025E9EE9E287290d36B]
+    ├─ [0] VM::toString(4) [staticcall]
+    │   └─ ← [Return] "4"
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2197789] EchoFiFactory::createTreasury{value: 1000000000000000}("Group 4", "Description for Group 4", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x36206dA06DFd33d31E0760D9BacC39e5d3f20a89
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x36206dA06DFd33d31E0760D9BacC39e5d3f20a89], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Group 4", memberCount: 2, treasuryId: 4)
+    │   └─ ← [Return] EchoFiTreasury: [0x36206dA06DFd33d31E0760D9BacC39e5d3f20a89]
+    ├─ [9844] EchoFiFactory::getActiveTreasuries() [staticcall]
+    │   └─ ← [Return] [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, 0x0636b2c3241e32Be3dD768C063D278d9ba7bbcB1, 0x87eB331598F90376538a247E613959490834191b, 0xA1049A822aC8d9087C4B8025E9EE9E287290d36B, 0x36206dA06DFd33d31E0760D9BacC39e5d3f20a89]
+    ├─ [0] VM::assertEq(3, 3) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(5, 5) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_HelperContract_CanUserVote() (gas: 2471071)
+Traces:
+  [2473871] EchoFiFactoryTest::test_HelperContract_CanUserVote()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description for Test Group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [130335] EchoFiTreasury::createProposal(0, 1000000000 [1e9], 0x0000000000000000000000000000000000000000, 0x, "Test proposal")
+    │   ├─ emit ProposalCreated(proposalId: 0, proposer: SHA-256: [0x0000000000000000000000000000000000000002], proposalType: 0, amount: 1000000000 [1e9], description: "Test proposal")
+    │   └─ ← [Return] 0
+    ├─ [11971] EchoFiHelper::canUserVote(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], 0, SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   ├─ [530] EchoFiTreasury::memberVotingPower(SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   │   └─ ← [Return] 60
+    │   ├─ [974] EchoFiTreasury::proposalCount() [staticcall]
+    │   │   └─ ← [Return] 1
+    │   ├─ [2899] EchoFiTreasury::hasVoted(0, SHA-256: [0x0000000000000000000000000000000000000002]) [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ [3716] EchoFiTreasury::getProposalBasic(0) [staticcall]
+    │   │   └─ ← [Return] ProposalData({ id: 0, proposer: 0x0000000000000000000000000000000000000002, proposalType: 0, amount: 1000000000 [1e9], target: 0x0000000000000000000000000000000000000000, description: "Test proposal" }), VotingData({ votesFor: 0, votesAgainst: 0, deadline: 259201 [2.592e5], executed: false, cancelled: false })
+    │   └─ ← [Return] true, "Can vote"
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("Can vote", "Can vote") [staticcall]
+    │   └─ ← [Return]
+    ├─ [3733] EchoFiHelper::canUserVote(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], 0, ModExp: [0x0000000000000000000000000000000000000005]) [staticcall]
+    │   ├─ [2530] EchoFiTreasury::memberVotingPower(ModExp: [0x0000000000000000000000000000000000000005]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] false, "User has no voting power"
+    ├─ [0] VM::assertFalse(false) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("User has no voting power", "User has no voting power") [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_HelperContract_GetTreasuryDetails() (gas: 2336623)
+Traces:
+  [2339423] EchoFiFactoryTest::test_HelperContract_GetTreasuryDetails()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description for Test Group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [15000] EchoFiHelper::getTreasuryDetails([0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, creator: 0x0000000000000000000000000000000000000002, name: "Test Group", description: "Description for Test Group", memberCount: 2, totalVotingPower: 100, createdAt: 1, isActive: true })
+    │   ├─ [3565] EchoFiTreasury::getTreasuryBalance() [staticcall]
+    │   │   ├─ [0] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Revert] EvmError: Revert
+    │   ├─ [2974] EchoFiTreasury::proposalCount() [staticcall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] [TreasuryDetails({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, name: "Test Group", memberCount: 2, totalVotingPower: 100, usdcBalance: 0, aUsdcBalance: 0, activeProposals: 0, isActive: true })]
+    ├─ [0] VM::assertEq(1, 1) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq("Test Group", "Test Group") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_InitialSetup() (gas: 28163)
+Traces:
+  [28163] EchoFiFactoryTest::test_InitialSetup()
+    ├─ [2541] EchoFiFactory::owner() [staticcall]
+    │   └─ ← [Return] ECRecover: [0x0000000000000000000000000000000000000001]
+    ├─ [0] VM::assertEq(ECRecover: [0x0000000000000000000000000000000000000001], ECRecover: [0x0000000000000000000000000000000000000001]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [370] EchoFiFactory::aUSDC() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000123
+    ├─ [0] VM::assertEq(0x0000000000000000000000000000000000000123, 0x0000000000000000000000000000000000000123) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2584] EchoFiFactory::treasuryCount() [staticcall]
+    │   └─ ← [Return] 0
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2652] EchoFiFactory::creationFee() [staticcall]
+    │   └─ ← [Return] 1000000000000000 [1e15]
+    ├─ [0] VM::assertEq(1000000000000000 [1e15], 1000000000000000 [1e15]) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2364] EchoFiFactory::minMembers() [staticcall]
+    │   └─ ← [Return] 2
+    ├─ [0] VM::assertEq(2, 2) [staticcall]
+    │   └─ ← [Return]
+    ├─ [2562] EchoFiFactory::maxMembers() [staticcall]
+    │   └─ ← [Return] 50
+    ├─ [0] VM::assertEq(50, 50) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_TreasuryNotFound() (gas: 30434)
+Traces:
+  [30434] EchoFiFactoryTest::test_TreasuryNotFound()
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: b2b8e10a00000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [18768] EchoFiFactory::getTreasuryInfo(0x0000000000000000000000000000000000000999) [staticcall]
+    │   └─ ← [Revert] TreasuryNotFound()
+    └─ ← [Return]
+
+[PASS] test_UpdateCreationFee() (gas: 22774)
+Traces:
+  [22774] EchoFiFactoryTest::test_UpdateCreationFee()
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectEmit(true, true, false, true)
+    │   └─ ← [Return]
+    ├─ emit CreationFeeUpdated(oldFee: 1000000000000000 [1e15], newFee: 2000000000000000 [2e15])
+    ├─ [8832] EchoFiFactory::updateCreationFee(2000000000000000 [2e15])
+    │   ├─ emit CreationFeeUpdated(oldFee: 1000000000000000 [1e15], newFee: 2000000000000000 [2e15])
+    │   └─ ← [Stop]
+    ├─ [652] EchoFiFactory::creationFee() [staticcall]
+    │   └─ ← [Return] 2000000000000000 [2e15]
+    ├─ [0] VM::assertEq(2000000000000000 [2e15], 2000000000000000 [2e15]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_UpdateCreationFee_OnlyOwner() (gas: 13569)
+Traces:
+  [13569] EchoFiFactoryTest::test_UpdateCreationFee_OnlyOwner()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf4844814)
+    │   └─ ← [Return]
+    ├─ [2564] EchoFiFactory::updateCreationFee(2000000000000000 [2e15])
+    │   └─ ← [Revert] OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000002)
+    └─ ← [Return]
+
+[PASS] test_UpdateMemberLimits() (gas: 25700)
+Traces:
+  [25700] EchoFiFactoryTest::test_UpdateMemberLimits()
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [12442] EchoFiFactory::updateMemberLimits(3, 100)
+    │   └─ ← [Stop]
+    ├─ [364] EchoFiFactory::minMembers() [staticcall]
+    │   └─ ← [Return] 3
+    ├─ [0] VM::assertEq(3, 3) [staticcall]
+    │   └─ ← [Return]
+    ├─ [562] EchoFiFactory::maxMembers() [staticcall]
+    │   └─ ← [Return] 100
+    ├─ [0] VM::assertEq(100, 100) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_UpdateMemberLimits_InvalidLimits() (gas: 17385)
+Traces:
+  [17385] EchoFiFactoryTest::test_UpdateMemberLimits_InvalidLimits()
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Invalid limits)
+    │   └─ ← [Return]
+    ├─ [2504] EchoFiFactory::updateMemberLimits(0, 10)
+    │   └─ ← [Revert] Invalid limits
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf28dceb3:  Invalid limits)
+    │   └─ ← [Return]
+    ├─ [2530] EchoFiFactory::updateMemberLimits(10, 5)
+    │   └─ ← [Revert] Invalid limits
+    └─ ← [Return]
+
+[PASS] test_UpdateTreasuryStatus() (gas: 2334758)
+Traces:
+  [2357458] EchoFiFactoryTest::test_UpdateTreasuryStatus()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description for Test Group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2443] EchoFiFactory::updateTreasuryStatus(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], false)
+    │   ├─ emit TreasuryStatusUpdated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], isActive: false)
+    │   └─ ← [Stop]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, creator: 0x0000000000000000000000000000000000000002, name: "Test Group", description: "Description for Test Group", memberCount: 2, totalVotingPower: 100, createdAt: 1, isActive: false })
+    ├─ [0] VM::assertFalse(false) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [24476] EchoFiFactory::updateTreasuryStatus(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], true)
+    │   ├─ emit TreasuryStatusUpdated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], isActive: true)
+    │   └─ ← [Stop]
+    ├─ [3240] EchoFiFactory::getTreasuryInfo(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]) [staticcall]
+    │   └─ ← [Return] TreasuryInfo({ treasuryAddress: 0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1, creator: 0x0000000000000000000000000000000000000002, name: "Test Group", description: "Description for Test Group", memberCount: 2, totalVotingPower: 100, createdAt: 1, isActive: true })
+    ├─ [0] VM::assertTrue(true) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_UpdateTreasuryStatus_Unauthorized() (gas: 2316936)
+Traces:
+  [2319736] EchoFiFactoryTest::test_UpdateTreasuryStatus_Unauthorized()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description for Test Group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(RIPEMD-160: [0x0000000000000000000000000000000000000003])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xc31eb0e0: 4OՆ)
+    │   └─ ← [Return]
+    ├─ [2942] EchoFiFactory::updateTreasuryStatus(EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], false)
+    │   └─ ← [Revert] UnauthorizedAccess()
+    └─ ← [Return]
+
+[PASS] test_WithdrawFees() (gas: 2328960)
+Traces:
+  [2331760] EchoFiFactoryTest::test_WithdrawFees()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [2293389] EchoFiFactory::createTreasury{value: 1000000000000000}("Test Group", "Description for Test Group", [0x0000000000000000000000000000000000000002, 0x0000000000000000000000000000000000000003], [60, 40])
+    │   ├─ [1905952] → new EchoFiTreasury@0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1
+    │   │   ├─ emit RoleGranted(role: 0x0000000000000000000000000000000000000000000000000000000000000000, account: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: SHA-256: [0x0000000000000000000000000000000000000002], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: SHA-256: [0x0000000000000000000000000000000000000002], votingPower: 60)
+    │   │   ├─ emit RoleGranted(role: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0x72c3eec1760bf69946625c2d4fb8e44e2c806345041960b434674fb9ab3976cf, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit RoleGranted(role: 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, account: RIPEMD-160: [0x0000000000000000000000000000000000000003], sender: EchoFiFactory: [0x522B3294E6d06aA25Ad0f1B8891242E335D3B459])
+    │   │   ├─ emit MemberAdded(member: RIPEMD-160: [0x0000000000000000000000000000000000000003], votingPower: 40)
+    │   │   └─ ← [Return] 7753 bytes of code
+    │   ├─ emit TreasuryCreated(treasury: EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1], creator: SHA-256: [0x0000000000000000000000000000000000000002], name: "Test Group", memberCount: 2, treasuryId: 0)
+    │   └─ ← [Return] EchoFiTreasury: [0x582e4a5B8F0c154922e086061cC6Dd07F056EAC1]
+    ├─ [0] VM::prank(ECRecover: [0x0000000000000000000000000000000000000001])
+    │   └─ ← [Return]
+    ├─ [12429] EchoFiFactory::withdrawFees()
+    │   ├─ [3000] ECRecover::fallback{value: 1000000000000000}()
+    │   │   └─ ← [Return]
+    │   └─ ← [Stop]
+    ├─ [0] VM::assertEq(0, 0) [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(1000000000000000 [1e15], 1000000000000000 [1e15]) [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+[PASS] test_WithdrawFees_OnlyOwner() (gas: 13629)
+Traces:
+  [13629] EchoFiFactoryTest::test_WithdrawFees_OnlyOwner()
+    ├─ [0] VM::prank(SHA-256: [0x0000000000000000000000000000000000000002])
+    │   └─ ← [Return]
+    ├─ [0] VM::expectRevert(custom error 0xf4844814)
+    │   └─ ← [Return]
+    ├─ [2463] EchoFiFactory::withdrawFees()
+    │   └─ ← [Revert] OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000002)
+    └─ ← [Return]
+
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 76.11ms (78.79ms CPU time)
+
+Ran 3 test suites in 176.50ms (95.48ms CPU time): 45 tests passed, 1 failed, 0 skipped (46 total tests)
+
+Failing tests:
+Encountered 1 failing test in test/EchoFiIntegrationTest.t.sol:EchoFiIntegrationTest
+[FAIL: EvmError: Revert] testCompleteWorkflow() (gas: 2499789)
+
+Encountered a total of 1 failing tests, 45 tests succeeded
