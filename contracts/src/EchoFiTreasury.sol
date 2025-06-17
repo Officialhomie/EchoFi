@@ -25,12 +25,11 @@ interface IAToken is IERC20 {
 }
 
 /**
- * @title EchoFiTreasury
+ * @title EchoFiTreasury - FIXED VERSION
  * @dev Multi-signature treasury contract with Aave V3 integration for group investment coordination
- * @notice Manages group proposals, voting, and automated DeFi execution through Aave lending
  */
 contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
-    using SafeERC20 for IERC20;  // ← This is the key line that enables safeApprove
+    using SafeERC20 for IERC20;
 
     // Role definitions
     bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
@@ -43,7 +42,6 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     
     // USDC token addresses
     address public constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // Base Mainnet
-    // address public constant USDC = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // Base Sepolia
     
     // aUSDC token (received from Aave when supplying)
     address public immutable aUSDC;
@@ -58,20 +56,30 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         REMOVE_MEMBER
     }
 
-    // Proposal structure
-    struct Proposal {
+    // Use struct for proposal data to reduce stack usage
+    struct ProposalData {
         uint256 id;
         address proposer;
         ProposalType proposalType;
         uint256 amount;
         address target;
-        bytes data;
         string description;
+    }
+
+    // Use struct for voting data
+    struct VotingData {
         uint256 votesFor;
         uint256 votesAgainst;
         uint256 deadline;
         bool executed;
         bool cancelled;
+    }
+
+    // Split proposal struct to avoid stack depth
+    struct Proposal {
+        ProposalData data;
+        VotingData voting;
+        bytes executionData;
         mapping(address => bool) hasVoted;
         mapping(address => bool) voteChoice;
     }
@@ -136,13 +144,21 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         aUSDC = _aUSDC;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         
+        //Optimize member setup to reduce local variables
+        _setupMembers(_initialMembers, _votingPowers);
+    }
+
+    /**
+     * @dev  Extract member setup to separate function
+     */
+    function _setupMembers(address[] memory _members, uint256[] memory _powers) internal {
         uint256 totalPower = 0;
-        for (uint256 i = 0; i < _initialMembers.length; i++) {
-            require(_initialMembers[i] != address(0), "Invalid member address");
-            require(_votingPowers[i] > 0, "Voting power must be > 0");
+        for (uint256 i = 0; i < _members.length; i++) {
+            require(_members[i] != address(0), "Invalid member address");
+            require(_powers[i] > 0, "Voting power must be > 0");
             
-            _addMember(_initialMembers[i], _votingPowers[i]);
-            totalPower += _votingPowers[i];
+            _addMember(_members[i], _powers[i]);
+            totalPower += _powers[i];
         }
         
         require(totalPower == 100, "Total voting power must equal 100");
@@ -165,20 +181,29 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (bytes(_description).length == 0) revert InvalidAmount();
         
         uint256 proposalId = proposalCount++;
-        uint256 deadline = block.timestamp + votingPeriod;
         
+        //  Use struct assignment to reduce stack usage
         Proposal storage proposal = proposals[proposalId];
-        proposal.id = proposalId;
-        proposal.proposer = msg.sender;
-        proposal.proposalType = _proposalType;
-        proposal.amount = _amount;
-        proposal.target = _target;
-        proposal.data = _data;
-        proposal.description = _description;
-        proposal.deadline = deadline;
+        proposal.data = ProposalData({
+            id: proposalId,
+            proposer: msg.sender,
+            proposalType: _proposalType,
+            amount: _amount,
+            target: _target,
+            description: _description
+        });
+        
+        proposal.voting = VotingData({
+            votesFor: 0,
+            votesAgainst: 0,
+            deadline: block.timestamp + votingPeriod,
+            executed: false,
+            cancelled: false
+        });
+        
+        proposal.executionData = _data;
         
         emit ProposalCreated(proposalId, msg.sender, _proposalType, _amount, _description);
-        
         return proposalId;
     }
 
@@ -190,9 +215,9 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (_proposalId >= proposalCount) revert InvalidProposalId();
         
         Proposal storage proposal = proposals[_proposalId];
-        if (block.timestamp > proposal.deadline) revert VotingEnded();
-        if (proposal.executed) revert ProposalAlreadyExecuted();
-        if (proposal.cancelled) revert ProposalCancelled();
+        if (block.timestamp > proposal.voting.deadline) revert VotingEnded();
+        if (proposal.voting.executed) revert ProposalAlreadyExecuted();
+        if (proposal.voting.cancelled) revert ProposalCancelled();
         if (proposal.hasVoted[msg.sender]) revert AlreadyVoted();
         
         uint256 votingPower = memberVotingPower[msg.sender];
@@ -202,9 +227,9 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         proposal.voteChoice[msg.sender] = _support;
         
         if (_support) {
-            proposal.votesFor += votingPower;
+            proposal.voting.votesFor += votingPower;
         } else {
-            proposal.votesAgainst += votingPower;
+            proposal.voting.votesAgainst += votingPower;
         }
         
         emit VoteCast(_proposalId, msg.sender, _support, votingPower);
@@ -218,35 +243,48 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (_proposalId >= proposalCount) revert InvalidProposalId();
         
         Proposal storage proposal = proposals[_proposalId];
-        if (block.timestamp <= proposal.deadline) revert VotingStillActive();
-        if (proposal.executed) revert ProposalAlreadyExecuted();
-        if (proposal.cancelled) revert ProposalCancelled();
+        if (block.timestamp <= proposal.voting.deadline) revert VotingStillActive();
+        if (proposal.voting.executed) revert ProposalAlreadyExecuted();
+        if (proposal.voting.cancelled) revert ProposalCancelled();
         
-        // Check if proposal passes
-        uint256 totalVotes = proposal.votesFor + proposal.votesAgainst;
-        uint256 quorumRequired = (totalVotingPower * quorumPercentage) / 100;
+        //  Extract voting validation
+        _validateProposalPassing(proposal.voting);
         
-        if (totalVotes < quorumRequired) revert QuorumNotReached();
-        if (proposal.votesFor <= proposal.votesAgainst) revert ProposalRejected();
-        
-        proposal.executed = true;
-        
-        bool success = false;
-        
-        // Execute based on proposal type
-        if (proposal.proposalType == ProposalType.DEPOSIT_AAVE) {
-            success = _executeAaveDeposit(proposal.amount);
-        } else if (proposal.proposalType == ProposalType.WITHDRAW_AAVE) {
-            success = _executeAaveWithdrawal(proposal.amount);
-        } else if (proposal.proposalType == ProposalType.TRANSFER) {
-            success = _executeTransfer(proposal.target, proposal.amount);
-        }
-        
+        proposal.voting.executed = true;
+        bool success = _executeProposalAction(proposal);
         emit ProposalExecuted(_proposalId, success);
     }
 
     /**
-     * @dev Execute Aave deposit - FIXED VERSION
+     * @dev  Extract voting validation logic
+     */
+    function _validateProposalPassing(VotingData storage voting) internal view {
+        uint256 totalVotes = voting.votesFor + voting.votesAgainst;
+        uint256 quorumRequired = (totalVotingPower * quorumPercentage) / 100;
+        
+        if (totalVotes < quorumRequired) revert QuorumNotReached();
+        if (voting.votesFor <= voting.votesAgainst) revert ProposalRejected();
+    }
+
+    /**
+     * @dev Simplified execution logic
+     */
+    function _executeProposalAction(Proposal storage proposal) internal returns (bool) {
+        ProposalType pType = proposal.data.proposalType;
+        uint256 amount = proposal.data.amount;
+        
+        if (pType == ProposalType.DEPOSIT_AAVE) {
+            return _executeAaveDeposit(amount);
+        } else if (pType == ProposalType.WITHDRAW_AAVE) {
+            return _executeAaveWithdrawal(amount);
+        } else if (pType == ProposalType.TRANSFER) {
+            return _executeTransfer(proposal.data.target, amount);
+        }
+        return false;
+    }
+
+    /**
+     * @dev Execute Aave deposit
      */
     function _executeAaveDeposit(uint256 amount) internal returns (bool) {
         IERC20 usdc = IERC20(USDC);
@@ -254,14 +292,12 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         
         if (balance < amount) return false;
         
-        // Use SafeERC20's safeApprove and handle errors with return values
         usdc.forceApprove(address(AAVE_POOL), amount);
         
         try AAVE_POOL.supply(USDC, amount, address(this), 0) {
             emit SuppliedToAave(amount, 0);
             return true;
         } catch {
-            // Reset approval on failure
             usdc.forceApprove(address(AAVE_POOL), 0);
             return false;
         }
@@ -290,14 +326,33 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         
         if (balance < amount) return false;
         
-        // SafeERC20's safeTransfer will revert on failure, so we wrap it in try-catch
         usdc.safeTransfer(to, amount);
-        
         return true;
     }
 
     /**
-     * @dev Get proposal details
+     * @dev Return simplified proposal data instead of all fields
+     */
+    function getProposalBasic(uint256 _proposalId) external view returns (
+        ProposalData memory data,
+        VotingData memory voting
+    ) {
+        if (_proposalId >= proposalCount) revert InvalidProposalId();
+        
+        Proposal storage proposal = proposals[_proposalId];
+        return (proposal.data, proposal.voting);
+    }
+
+    /**
+     * @dev  Separate function for execution data
+     */
+    function getProposalExecutionData(uint256 _proposalId) external view returns (bytes memory) {
+        if (_proposalId >= proposalCount) revert InvalidProposalId();
+        return proposals[_proposalId].executionData;
+    }
+
+    /**
+     * @dev  Legacy compatibility - return minimal data
      */
     function getProposal(uint256 _proposalId) external view returns (
         uint256 id,
@@ -316,20 +371,22 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         if (_proposalId >= proposalCount) revert InvalidProposalId();
         
         Proposal storage proposal = proposals[_proposalId];
+        ProposalData memory pData = proposal.data;
+        VotingData memory vData = proposal.voting;
         
         return (
-            proposal.id,
-            proposal.proposer,
-            proposal.proposalType,
-            proposal.amount,
-            proposal.target,
-            proposal.data,
-            proposal.description,
-            proposal.votesFor,
-            proposal.votesAgainst,
-            proposal.deadline,
-            proposal.executed,
-            proposal.cancelled
+            pData.id,
+            pData.proposer,
+            pData.proposalType,
+            pData.amount,
+            pData.target,
+            proposal.executionData,
+            pData.description,
+            vData.votesFor,
+            vData.votesAgainst,
+            vData.deadline,
+            vData.executed,
+            vData.cancelled
         );
     }
 
@@ -346,9 +403,6 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
 
     /**
     * @dev Check if a user has voted on a specific proposal
-    * @param _proposalId ID of the proposal to check
-    * @param _voter Address of the voter to check
-    * @return bool indicating whether the user has voted
     */
     function hasVoted(uint256 _proposalId, address _voter) 
         external 
@@ -356,19 +410,14 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         returns (bool) 
     {
         if (_proposalId >= proposalCount) {
-            return false; // Invalid proposal ID means user hasn't voted on it
+            return false;
         }
         
-        // Access the nested mapping through the proposal struct
         return proposals[_proposalId].hasVoted[_voter];
     }
 
     /**
     * @dev Get the vote choice for a user on a specific proposal
-    * @param _proposalId ID of the proposal to check
-    * @param _voter Address of the voter to check
-    * @return bool indicating the vote choice (true = for, false = against)
-    * @notice Returns false if user hasn't voted (check hasVoted first for accuracy)
     */
     function getVoteChoice(uint256 _proposalId, address _voter) 
         external 
@@ -376,10 +425,9 @@ contract EchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
         returns (bool) 
     {
         if (_proposalId >= proposalCount) {
-            return false; // Invalid proposal ID
+            return false;
         }
         
-        // Access the nested mapping through the proposal struct
         return proposals[_proposalId].voteChoice[_voter];
     }
 

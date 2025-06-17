@@ -135,13 +135,17 @@ contract EchoFiFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Alternative createGroup function for test compatibility
+     * @dev ✅ FIX: Alternative createGroup function for test compatibility - CLEANED UP WARNINGS
+     * @param _name Name of the group
+     * @param _xmtpGroupId XMTP group identifier (for future use)
+     * @param _creatorXmtp Creator's XMTP identifier (for future use)
+     * @param _config Group configuration (for future use)
      */
     function createGroup(
         string memory _name,
         string memory _xmtpGroupId,
-        string memory _creatorXmtp,
-        EchoFiTreasury.GroupConfig memory _config
+        string memory /* _creatorXmtp */, // ✅ FIX: Commented out unused parameter
+        EchoFiTreasury.GroupConfig memory /* _config */ // ✅ FIX: Commented out unused parameter
     ) external payable nonReentrant returns (address) {
         // Validate creation fee
         if (msg.value < creationFee) revert InsufficientFee();

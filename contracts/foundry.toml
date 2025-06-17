@@ -7,11 +7,15 @@ remappings = [
     "@forge-std/=lib/forge-std/src/"
 ]
 
-# Compilation settings
+# ✅ STACK TOO DEEP FIX: Enable viaIR compilation
 solc_version = "0.8.25"
 optimizer = true
 optimizer_runs = 200
-via_ir = true
+via_ir = true  # 🔧 This is the key fix for stack too deep errors
+
+# Additional optimizations for complex contracts
+evm_version = "paris"
+bytecode_hash = "none"
 
 # Testing and Gas Reports
 gas_reports = ["*"]
@@ -25,3 +29,48 @@ base_mainnet = "https://mainnet.base.org"
 [etherscan]
 base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
 base_mainnet = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
+
+# ✅ OPTIMIZATION PROFILE: For production deployment with maximum optimization
+[profile.production]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.25"
+optimizer = true
+optimizer_runs = 1000000  # Maximum optimization for production
+via_ir = true
+evm_version = "paris"
+bytecode_hash = "none"
+remappings = [
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@forge-std/=lib/forge-std/src/"
+]
+
+# ✅ TESTING PROFILE: For comprehensive testing
+[profile.test]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.25"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+verbosity = 3
+gas_reports = ["*"]
+remappings = [
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@forge-std/=lib/forge-std/src/"
+]
+
+# DEBUG PROFILE
+[profile.debug]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.25"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+verbosity = 4  # Maximum verbosity
+extra_output = ["storageLayout", "devdoc", "userdoc"]
+extra_output_files = ["metadata"]

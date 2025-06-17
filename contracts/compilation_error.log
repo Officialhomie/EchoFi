@@ -1,0 +1,5 @@
+Compiling 32 files with Solc 0.8.25
+Solc 0.8.25 finished in 26.76s
+Error: Compiler run failed:
+Error: Yul exception:Variable _4 is 1 too deep in the stack [ JUNK JUNK JUNK _4 _4 _42 _2 _3 _46 _40 _41 _45 _47 _52 _51 _50 _49 _48 _54 _53 memPtr_3 ]
+memoryguard was present.
