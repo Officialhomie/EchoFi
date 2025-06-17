@@ -296,6 +296,11 @@ contract TestEchoFiTreasury is AccessControl, ReentrancyGuard, Pausable {
     }
 }
 
+/**
+ * @title EchoFiTreasuryTest - FIXED VERSION  
+ * @dev Comprehensive tests for treasury functionality with corrected logic
+ * @notice ✅ FIXED: Test expectations and access control issues resolved
+ */
 contract EchoFiTreasuryTest is Test {
     TestEchoFiTreasury public treasury;
     MockUSDC public usdc;
@@ -466,35 +471,56 @@ contract EchoFiTreasuryTest is Test {
         assertTrue(executed);
     }
 
+    /**
+     * @dev ✅ FIXED: Corrected withdrawal test logic
+     * @notice The test was creating DEPOSIT proposals instead of WITHDRAW proposals
+     */
     function test_ProposalExecution_AaveWithdraw() public {
         // First deposit some funds to Aave
-        test_ProposalExecution_AaveDeposit();
-
-        // Create withdrawal proposal
         vm.startPrank(member1);
-        uint256 proposalId = treasury.createProposal(
+        uint256 depositProposalId = treasury.createProposal(
             TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            30_000 * 1e6,
+            address(0),
+            "",
+            "Deposit to Aave"
+        );
+        
+        treasury.vote(depositProposalId, true);
+        vm.stopPrank();
+
+        vm.prank(member2);
+        treasury.vote(depositProposalId, true);
+
+        vm.warp(block.timestamp + 4 days);
+        vm.prank(member1);
+        treasury.executeProposal(depositProposalId);
+
+        // ✅ FIXED: Now create a WITHDRAW proposal (was creating DEPOSIT before)
+        vm.startPrank(member1);
+        uint256 withdrawProposalId = treasury.createProposal(
+            TestEchoFiTreasury.ProposalType.WITHDRAW_AAVE, // ✅ FIXED: Use WITHDRAW_AAVE instead of DEPOSIT_AAVE
             15_000 * 1e6, // Withdraw 15k
             address(0),
             "",
             "Withdraw from Aave"
         );
 
-        treasury.vote(proposalId, true);
+        treasury.vote(withdrawProposalId, true);
         vm.stopPrank();
 
         vm.prank(member2);
-        treasury.vote(proposalId, true);
+        treasury.vote(withdrawProposalId, true);
 
-        // Execute
-        vm.warp(block.timestamp + 4 days);
+        // Execute withdrawal
+        vm.warp(block.timestamp + 8 days); // Move further ahead to avoid deadline conflicts
         vm.prank(member1);
-        treasury.executeProposal(proposalId);
+        treasury.executeProposal(withdrawProposalId);
 
-        // Check balances
+        // ✅ FIXED: Correct balance expectations after withdrawal
         (uint256 usdcBalance, uint256 aUsdcBalance) = treasury.getTreasuryBalance();
-        assertEq(usdcBalance, INITIAL_USDC - 30_000 * 1e6 + 15_000 * 1e6); // 85k USDC
-        assertEq(aUsdcBalance, 30_000 * 1e6 - 15_000 * 1e6); // 15k aUSDC remaining
+        assertEq(usdcBalance, INITIAL_USDC - 30_000 * 1e6 + 15_000 * 1e6); // 100k - 30k + 15k = 85k USDC
+        assertEq(aUsdcBalance, 30_000 * 1e6 - 15_000 * 1e6); // 30k - 15k = 15k aUSDC remaining
     }
 
     function test_QuorumRequirement() public {
@@ -618,10 +644,15 @@ contract EchoFiTreasuryTest is Test {
         assertEq(usdcBalance, INITIAL_USDC - transferAmount);
     }
 
+    /**
+     * @dev ✅ FIXED: Corrected test access control expectations
+     * @notice The test was expecting "Invalid amount" but hitting authorization first
+     */
     function test_InvalidProposalAmount() public {
-        vm.prank(member1);
+        // ✅ FIXED: Use a member account instead of non-member to test amount validation
+        vm.startPrank(member1); // Use member1 who has PROPOSER_ROLE
         
-        // Too small
+        // Test too small amount
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
             TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
@@ -631,7 +662,7 @@ contract EchoFiTreasuryTest is Test {
             "Too small"
         );
 
-        // Too large
+        // Test too large amount
         vm.expectRevert("Invalid amount");
         treasury.createProposal(
             TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
@@ -640,6 +671,8 @@ contract EchoFiTreasuryTest is Test {
             "",
             "Too large"
         );
+        
+        vm.stopPrank();
     }
 
     function test_Events() public {
@@ -647,10 +680,10 @@ contract EchoFiTreasuryTest is Test {
         
         // Test ProposalCreated event
         vm.expectEmit(true, true, false, true);
-        emit EchoFiTreasury.ProposalCreated(
+        emit ProposalCreated(
             0,
             member1,
-            EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+            TestEchoFiTreasury.ProposalType.DEPOSIT_AAVE,
             30_000 * 1e6,
             "Test proposal"
         );
@@ -665,7 +698,7 @@ contract EchoFiTreasuryTest is Test {
 
         // Test VoteCast event
         vm.expectEmit(true, true, false, true);
-        emit EchoFiTreasury.VoteCast(proposalId, member1, true, 40);
+        emit VoteCast(proposalId, member1, true, 40);
         treasury.vote(proposalId, true);
         
         vm.stopPrank();
@@ -677,7 +710,7 @@ contract EchoFiTreasuryTest is Test {
         vm.warp(block.timestamp + 4 days);
         
         vm.expectEmit(true, false, false, true);
-        emit EchoFiTreasury.ProposalExecuted(proposalId, true);
+        emit ProposalExecuted(proposalId, true);
         
         vm.prank(member1);
         treasury.executeProposal(proposalId);
@@ -701,4 +734,9 @@ contract EchoFiTreasuryTest is Test {
         
         vm.stopPrank();
     }
+
+    // ✅ NEW: Test events for different types  
+    event ProposalCreated(uint256 indexed proposalId, address indexed proposer, TestEchoFiTreasury.ProposalType proposalType, uint256 amount, string description);
+    event VoteCast(uint256 indexed proposalId, address indexed voter, bool support, uint256 votingPower);
+    event ProposalExecuted(uint256 indexed proposalId, bool success);
 }

@@ -1,0 +1,71 @@
+Compiling 1 files with Solc 0.8.25
+Solc 0.8.25 finished in 14.01s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to pure
+   --> test/EchoFiIntegrationTest.t.sol:311:5:
+    |
+311 |     function testArchitecturalConsiderations() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+
+Ran 14 tests for test/EchoFiTreasury.t.sol:EchoFiTreasuryTest
+[PASS] test_CannotExecuteBeforeDeadline() (gas: 284202)
+[PASS] test_CannotVoteTwice() (gas: 222311)
+[PASS] test_CreateProposal() (gas: 202726)
+[PASS] test_Events() (gas: 423464)
+[PASS] test_GasUsage() (gas: 145458)
+Logs:
+  Gas used for proposal creation: 136016
+
+[PASS] test_InitialSetup() (gas: 58164)
+[PASS] test_InvalidProposalAmount() (gas: 25980)
+[PASS] test_NonMemberCannotPropose() (gas: 14725)
+[PASS] test_NonMemberCannotVote() (gas: 147879)
+[PASS] test_ProposalExecution_AaveDeposit() (gas: 423589)
+[PASS] test_ProposalExecution_AaveWithdraw() (gas: 729736)
+[PASS] test_QuorumRequirement() (gas: 238069)
+[PASS] test_TransferProposal() (gas: 423431)
+[PASS] test_VotingProcess() (gas: 337804)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 10.22ms (5.48ms CPU time)
+
+Ran 8 tests for test/EchoFiIntegrationTest.t.sol:EchoFiIntegrationTest
+[PASS] testAgentExecutor() (gas: 45478)
+[PASS] testArchitecturalConsiderations() (gas: 3757)
+[PASS] testCreateGroup() (gas: 2171632)
+[PASS] testCreateMultipleGroups() (gas: 4279611)
+[PASS] testDeFiProtocolDeposit() (gas: 115732)
+[PASS] testFactoryStats() (gas: 4275843)
+[PASS] testFundAccounts() (gas: 197859)
+[PASS] testInsufficientCreationFee() (gas: 26932)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 10.20ms (7.36ms CPU time)
+
+Ran 23 tests for test/EchoFiFactory.t.sol:EchoFiFactoryTest
+[PASS] testFuzz_CreateTreasury_ValidVotingPowers(uint8,uint256) (runs: 257, μ: 3007897, ~: 2906289)
+[PASS] test_CreateMultipleTreasuries() (gas: 4691444)
+[PASS] test_CreateTreasury_InsufficientFee() (gas: 30698)
+[PASS] test_CreateTreasury_InvalidMemberCount() (gas: 30546)
+[PASS] test_CreateTreasury_InvalidVotingPowers() (gas: 39053)
+[PASS] test_CreateTreasury_MismatchedArrays() (gas: 35207)
+[PASS] test_CreateTreasury_Success() (gas: 2482402)
+[PASS] test_GasOptimization() (gas: 3461360)
+Logs:
+  Gas used for creating 10-member treasury: 3451360
+
+[PASS] test_GetActiveTreasuries() (gas: 4418788)
+[PASS] test_GetStats() (gas: 6645319)
+[PASS] test_GetTreasuriesPagination() (gas: 11151893)
+[PASS] test_HelperContract_CanUserVote() (gas: 2471071)
+[PASS] test_HelperContract_GetTreasuryDetails() (gas: 2336623)
+[PASS] test_InitialSetup() (gas: 28163)
+[PASS] test_TreasuryNotFound() (gas: 30434)
+[PASS] test_UpdateCreationFee() (gas: 22774)
+[PASS] test_UpdateCreationFee_OnlyOwner() (gas: 13569)
+[PASS] test_UpdateMemberLimits() (gas: 25700)
+[PASS] test_UpdateMemberLimits_InvalidLimits() (gas: 17385)
+[PASS] test_UpdateTreasuryStatus() (gas: 2334758)
+[PASS] test_UpdateTreasuryStatus_Unauthorized() (gas: 2316936)
+[PASS] test_WithdrawFees() (gas: 2328960)
+[PASS] test_WithdrawFees_OnlyOwner() (gas: 13629)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 73.16ms (73.72ms CPU time)
+
+Ran 3 test suites in 164.42ms (93.58ms CPU time): 45 tests passed, 0 failed, 0 skipped (45 total tests)
