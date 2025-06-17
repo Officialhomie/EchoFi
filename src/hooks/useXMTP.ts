@@ -631,128 +631,141 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   /**
    * FIXED: Stable XMTP initialization with improved error handling and retry logic
    */
-const initializeXMTP = useCallback(async () => {
-  if (!signer || !isConnected || !chainId) {
-    setError('Wallet not connected or chain ID not available');
-    setInitializationState({
-      phase: 'starting',
-      progress: 0,
-      currentOperation: 'Waiting for wallet connection',
-      issues: []
-    });
-    return;
-  }
+  const initializeXMTP = useCallback(async () => {
+    if (!signer || !isConnected || !chainId) {
+      setError('Wallet not connected or chain ID not available');
+      setInitializationState({
+        phase: 'starting',
+        progress: 0,
+        currentOperation: 'Waiting for wallet connection',
+        issues: []
+      });
+      return;
+    }
 
-  // Get current address to check if we need to re-initialize
-  let currentAddress: string;
-  try {
-    currentAddress = await signer.getAddress();
-  } catch (error) {
-    // FIXED: Removed unused 'addressError' variable and simplified error handling
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    setError(`Failed to get wallet address: ${errorMessage}`);
-    return;
-  }
-  
-  // OPTIMIZATION: Skip initialization if already initialized for same address and chain
-  if (
-    isInitialized && 
-    lastInitializedAddress.current === currentAddress &&
-    lastInitializedChainId.current === chainId
-  ) {
-    console.log('✅ XMTP already initialized for current address and chain, skipping...');
-    return;
-  }
-
-  // FIXED: Prevent concurrent initialization attempts
-  if (isInitializing) {
-    console.log('🔄 Initialization already in progress, skipping...');
-    return;
-  }
-
-  setIsInitializing(true);
-  setError(null);
-
-  try {
-    console.log('🚀 Starting XMTP initialization for address:', currentAddress, 'on chain:', chainId);
-    
-    // Get or create singleton manager instance
-    xmtpManager.current = EnhancedXMTPManager.getInstance({
-      env: config?.env || 'dev',
-      enableLogging: config?.enableLogging ?? true,
-      dbPath: config?.dbPath || 'echofi-xmtp-unified',
-      maxRetries: 2,
-      retryDelay: 3000,
-      healthCheckInterval: config?.healthCheckInterval || 30000,
-      ...config,
-    });
-
-    // Initialize with progress tracking
-    await xmtpManager.current.initializeClient(
-      signer,
-      (state) => setInitializationState(state)
-    );
-
-    // Update state on successful initialization
-    setClient(xmtpManager.current.client);
-    setIsInitialized(true);
-    lastInitializedAddress.current = currentAddress;
-    lastInitializedChainId.current = chainId;
-    retryCount.current = 0; // Reset retry count on success
-
-    console.log('✅ XMTP initialization completed successfully');
-
-    // Load initial conversations
-    await refreshConversations();
-
-  } catch (error) {
-    console.error('❌ XMTP initialization failed:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    // Provide user-friendly error messages
-    let userFriendlyError = errorMessage;
-    if (errorMessage.includes('user rejected') || errorMessage.includes('User denied')) {
-      userFriendlyError = 'Wallet signature was rejected. Please try again and approve the XMTP signature request.';
-      retryCount.current = 0; // Don't auto-retry on user rejection
-    } else if (errorMessage.includes('already in progress')) {
-      userFriendlyError = 'Initialization already in progress. Please wait a moment and try again.';
-      retryCount.current = 0; // Don't auto-retry on concurrent attempts
-    } else if (errorMessage.includes('database') || errorMessage.includes('SequenceId')) {
-      userFriendlyError = 'Database synchronization error. Please reset the XMTP database and try again.';
-    } else if (errorMessage.includes('Smart contract wallet') || errorMessage.includes('NoVerifier')) {
-      userFriendlyError = 'Wallet verification error. Please try reconnecting your wallet or reset the XMTP database.';
+    // Get current address to check if we need to re-initialize
+    let currentAddress: string;
+    try {
+      currentAddress = await signer.getAddress();
+    } catch (addressError) {
+      setError('Failed to get wallet address:',);
+      return;
     }
     
-    setError(userFriendlyError);
-    
-    setInitializationState({
-      phase: 'failed',
-      progress: 0,
-      currentOperation: 'Initialization failed',
-      issues: [userFriendlyError]
-    });
-    
-    // FIXED: Implement intelligent retry logic
-    if (retryCount.current < maxRetries && 
-        !errorMessage.includes('user rejected') && 
-        !errorMessage.includes('already in progress')) {
+    // OPTIMIZATION: Skip initialization if already initialized for same address and chain
+    if (
+      isInitialized && 
+      lastInitializedAddress.current === currentAddress &&
+      lastInitializedChainId.current === chainId
+    ) {
+      console.log('✅ XMTP already initialized for current address and chain, skipping...');
+      return;
+    }
+
+    // FIXED: Prevent concurrent initialization attempts
+    if (isInitializing) {
+      console.log('🔄 Initialization already in progress, skipping...');
+      return;
+    }
+
+    setIsInitializing(true);
+    setError(null);
+
+    try {
+      console.log('🚀 Starting XMTP initialization for address:', currentAddress, 'on chain:', chainId);
       
-      retryCount.current++;
-      console.log(`⏳ Scheduling retry attempt ${retryCount.current}/${maxRetries} in ${retryDelay/1000} seconds...`);
-      
-      setTimeout(() => {
-        if (!isInitialized && retryCount.current <= maxRetries) {
-          console.log(`🔄 Retry attempt ${retryCount.current}/${maxRetries}`);
-          initializeXMTP();
+      // Get or create singleton manager instance
+      xmtpManager.current = EnhancedXMTPManager.getInstance({
+        env: config?.env || 'dev',
+        enableLogging: config?.enableLogging ?? true,
+        dbPath: config?.dbPath || 'echofi-xmtp-unified',
+        maxRetries: 2, // REDUCED: Prevent retry loops
+        retryDelay: 3000,
+        healthCheckInterval: config?.healthCheckInterval || 30000,
+        ...config,
+      });
+
+      // Monitor initialization state
+      const stateUpdateInterval = setInterval(() => {
+        if (xmtpManager.current) {
+          const state = xmtpManager.current.getInitializationState();
+          setInitializationState(state);
+          
+          if (state.phase === 'ready' || state.phase === 'failed') {
+            clearInterval(stateUpdateInterval);
+          }
         }
-      }, retryDelay);
+      }, 100);
+
+      // FIXED: Create stable browser-compatible signer with proper wallet type detection
+      const browserSigner = createStableBrowserSigner(signer, chainId);
+      
+      // Initialize client with singleton manager
+      const xmtpClient = await xmtpManager.current.initializeClient(browserSigner, config);
+      
+      setClient(xmtpClient);
+      setIsInitialized(true);
+      lastInitializedAddress.current = currentAddress;
+      lastInitializedChainId.current = chainId;
+      retryCount.current = 0; // Reset retry count on success
+      
+      // Perform initial health check
+      const healthReport = await xmtpManager.current.performHealthCheck();
+      setDatabaseHealth(healthReport);
+      
+      // Load existing conversations
+      await refreshConversations();
+      
+      console.log('✅ XMTP initialization completed successfully for address:', currentAddress);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('❌ XMTP initialization failed:', errorMessage);
+      
+      // FIXED: Handle specific error types with appropriate recovery suggestions
+      let userFriendlyError = errorMessage;
+      
+      if (errorMessage.includes('user rejected') || errorMessage.includes('User rejected')) {
+        userFriendlyError = 'Signature request was cancelled. XMTP needs your signature to create a secure messaging identity.';
+        retryCount.current = 0; // Don't auto-retry on user rejection
+      } else if (errorMessage.includes('already in progress')) {
+        userFriendlyError = 'Initialization is already in progress. Please wait a moment and try again.';
+        retryCount.current = 0; // Don't auto-retry on concurrent attempts
+      } else if (errorMessage.includes('database') || errorMessage.includes('SequenceId')) {
+        userFriendlyError = 'Database synchronization error. Please reset the XMTP database and try again.';
+      } else if (errorMessage.includes('Smart contract wallet') || errorMessage.includes('NoVerifier')) {
+        userFriendlyError = 'Wallet verification error. Please try reconnecting your wallet or reset the XMTP database.';
+      }
+      
+      setError(userFriendlyError);
+      
+      setInitializationState({
+        phase: 'failed',
+        progress: 0,
+        currentOperation: 'Initialization failed',
+        issues: [userFriendlyError]
+      });
+      
+      // FIXED: Implement intelligent retry logic
+      if (retryCount.current < maxRetries && 
+          !errorMessage.includes('user rejected') && 
+          !errorMessage.includes('already in progress')) {
+        
+        retryCount.current++;
+        console.log(`⏳ Scheduling retry attempt ${retryCount.current}/${maxRetries} in ${retryDelay/1000} seconds...`);
+        
+        setTimeout(() => {
+          if (!isInitialized && retryCount.current <= maxRetries) {
+            console.log(`🔄 Retry attempt ${retryCount.current}/${maxRetries}`);
+            initializeXMTP();
+          }
+        }, retryDelay);
+      }
+      
+    } finally {
+      setIsInitializing(false);
     }
-    
-  } finally {
-    setIsInitializing(false);
-  }
-}, [signer, isConnected, chainId, config, isInitialized, isInitializing]);
+  }, [signer, isConnected, chainId, config, isInitialized, isInitializing]);
 
   // ... Rest of the hook methods remain the same ...
   
