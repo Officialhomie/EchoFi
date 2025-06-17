@@ -388,7 +388,7 @@ export function useWallet(): UseWalletReturn {
     if (!ethereum) {
       throw new Error('No wallet found');
     }
-
+  
     try {
       console.log(`🔗 Switching to chain ${targetChainId}...`);
       
@@ -402,42 +402,39 @@ export function useWallet(): UseWalletReturn {
       // Update our tracking
       lastConnectedChainId.current = targetChainId;
       
-      // Refresh connection to update state
-      setTimeout(() => {
-        checkConnection();
-      }, 1000);
+    } catch (error: unknown) {
+      console.error('❌ Chain switch failed:', error);
       
-    } catch (err: unknown) {
-      console.error('❌ Chain switch failed:', err);
-      
-      if (err && typeof err === 'object' && 'code' in err) {
-        const error = err as { code: number };
-        if (error.code === 4902) {
+      if (error && typeof error === 'object' && 'code' in error) {
+        const switchError = error as { code: number; message?: string };
+        
+        if (switchError.code === 4902) {
+          // Chain not added to wallet, try to add it
           const chainData = getChainData(targetChainId);
           if (chainData) {
-            console.log('➕ Adding new chain to wallet...');
-            await ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [chainData],
-            });
-            console.log('✅ Chain added successfully');
-            
-            // Update tracking after successful addition
-            lastConnectedChainId.current = targetChainId;
-            setTimeout(() => {
-              checkConnection();
-            }, 1000);
+            try {
+              await ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [chainData],
+              });
+              console.log('✅ Chain added and switched successfully');
+            } catch (addError) {
+              console.error('❌ Failed to add chain:', addError);
+              throw new Error(`Failed to add chain ${targetChainId} to wallet`);
+            }
           } else {
             throw new Error(`Unsupported chain ID: ${targetChainId}`);
           }
+        } else if (switchError.code === 4001) {
+          throw new Error('User rejected chain switch request');
         } else {
-          throw err;
+          throw new Error(switchError.message || `Failed to switch to chain ${targetChainId}`);
         }
       } else {
-        throw err;
+        throw error;
       }
     }
-  }, [checkConnection]);
+  }, []);
 
   const refreshBalance = useCallback(async () => {
     if (walletState.provider && walletState.address) {
@@ -467,12 +464,14 @@ export function useWallet(): UseWalletReturn {
   // Auto-switch to Base Sepolia on first connection if not on supported network
   useEffect(() => {
     if (walletState.isConnected && walletState.chainId) {
-      const supportedChains = [8453, 84532];
+      const supportedChains = [8453, 84532]; // Base Mainnet, Base Sepolia
+      
       if (!supportedChains.includes(walletState.chainId)) {
-        console.log('⚠️ Wallet connected to unsupported chain, suggesting Base Sepolia...');
+        console.warn(`⚠️ Connected to unsupported chain: ${walletState.chainId}`);
         
-        // For development, default to Base Sepolia
-        const targetChain = process.env.NODE_ENV === 'production' ? 8453 : 84532;
+        // Auto-switch to a supported chain
+        const targetChain = process.env.NODE_ENV === 'production' ? 
+          8453 : 84532;
         
         setTimeout(async () => {
           try {

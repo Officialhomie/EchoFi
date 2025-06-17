@@ -1,6 +1,7 @@
+// FIXED: src/components/debug/InitializationDebug.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useInvestmentAgent } from '@/hooks/useAgent';
@@ -60,8 +61,8 @@ export function InitializationDebug() {
   const xmtp = useXMTP();
   const agent = useInvestmentAgent();
 
-  // FIXED: Enhanced state monitoring with proper typing
-  const connectionState: ConnectionStateInfo = {
+  // FIXED: Memoize connectionState to prevent dependency array changes
+  const connectionState: ConnectionStateInfo = useMemo(() => ({
     wallet: {
       connected: wallet.isConnected,
       address: wallet.address,
@@ -92,10 +93,29 @@ export function InitializationDebug() {
       error: agent.error,
       serverStatus: agentHealthCheck?.status || null,
     },
-  };
+  }), [
+    wallet.isConnected,
+    wallet.address,
+    wallet.chainId,
+    wallet.isConnecting,
+    wallet.error,
+    xmtp.isInitialized,
+    xmtp.isInitializing,
+    xmtp.conversations.length,
+    xmtp.initializationState.phase,
+    xmtp.initializationState.progress,
+    xmtp.initializationState.currentOperation,
+    xmtp.error,
+    xmtp.databaseHealth?.isHealthy,
+    xmtp.databaseHealth?.sequenceIdStatus,
+    agent.isInitialized,
+    agent.isInitializing,
+    agent.error,
+    agentHealthCheck?.status,
+  ]);
 
-  // FIXED: Enhanced agent health check with better error handling
-  const checkAgentHealth = async () => {
+  // FIXED: Wrap checkAgentHealth in useCallback to prevent dependency array changes
+  const checkAgentHealth = useCallback(async () => {
     try {
       console.log('🏥 [DEBUG] Performing agent health check...');
       const response = await fetch('/api/agent', { 
@@ -131,17 +151,17 @@ export function InitializationDebug() {
       setAgentHealthCheck(errorResult);
       addToHistory(`Agent health check failed: ${errorResult.error}`);
     }
-  };
+  }, [wallet.chainId]);
 
-  // FIXED: Connection history tracking
-  const addToHistory = (event: string) => {
+  // Connection history tracking
+  const addToHistory = useCallback((event: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const entry = `${timestamp}: ${event}`;
     setConnectionHistory(prev => [entry, ...prev.slice(0, 9)]); // Keep last 10 entries
-  };
+  }, []);
 
-  // FIXED: Enhanced retry functions with proper error handling
-  const retryWallet = async () => {
+  // Enhanced retry functions with proper error handling
+  const retryWallet = useCallback(async () => {
     try {
       addToHistory('Retrying wallet connection...');
       await wallet.connect();
@@ -150,9 +170,9 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Wallet retry failed: ${errorMsg}`);
     }
-  };
+  }, [wallet.connect, addToHistory]);
 
-  const retryXMTP = async () => {
+  const retryXMTP = useCallback(async () => {
     try {
       addToHistory('Retrying XMTP initialization...');
       await xmtp.initializeXMTP();
@@ -161,9 +181,9 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP retry failed: ${errorMsg}`);
     }
-  };
+  }, [xmtp.initializeXMTP, addToHistory]);
 
-  const resetXMTPDatabase = async () => {
+  const resetXMTPDatabase = useCallback(async () => {
     try {
       addToHistory('Resetting XMTP database...');
       await xmtp.resetDatabase();
@@ -172,9 +192,9 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP reset failed: ${errorMsg}`);
     }
-  };
+  }, [xmtp.resetDatabase, addToHistory]);
 
-  const retryAgent = async () => {
+  const retryAgent = useCallback(async () => {
     try {
       addToHistory('Retrying agent initialization...');
       await agent.initializeAgent();
@@ -184,9 +204,9 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Agent retry failed: ${errorMsg}`);
     }
-  };
+  }, [agent.initializeAgent, checkAgentHealth, addToHistory]);
 
-  // FIXED: Enhanced monitoring with state change detection
+  // FIXED: Enhanced monitoring with stable dependencies
   useEffect(() => {
     // Track significant state changes
     const currentTime = Date.now();
@@ -209,24 +229,25 @@ export function InitializationDebug() {
     xmtp.initializationState.phase,
     agent.isInitialized,
     lastUpdateTime,
-    connectionState,
-    agentHealthCheck
+    connectionState, // Now stable due to useMemo
+    agentHealthCheck,
+    checkAgentHealth, // Now stable due to useCallback
   ]);
 
-  // FIXED: Track connection state changes in history
+  // Track connection state changes in history
   useEffect(() => {
     if (wallet.isConnected && wallet.address) {
       addToHistory(`Wallet connected: ${wallet.address} on ${connectionState.wallet.chainName}`);
     }
-  }, [wallet.isConnected, wallet.address, wallet.chainId, connectionState.wallet.chainName]);
+  }, [wallet.isConnected, wallet.address, wallet.chainId, connectionState.wallet.chainName, addToHistory]);
 
   useEffect(() => {
     if (xmtp.isInitialized) {
       addToHistory(`XMTP initialized: ${xmtp.conversations.length} conversations`);
     }
-  }, [xmtp.isInitialized, xmtp.conversations.length]);
+  }, [xmtp.isInitialized, xmtp.conversations.length, addToHistory]);
 
-  // FIXED: Compact button when not visible
+  // Compact button when not visible
   if (!isVisible) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
@@ -271,7 +292,7 @@ export function InitializationDebug() {
         </CardHeader>
         <CardContent className="space-y-4 text-xs max-h-96 overflow-y-auto">
           
-          {/* FIXED: Enhanced Wallet Status */}
+          {/* Enhanced Wallet Status */}
           <div>
             <h4 className="font-medium text-blue-400 mb-2 flex items-center">
               💰 Wallet Status
@@ -311,7 +332,7 @@ export function InitializationDebug() {
             </div>
           </div>
 
-          {/* FIXED: Enhanced XMTP Status */}
+          {/* Enhanced XMTP Status */}
           <div>
             <h4 className="font-medium text-purple-400 mb-2 flex items-center">
               💬 XMTP Status
@@ -360,7 +381,7 @@ export function InitializationDebug() {
             </div>
           </div>
 
-          {/* FIXED: Enhanced Agent Status */}
+          {/* Enhanced Agent Status */}
           <div>
             <h4 className="font-medium text-orange-400 mb-2 flex items-center">
               🤖 Agent Status
@@ -394,71 +415,59 @@ export function InitializationDebug() {
             </div>
           </div>
 
-          {/* ADDED: Connection History */}
+          {/* Connection History */}
           <div>
             <h4 className="font-medium text-cyan-400 mb-2">📜 Recent Activity</h4>
             <div className="bg-gray-800 p-2 rounded max-h-32 overflow-y-auto">
               {connectionHistory.length > 0 ? (
-                <div className="space-y-1">
-                  {connectionHistory.map((entry, index) => (
-                    <div key={index} className="text-xs text-gray-300">
-                      {entry}
-                    </div>
-                  ))}
-                </div>
+                connectionHistory.map((entry, index) => (
+                  <div key={index} className="text-xs text-gray-300 py-0.5">
+                    {entry}
+                  </div>
+                ))
               ) : (
                 <div className="text-xs text-gray-500">No recent activity</div>
               )}
             </div>
           </div>
 
-          {/* FIXED: Enhanced Action Buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-2">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2">
             <Button 
-              onClick={retryWallet}
-              size="sm"
+              onClick={retryWallet} 
+              size="sm" 
               variant="outline"
+              className="text-xs"
               disabled={wallet.isConnecting}
-              className="text-xs border-blue-600 text-blue-300 hover:bg-blue-900"
             >
-              {wallet.isConnecting ? '⏳' : '🔄'} Wallet
+              🔄 Wallet
             </Button>
             <Button 
-              onClick={retryXMTP}
-              size="sm"
+              onClick={retryXMTP} 
+              size="sm" 
               variant="outline"
+              className="text-xs"
               disabled={xmtp.isInitializing}
-              className="text-xs border-purple-600 text-purple-300 hover:bg-purple-900"
             >
-              {xmtp.isInitializing ? '⏳' : '🔄'} XMTP
+              🔄 XMTP
             </Button>
             <Button 
-              onClick={resetXMTPDatabase}
-              size="sm"
+              onClick={resetXMTPDatabase} 
+              size="sm" 
               variant="outline"
-              className="text-xs border-red-600 text-red-300 hover:bg-red-900"
+              className="text-xs text-red-400"
             >
               🗑️ Reset DB
             </Button>
             <Button 
-              onClick={retryAgent}
-              size="sm"
+              onClick={retryAgent} 
+              size="sm" 
               variant="outline"
+              className="text-xs"
               disabled={agent.isInitializing}
-              className="text-xs border-orange-600 text-orange-300 hover:bg-orange-900"
             >
-              {agent.isInitializing ? '⏳' : '🔄'} Agent
+              🔄 Agent
             </Button>
-          </div>
-
-          {/* ADDED: System Information */}
-          <div className="pt-2 border-t border-gray-700">
-            <div className="text-xs text-gray-500 space-y-1">
-              <div>Environment: {process.env.NODE_ENV}</div>
-              <div>XMTP Env: {process.env.NEXT_PUBLIC_XMTP_ENV}</div>
-              <div>Network ID: {process.env.NEXT_PUBLIC_NETWORK_ID}</div>
-              <div>Build: {process.env.NODE_ENV === 'development' ? 'Dev' : 'Prod'}</div>
-            </div>
           </div>
         </CardContent>
       </Card>

@@ -413,6 +413,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     wallet.signer, 
     wallet.address,
     wallet.chainId,
+    xmtp,
     xmtp.isInitialized, 
     xmtp.isInitializing, 
     xmtp.initializeXMTP,
