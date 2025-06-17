@@ -434,7 +434,7 @@ export function useWallet(): UseWalletReturn {
         throw error;
       }
     }
-  }, []);
+  }, []); 
 
   const refreshBalance = useCallback(async () => {
     if (walletState.provider && walletState.address) {

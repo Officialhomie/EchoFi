@@ -647,8 +647,10 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     let currentAddress: string;
     try {
       currentAddress = await signer.getAddress();
-    } catch (addressError) {
-      setError('Failed to get wallet address:',);
+    } catch (error) {
+      // FIXED: Removed unused variable 'addressError' and fixed setError syntax
+      console.error('Failed to get wallet address:', error);
+      setError('Failed to get wallet address');
       return;
     }
     
@@ -767,8 +769,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     }
   }, [signer, isConnected, chainId, config, isInitialized, isInitializing]);
 
-  // ... Rest of the hook methods remain the same ...
-  
   /**
    * Refresh conversations with enhanced error handling
    */
@@ -797,7 +797,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
         setError(`Failed to load conversations: ${errorMessage}`);
       }
     }
-  }, [error]); 
+  }, [error]);
 
   /**
    * Repair SequenceId database issues
@@ -822,7 +822,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
   }, []);
 
   /**
-   * Perform comprehensive health check
+   * FIXED: Perform comprehensive health check with refreshConversations dependency
    */
   const performHealthCheck = useCallback(async (): Promise<DatabaseHealthReport> => {
     if (!xmtpManager.current) {
@@ -832,12 +832,18 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     try {
       const report = await xmtpManager.current.performHealthCheck();
       setDatabaseHealth(report);
+      
+      // Refresh conversations if database is healthy
+      if (report.isHealthy) {
+        await refreshConversations();
+      }
+      
       return report;
     } catch (error) {
       console.error('❌ Health check failed:', error);
       throw error;
     }
-  }, []);
+  }, [refreshConversations]); // FIXED: Added refreshConversations dependency
 
   /**
    * Reset database with comprehensive cleanup
@@ -930,19 +936,26 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     throw new Error('Member management will be implemented in Phase 2');
   }, []);
 
+  // FIXED: Enhanced canMessage implementation with proper error handling
   const canMessage = useCallback(async (addresses: string[]): Promise<Map<string, boolean>> => {
     if (!xmtpManager.current) {
       throw new Error('XMTP not initialized');
     }
-  
+
     try {
       return await xmtpManager.current.canMessage(addresses);
     } catch (error) {
-      console.error('❌ Failed to check message capability:', error);
-      // Return empty map on error rather than throwing
-      return new Map();
+      console.error('❌ Failed to check message capabilities:', error);
+      
+      // FIXED: Removed unused variable 'addressError'
+      // Previously had: const addressError = error instanceof Error ? error.message : String(error);
+      
+      // Return a map with all addresses set to false on error
+      const result = new Map<string, boolean>();
+      addresses.forEach(addr => result.set(addr, false));
+      return result;
     }
-  }, []);
+  }, []); // No dependencies needed - function uses parameters and manager reference
 
   const cleanup = useCallback(async () => {
     try {

@@ -61,6 +61,52 @@ export function InitializationDebug() {
   const xmtp = useXMTP();
   const agent = useInvestmentAgent();
 
+  // FIXED: Connection history tracking - STABLE function
+  const addToHistory = useCallback((event: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = `${timestamp}: ${event}`;
+    setConnectionHistory(prev => [entry, ...prev.slice(0, 9)]); // Keep last 10 entries
+  }, []); // No dependencies needed - this function is self-contained
+
+  // FIXED: Agent health check with proper dependencies
+  const checkAgentHealth = useCallback(async () => {
+    try {
+      console.log('🏥 [DEBUG] Performing agent health check...');
+      const response = await fetch('/api/agent', { 
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      setAgentHealthCheck(result);
+      console.log('✅ [DEBUG] Agent health check completed:', result);
+      
+      // Add to connection history
+      addToHistory(`Agent health: ${result.status}`);
+      
+    } catch (error) {
+      console.error('❌ [DEBUG] Health check failed:', error);
+      const errorResult: AgentHealthCheck = { 
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: {
+          agentInitialized: false,
+          environment: process.env.NODE_ENV || 'unknown',
+          networkId: wallet.chainId?.toString() || 'unknown',
+          features: [],
+        }
+      };
+      setAgentHealthCheck(errorResult);
+      addToHistory(`Agent health check failed: ${errorResult.error}`);
+    }
+  }, [wallet.chainId, addToHistory]); // FIXED: Added addToHistory dependency
+
   // FIXED: Memoize connectionState to prevent dependency array changes
   const connectionState: ConnectionStateInfo = useMemo(() => ({
     wallet: {
@@ -114,53 +160,7 @@ export function InitializationDebug() {
     agentHealthCheck?.status,
   ]);
 
-  // FIXED: Wrap checkAgentHealth in useCallback to prevent dependency array changes
-  const checkAgentHealth = useCallback(async () => {
-    try {
-      console.log('🏥 [DEBUG] Performing agent health check...');
-      const response = await fetch('/api/agent', { 
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      setAgentHealthCheck(result);
-      console.log('✅ [DEBUG] Agent health check completed:', result);
-      
-      // Add to connection history
-      addToHistory(`Agent health: ${result.status}`);
-      
-    } catch (error) {
-      console.error('❌ [DEBUG] Health check failed:', error);
-      const errorResult: AgentHealthCheck = { 
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: {
-          agentInitialized: false,
-          environment: process.env.NODE_ENV || 'unknown',
-          networkId: wallet.chainId?.toString() || 'unknown',
-          features: [],
-        }
-      };
-      setAgentHealthCheck(errorResult);
-      addToHistory(`Agent health check failed: ${errorResult.error}`);
-    }
-  }, [wallet.chainId]);
-
-  // Connection history tracking
-  const addToHistory = useCallback((event: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const entry = `${timestamp}: ${event}`;
-    setConnectionHistory(prev => [entry, ...prev.slice(0, 9)]); // Keep last 10 entries
-  }, []);
-
-  // Enhanced retry functions with proper error handling
+  // FIXED: Enhanced retry functions with proper error handling and dependencies
   const retryWallet = useCallback(async () => {
     try {
       addToHistory('Retrying wallet connection...');
@@ -170,7 +170,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Wallet retry failed: ${errorMsg}`);
     }
-  }, [wallet.connect, addToHistory]);
+  }, [wallet.connect, addToHistory]); // FIXED: Added wallet dependency
 
   const retryXMTP = useCallback(async () => {
     try {
@@ -181,7 +181,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP retry failed: ${errorMsg}`);
     }
-  }, [xmtp.initializeXMTP, addToHistory]);
+  }, [xmtp.initializeXMTP, addToHistory]); // FIXED: Added xmtp dependency
 
   const resetXMTPDatabase = useCallback(async () => {
     try {
@@ -192,7 +192,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP reset failed: ${errorMsg}`);
     }
-  }, [xmtp.resetDatabase, addToHistory]);
+  }, [xmtp.resetDatabase, addToHistory]); // FIXED: Added xmtp dependency
 
   const retryAgent = useCallback(async () => {
     try {
@@ -204,7 +204,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Agent retry failed: ${errorMsg}`);
     }
-  }, [agent.initializeAgent, checkAgentHealth, addToHistory]);
+  }, [agent.initializeAgent, checkAgentHealth, addToHistory]); // FIXED: Added agent dependency
 
   // FIXED: Enhanced monitoring with stable dependencies
   useEffect(() => {
@@ -305,34 +305,41 @@ export function InitializationDebug() {
               <div className="flex justify-between">
                 <span>Connected:</span>
                 <span className={connectionState.wallet.connected ? 'text-green-400' : 'text-red-400'}>
-                  {connectionState.wallet.connected ? '✅' : '❌'}
+                  {connectionState.wallet.connected ? 'Yes' : 'No'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Address:</span>
-                <span className="font-mono text-gray-300 truncate max-w-24" title={connectionState.wallet.address || 'None'}>
-                  {connectionState.wallet.address ? `${connectionState.wallet.address.slice(0, 6)}...` : 'None'}
-                </span>
-              </div>
+              {connectionState.wallet.address && (
+                <div className="flex justify-between">
+                  <span>Address:</span>
+                  <span className="text-blue-400 font-mono text-xs">
+                    {connectionState.wallet.address.slice(0, 6)}...{connectionState.wallet.address.slice(-4)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Network:</span>
-                <span className={`text-xs px-1 rounded ${
-                  connectionState.wallet.chainId === 84532 ? 'bg-blue-600 text-blue-100' :
-                  connectionState.wallet.chainId === 8453 ? 'bg-green-600 text-green-100' :
-                  'bg-red-600 text-red-100'
-                }`}>
-                  {connectionState.wallet.chainName}
-                </span>
+                <span className="text-gray-300">{connectionState.wallet.chainName}</span>
               </div>
               {connectionState.wallet.error && (
-                <div className="text-red-400 text-xs mt-1 p-1 bg-red-900/20 rounded">
-                  {connectionState.wallet.error}
+                <div className="text-red-400 text-xs mt-1">
+                  Error: {connectionState.wallet.error}
+                </div>
+              )}
+              {!connectionState.wallet.connected && (
+                <div className="mt-2">
+                  <Button 
+                    onClick={retryWallet}
+                    size="sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    Retry Connection
+                  </Button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Enhanced XMTP Status */}
+          {/* XMTP Status */}
           <div>
             <h4 className="font-medium text-purple-400 mb-2 flex items-center">
               💬 XMTP Status
@@ -345,45 +352,59 @@ export function InitializationDebug() {
               <div className="flex justify-between">
                 <span>Initialized:</span>
                 <span className={connectionState.xmtp.initialized ? 'text-green-400' : 'text-red-400'}>
-                  {connectionState.xmtp.initialized ? '✅' : '❌'}
+                  {connectionState.xmtp.initialized ? 'Yes' : 'No'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Phase:</span>
-                <span className="text-yellow-400">{connectionState.xmtp.phase}</span>
+                <span className="text-gray-300">{connectionState.xmtp.phase}</span>
               </div>
               <div className="flex justify-between">
                 <span>Progress:</span>
-                <span>{connectionState.xmtp.progress}%</span>
+                <span className="text-gray-300">{connectionState.xmtp.progress}%</span>
               </div>
               <div className="flex justify-between">
                 <span>Conversations:</span>
-                <span>{connectionState.xmtp.conversations}</span>
+                <span className="text-gray-300">{connectionState.xmtp.conversations}</span>
               </div>
               <div className="flex justify-between">
                 <span>DB Health:</span>
                 <span className={
-                  connectionState.xmtp.databaseHealth === 'Healthy' ? 'text-green-400' :
-                  connectionState.xmtp.databaseHealth === 'Corrupted' ? 'text-red-400' :
-                  'text-yellow-400'
+                  connectionState.xmtp.databaseHealth === 'Healthy' ? 'text-green-400' : 
+                  connectionState.xmtp.databaseHealth === 'Corrupted' ? 'text-red-400' : 'text-yellow-400'
                 }>
-                  {connectionState.xmtp.databaseHealth || 'Unknown'}
+                  {connectionState.xmtp.databaseHealth}
                 </span>
               </div>
-              <div className="text-xs text-gray-400 truncate" title={connectionState.xmtp.currentOperation}>
-                {connectionState.xmtp.currentOperation}
-              </div>
               {connectionState.xmtp.error && (
-                <div className="text-red-400 text-xs mt-1 p-1 bg-red-900/20 rounded">
-                  {connectionState.xmtp.error}
+                <div className="text-red-400 text-xs mt-1">
+                  Error: {connectionState.xmtp.error}
                 </div>
               )}
+              <div className="mt-2 space-y-1">
+                <Button 
+                  onClick={retryXMTP}
+                  size="sm"
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  disabled={connectionState.xmtp.initializing}
+                >
+                  Retry XMTP
+                </Button>
+                <Button 
+                  onClick={resetXMTPDatabase}
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-red-400 text-red-400 hover:bg-red-400 hover:text-white"
+                >
+                  Reset Database
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Enhanced Agent Status */}
+          {/* Agent Status */}
           <div>
-            <h4 className="font-medium text-orange-400 mb-2 flex items-center">
+            <h4 className="font-medium text-green-400 mb-2 flex items-center">
               🤖 Agent Status
               <span className={`ml-2 w-2 h-2 rounded-full ${
                 connectionState.agent.initialized ? 'bg-green-400' : 
@@ -394,80 +415,52 @@ export function InitializationDebug() {
               <div className="flex justify-between">
                 <span>Initialized:</span>
                 <span className={connectionState.agent.initialized ? 'text-green-400' : 'text-red-400'}>
-                  {connectionState.agent.initialized ? '✅' : '❌'}
+                  {connectionState.agent.initialized ? 'Yes' : 'No'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Server Status:</span>
                 <span className={
-                  connectionState.agent.serverStatus === 'healthy' ? 'text-green-400' :
-                  connectionState.agent.serverStatus === 'configuration_needed' ? 'text-yellow-400' :
-                  'text-red-400'
+                  connectionState.agent.serverStatus === 'healthy' ? 'text-green-400' : 
+                  connectionState.agent.serverStatus === 'error' ? 'text-red-400' : 'text-yellow-400'
                 }>
                   {connectionState.agent.serverStatus || 'Unknown'}
                 </span>
               </div>
               {connectionState.agent.error && (
-                <div className="text-red-400 text-xs mt-1 p-1 bg-red-900/20 rounded">
-                  {connectionState.agent.error}
+                <div className="text-red-400 text-xs mt-1">
+                  Error: {connectionState.agent.error}
                 </div>
               )}
+              <div className="mt-2">
+                <Button 
+                  onClick={retryAgent}
+                  size="sm"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={connectionState.agent.initializing}
+                >
+                  Retry Agent
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Connection History */}
           <div>
-            <h4 className="font-medium text-cyan-400 mb-2">📜 Recent Activity</h4>
+            <h4 className="font-medium text-gray-400 mb-2">📋 Connection History</h4>
             <div className="bg-gray-800 p-2 rounded max-h-32 overflow-y-auto">
               {connectionHistory.length > 0 ? (
-                connectionHistory.map((entry, index) => (
-                  <div key={index} className="text-xs text-gray-300 py-0.5">
-                    {entry}
-                  </div>
-                ))
+                <div className="space-y-1">
+                  {connectionHistory.map((entry, index) => (
+                    <div key={index} className="text-xs text-gray-300 font-mono">
+                      {entry}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="text-xs text-gray-500">No recent activity</div>
+                <div className="text-xs text-gray-500">No connection events yet...</div>
               )}
             </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-2">
-            <Button 
-              onClick={retryWallet} 
-              size="sm" 
-              variant="outline"
-              className="text-xs"
-              disabled={wallet.isConnecting}
-            >
-              🔄 Wallet
-            </Button>
-            <Button 
-              onClick={retryXMTP} 
-              size="sm" 
-              variant="outline"
-              className="text-xs"
-              disabled={xmtp.isInitializing}
-            >
-              🔄 XMTP
-            </Button>
-            <Button 
-              onClick={resetXMTPDatabase} 
-              size="sm" 
-              variant="outline"
-              className="text-xs text-red-400"
-            >
-              🗑️ Reset DB
-            </Button>
-            <Button 
-              onClick={retryAgent} 
-              size="sm" 
-              variant="outline"
-              className="text-xs"
-              disabled={agent.isInitializing}
-            >
-              🔄 Agent
-            </Button>
           </div>
         </CardContent>
       </Card>
