@@ -173,6 +173,9 @@ The AgentKit-powered agent responds to natural language:
 
 **Live Demo**: [https://echofi.vercel.app](https://echofi.vercel.app) *(Base Sepolia testnet)*
 
+**Example Treasury**: `0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5`
+**Example LInk**: `0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5`(https://sepolia.basescan.org/tx/0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5)
+
 **Demo Video**: [Watch on YouTube](https://youtube.com/watch?v=demo-link)
 
 ### Demo Flow
@@ -257,28 +260,6 @@ We welcome contributions! This project was built for the XMTP Buildathon but rep
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🏆 Buildathon Submission
-
-**XMTP Buildathon 2024**
-
-**Category**: Utility Applications  
-**Theme**: Decentralized Group Coordination  
-**Team Size**: Solo Project  
-**Development Time**: 14 days  
-
-### Judging Criteria Alignment
-
-- **Technicality**: XMTP v3 MLS implementation + AgentKit integration + Custom smart contracts
-- **Aesthetics**: Modern Next.js interface with responsive TailwindCSS design
-- **Practicality**: Solves real group investment coordination problems
-- **Wow Factor**: Seamless messaging-to-DeFi execution flows
-- **Onchain Integration**: Comprehensive Base smart contract functionality
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/echofi/issues)
-- **Discord**: [XMTP Community](https://discord.gg/xmtp)
-- **Email**: [your-email@example.com](mailto:your-email@example.com)
-- **Documentation**: This README + inline code documentation
 
 ## 🙏 Acknowledgments
 
