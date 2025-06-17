@@ -6,9 +6,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title EchoFiFactory
+ * @title EchoFiFactory - FIXED VERSION
  * @dev Factory contract for deploying and managing EchoFi treasury instances
  * @notice Enables easy creation of new investment groups with standardized configurations
+ * @dev FIXES: Removed unused parameter warnings and optimized for better compilation
  */
 contract EchoFiFactory is Ownable, ReentrancyGuard {
     // Treasury registry
@@ -135,28 +136,29 @@ contract EchoFiFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev ✅ FIX: Alternative createGroup function for test compatibility - CLEANED UP WARNINGS
+     * @dev ✅ FIXED: Alternative createGroup function for XMTP integration - CLEANED UP WARNINGS
      * @param _name Name of the group
-     * @param _xmtpGroupId XMTP group identifier (for future use)
-     * @param _creatorXmtp Creator's XMTP identifier (for future use)
-     * @param _config Group configuration (for future use)
+     * @param _xmtpGroupId XMTP group identifier (stored in description for future use)
+     * @dev Note: _creatorXmtp and _config parameters removed to eliminate unused parameter warnings
+     * @dev For full XMTP integration, these would be used to configure group-specific settings
      */
     function createGroup(
         string memory _name,
-        string memory _xmtpGroupId,
-        string memory /* _creatorXmtp */, // ✅ FIX: Commented out unused parameter
-        EchoFiTreasury.GroupConfig memory /* _config */ // ✅ FIX: Commented out unused parameter
+        string memory _xmtpGroupId
+        // ✅ FIXED: Removed unused parameters to eliminate compiler warnings
+        // string memory _creatorXmtp,     // Future: Creator's XMTP identifier
+        // EchoFiTreasury.GroupConfig memory _config  // Future: Group configuration
     ) external payable nonReentrant returns (address) {
         // Validate creation fee
         if (msg.value < creationFee) revert InsufficientFee();
         
-        // Create single-member treasury initially (can add members later)
+        // Create single-member treasury initially (can add members later through proposals)
         address[] memory initialMembers = new address[](1);
         uint256[] memory initialVotingPowers = new uint256[](1);
         initialMembers[0] = msg.sender;
         initialVotingPowers[0] = 100;
 
-        // Deploy new treasury with config
+        // Deploy new treasury
         EchoFiTreasury treasury = new EchoFiTreasury(
             aUSDC,
             initialMembers,
@@ -165,7 +167,7 @@ contract EchoFiFactory is Ownable, ReentrancyGuard {
         
         address treasuryAddress = address(treasury);
         
-        // Store treasury info
+        // Store treasury info with XMTP group ID in description
         treasuries[treasuryAddress] = TreasuryInfo({
             treasuryAddress: treasuryAddress,
             creator: msg.sender,
@@ -198,7 +200,9 @@ contract EchoFiFactory is Ownable, ReentrancyGuard {
      * @dev Get treasury information
      */
     function getTreasuryInfo(address _treasury) external view returns (TreasuryInfo memory) {
-        return treasuries[_treasury];
+        TreasuryInfo memory info = treasuries[_treasury];
+        if (info.treasuryAddress == address(0)) revert TreasuryNotFound();
+        return info;
     }
 
     /**
@@ -236,12 +240,14 @@ contract EchoFiFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Update treasury status (only treasury creator)
+     * @dev Update treasury status (only treasury creator or contract owner)
      */
     function updateTreasuryStatus(address _treasury, bool _isActive) external {
         TreasuryInfo storage info = treasuries[_treasury];
         if (info.treasuryAddress == address(0)) revert TreasuryNotFound();
-        if (info.creator != msg.sender) revert UnauthorizedAccess();
+        
+        // ✅ FIXED: Allow both treasury creator AND contract owner to update status
+        if (info.creator != msg.sender && owner() != msg.sender) revert UnauthorizedAccess();
         
         info.isActive = _isActive;
         emit TreasuryStatusUpdated(_treasury, _isActive);

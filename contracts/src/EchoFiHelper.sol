@@ -5,12 +5,12 @@ import "./EchoFiFactory.sol";
 import "./EchoFiTreasury.sol";
 
 /**
- * @title EchoFiHelper - FIXED VERSION
+ * @title EchoFiHelper - FULLY OPTIMIZED VERSION
  * @dev Helper contract for frontend integration and treasury management
- * @notice FIXES: Stack too deep errors by simplifying function returns and using structs
+ * @notice All warnings eliminated and stack depth optimized
  */
 contract EchoFiHelper {
-    //  Simplified treasury details struct
+    // ✅ Simplified treasury details struct to reduce stack usage
     struct TreasuryDetails {
         address treasuryAddress;
         string name;
@@ -22,7 +22,7 @@ contract EchoFiHelper {
         bool isActive;
     }
 
-    //  Split proposal details into smaller structs
+    // ✅ Split proposal details into smaller structs to reduce stack depth
     struct ProposalBasicInfo {
         uint256 id;
         address proposer;
@@ -47,6 +47,7 @@ contract EchoFiHelper {
         ProposalVotingInfo voting;
     }
 
+    // ✅ Member info struct for treasury member enumeration
     struct MemberInfo {
         address memberAddress;
         uint256 votingPower;
@@ -63,7 +64,7 @@ contract EchoFiHelper {
     }
 
     /**
-     * @dev Get detailed information about multiple treasuries
+     * @dev ✅ OPTIMIZED: Reduced function complexity to avoid stack depth issues
      */
     function getTreasuryDetails(address[] calldata _treasuries) 
         external 
@@ -73,119 +74,129 @@ contract EchoFiHelper {
         TreasuryDetails[] memory details = new TreasuryDetails[](_treasuries.length);
         
         for (uint256 i = 0; i < _treasuries.length; i++) {
-            details[i] = _getTreasuryDetail(_treasuries[i]);
+            details[i] = _getTreasuryDetailOptimized(_treasuries[i]);
         }
         
         return details;
     }
 
     /**
-     * @dev Get detailed information about a single treasury
+     * @dev ✅ OPTIMIZED: Simplified treasury detail fetching to reduce stack variables
      */
-    function getTreasuryDetail(address _treasury) external view returns (TreasuryDetails memory) {
-        return _getTreasuryDetail(_treasury);
-    }
-
-    /**
-     * @dev Optimized internal function with reduced local variables
-     */
-    function _getTreasuryDetail(address _treasury) internal view returns (TreasuryDetails memory) {
-        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
+    function _getTreasuryDetailOptimized(address _treasury) internal view returns (TreasuryDetails memory) {
         EchoFiFactory.TreasuryInfo memory info = factory.getTreasuryInfo(_treasury);
         
-        (uint256 usdcBalance, uint256 aUsdcBalance) = treasury.getTreasuryBalance();
+        // ✅ FIX: Split balance fetching to reduce stack usage
+        (uint256 usdcBal, uint256 aUsdcBal) = _getTreasuryBalances(_treasury);
         
-        //  Calculate active proposals in separate function
-        uint256 activeCount = _countActiveProposals(treasury);
+        // ✅ FIX: Calculate active proposals in separate call to reduce stack depth
+        uint256 activeProp = _getActiveProposalCount(_treasury);
         
         return TreasuryDetails({
             treasuryAddress: _treasury,
             name: info.name,
             memberCount: info.memberCount,
             totalVotingPower: info.totalVotingPower,
-            usdcBalance: usdcBalance,
-            aUsdcBalance: aUsdcBalance,
-            activeProposals: activeCount,
+            usdcBalance: usdcBal,
+            aUsdcBalance: aUsdcBal,
+            activeProposals: activeProp,
             isActive: info.isActive
         });
     }
 
     /**
-     * @dev  Extract active proposal counting to separate function
+     * @dev ✅ EXTRACTED: Separate function for balance fetching to reduce stack depth
      */
-    function _countActiveProposals(EchoFiTreasury treasury) internal view returns (uint256) {
-        uint256 proposalCount = treasury.proposalCount();
-        uint256 activeProposals = 0;
-        
-        for (uint256 i = 0; i < proposalCount; i++) {
-            try treasury.getProposalBasic(i) returns (
-                EchoFiTreasury.ProposalData memory,
-                EchoFiTreasury.VotingData memory voting
-            ) {
-                if (!voting.executed && !voting.cancelled) {
-                    activeProposals++;
-                }
-            } catch {
-                // Skip invalid proposals
-            }
+    function _getTreasuryBalances(address _treasury) internal view returns (uint256, uint256) {
+        try EchoFiTreasury(_treasury).getTreasuryBalance() returns (uint256 usdc, uint256 aUsdc) {
+            return (usdc, aUsdc);
+        } catch {
+            return (0, 0);
         }
-        
-        return activeProposals;
     }
 
     /**
-     * @dev  Simplified proposal fetching with new treasury functions
+     * @dev ✅ EXTRACTED: Separate function for counting active proposals
+     */
+    function _getActiveProposalCount(address _treasury) internal view returns (uint256) {
+        try EchoFiTreasury(_treasury).proposalCount() returns (uint256 count) {
+            uint256 active = 0;
+            for (uint256 i = 0; i < count; i++) {
+                if (_isProposalActive(_treasury, i)) {
+                    active++;
+                }
+            }
+            return active;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
+     * @dev ✅ EXTRACTED: Check if individual proposal is active
+     */
+    function _isProposalActive(address _treasury, uint256 _proposalId) internal view returns (bool) {
+        try EchoFiTreasury(_treasury).getProposalBasic(_proposalId) returns (
+            EchoFiTreasury.ProposalData memory,
+            EchoFiTreasury.VotingData memory voting
+        ) {
+            return !voting.executed && !voting.cancelled;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * @dev ✅ OPTIMIZED: Simplified proposal fetching with reduced stack usage
      */
     function getTreasuryProposals(address _treasury, uint256 _limit) 
         external 
         view 
         returns (ProposalDetails[] memory) 
     {
-        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
-        uint256 proposalCount = treasury.proposalCount();
+        uint256 proposalCount = _getProposalCount(_treasury);
         
         if (proposalCount == 0) {
             return new ProposalDetails[](0);
         }
         
-        uint256 limit = _limit > 0 && _limit < proposalCount ? _limit : proposalCount;
+        uint256 limit = (_limit > 0 && _limit < proposalCount) ? _limit : proposalCount;
         ProposalDetails[] memory proposals = new ProposalDetails[](limit);
         
         for (uint256 i = 0; i < limit; i++) {
             uint256 proposalId = proposalCount - 1 - i; // Get newest first
-            proposals[i] = _getProposalDetailOptimized(treasury, proposalId);
+            proposals[i] = _getProposalDetailSimplified(_treasury, proposalId);
         }
         
         return proposals;
     }
 
     /**
-     * @dev Get detailed information about a specific proposal
+     * @dev ✅ HELPER: Get proposal count safely
      */
-    function getProposalDetail(address _treasury, uint256 _proposalId) 
-        external 
-        view 
-        returns (ProposalDetails memory) 
-    {
-        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
-        return _getProposalDetailOptimized(treasury, _proposalId);
+    function _getProposalCount(address _treasury) internal view returns (uint256) {
+        try EchoFiTreasury(_treasury).proposalCount() returns (uint256 count) {
+            return count;
+        } catch {
+            return 0;
+        }
     }
 
     /**
-     * @dev  Optimized proposal detail function using new treasury methods
+     * @dev ✅ OPTIMIZED: Simplified proposal detail function with minimal stack usage
      */
-    function _getProposalDetailOptimized(EchoFiTreasury treasury, uint256 _proposalId) 
+    function _getProposalDetailSimplified(address _treasury, uint256 _proposalId) 
         internal 
         view 
         returns (ProposalDetails memory) 
     {
-        try treasury.getProposalBasic(_proposalId) returns (
+        try EchoFiTreasury(_treasury).getProposalBasic(_proposalId) returns (
             EchoFiTreasury.ProposalData memory data,
             EchoFiTreasury.VotingData memory voting
         ) {
-            // Calculate execution eligibility in separate function
-            bool canExecute = _canExecuteProposal(treasury, voting);
-            string memory status = _getProposalStatus(voting, treasury);
+            // ✅ FIX: Calculate status in separate function to reduce stack usage
+            string memory status = _calculateProposalStatus(_treasury, voting);
+            bool canExecute = _calculateCanExecute(_treasury, voting);
             
             return ProposalDetails({
                 basic: ProposalBasicInfo({
@@ -206,74 +217,136 @@ contract EchoFiHelper {
                 })
             });
         } catch {
-            // Return empty struct for invalid proposals
-            return ProposalDetails({
-                basic: ProposalBasicInfo({
-                    id: _proposalId,
-                    proposer: address(0),
-                    proposalType: EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
-                    amount: 0,
-                    description: "Invalid proposal"
-                }),
-                voting: ProposalVotingInfo({
-                    votesFor: 0,
-                    votesAgainst: 0,
-                    deadline: 0,
-                    executed: false,
-                    cancelled: false,
-                    canExecute: false,
-                    status: "Invalid"
-                })
-            });
+            // Return safe empty struct for invalid proposals
+            return _getEmptyProposalDetails(_proposalId);
         }
     }
 
     /**
-     * @dev ✅ FIX #10: Extract execution eligibility check
+     * @dev ✅ EXTRACTED: Separate function for status calculation
      */
-    function _canExecuteProposal(EchoFiTreasury treasury, EchoFiTreasury.VotingData memory voting) 
+    function _calculateProposalStatus(address _treasury, EchoFiTreasury.VotingData memory voting) 
+        internal 
+        view 
+        returns (string memory) 
+    {
+        if (voting.executed) return "Executed";
+        if (voting.cancelled) return "Cancelled";
+        if (block.timestamp <= voting.deadline) return "Active";
+        
+        // Check if proposal passes
+        try EchoFiTreasury(_treasury).quorumPercentage() returns (uint256 quorum) {
+            try EchoFiTreasury(_treasury).totalVotingPower() returns (uint256 totalPower) {
+                uint256 totalVotes = voting.votesFor + voting.votesAgainst;
+                uint256 requiredQuorum = (totalPower * quorum) / 100;
+                
+                if (totalVotes >= requiredQuorum && voting.votesFor > voting.votesAgainst) {
+                    return "Passed - Ready to Execute";
+                }
+            } catch {}
+        } catch {}
+        
+        return "Failed";
+    }
+
+    /**
+     * @dev ✅ EXTRACTED: Separate function for execution eligibility
+     */
+    function _calculateCanExecute(address _treasury, EchoFiTreasury.VotingData memory voting) 
         internal 
         view 
         returns (bool) 
     {
-        return !voting.executed && 
-               !voting.cancelled && 
-               block.timestamp > voting.deadline && 
-               _calculateVoteResult(treasury, voting.votesFor, voting.votesAgainst);
+        if (voting.executed || voting.cancelled || block.timestamp <= voting.deadline) {
+            return false;
+        }
+        
+        // Check quorum and majority
+        try EchoFiTreasury(_treasury).quorumPercentage() returns (uint256 quorum) {
+            try EchoFiTreasury(_treasury).totalVotingPower() returns (uint256 totalPower) {
+                uint256 totalVotes = voting.votesFor + voting.votesAgainst;
+                uint256 requiredQuorum = (totalPower * quorum) / 100;
+                
+                return totalVotes >= requiredQuorum && voting.votesFor > voting.votesAgainst;
+            } catch {
+                return false;
+            }
+        } catch {
+            return false;
+        }
     }
 
     /**
-     * @dev Get member information for a treasury - TO-DO
+     * @dev ✅ HELPER: Create empty proposal details for error cases
      */
-    function getTreasuryMembers(address _treasury) 
+    function _getEmptyProposalDetails(uint256 _proposalId) internal pure returns (ProposalDetails memory) {
+        return ProposalDetails({
+            basic: ProposalBasicInfo({
+                id: _proposalId,
+                proposer: address(0),
+                proposalType: EchoFiTreasury.ProposalType.DEPOSIT_AAVE,
+                amount: 0,
+                description: "Invalid proposal"
+            }),
+            voting: ProposalVotingInfo({
+                votesFor: 0,
+                votesAgainst: 0,
+                deadline: 0,
+                executed: false,
+                cancelled: false,
+                canExecute: false,
+                status: "Invalid"
+            })
+        });
+    }
+
+    /**
+     * @dev ✅ FIXED: Get member information for a treasury - WARNING ELIMINATED
+     * @notice This function is marked as pure since it returns empty data for MVP
+     * @dev Future implementation would require treasury contract modifications for member enumeration
+     */
+    function getTreasuryMembers(address /* _treasury */) 
         external 
-        view 
+        pure  // ✅ FIXED: Changed from view to pure to eliminate warning
         returns (MemberInfo[] memory) 
     {
-        // For MVP, return empty array as member enumeration isn't implemented
-        // In production, you'd need to track members in the treasury contract
-        return new MemberInfo[](0);
-    }
-
-    /**
-     * @dev Calculate if a proposal passes based on votes
-     */
-    function _calculateVoteResult(EchoFiTreasury treasury, uint256 votesFor, uint256 votesAgainst) 
-        internal 
-        view 
-        returns (bool) 
-    {
-        uint256 totalVotes = votesFor + votesAgainst;
-        uint256 quorum = treasury.quorumPercentage();
-        uint256 totalPower = treasury.totalVotingPower();
+        // ✅ FIXED: Removed unused variable to eliminate warning
+        // EchoFiTreasury treasury = EchoFiTreasury(_treasury); // Removed this line
         
-        // Check if quorum is met and majority supports
-        return (totalVotes * 100 >= totalPower * quorum) && (votesFor > votesAgainst);
+        // ✅ IMPLEMENTATION NOTE: For MVP, we return empty array
+        // Full implementation requires architectural decisions:
+        
+        // OPTION 1: Modify EchoFiTreasury to store member addresses
+        // OPTION 2: Index role events off-chain for member discovery  
+        // OPTION 3: Use factory registry to track treasury membership
+        
+        MemberInfo[] memory emptyMembers = new MemberInfo[](0);
+        return emptyMembers;
+        
+        // ✅ FUTURE ENHANCEMENT: When treasury supports member enumeration:
+        /*
+        EchoFiTreasury treasury = EchoFiTreasury(_treasury);
+        address[] memory memberAddresses = treasury.getMembers(); // Would need this function
+        MemberInfo[] memory members = new MemberInfo[](memberAddresses.length);
+        
+        for (uint256 i = 0; i < memberAddresses.length; i++) {
+            address member = memberAddresses[i];
+            members[i] = MemberInfo({
+                memberAddress: member,
+                votingPower: treasury.memberVotingPower(member),
+                hasProposerRole: treasury.hasRole(treasury.PROPOSER_ROLE(), member),
+                hasVoterRole: treasury.hasRole(treasury.VOTER_ROLE(), member),
+                hasExecutorRole: treasury.hasRole(treasury.EXECUTOR_ROLE(), member)
+            });
+        }
+        
+        return members;
+        */
     }
 
     /**
-    * @dev  Optimized user voting eligibility check
-    */
+     * @dev ✅ OPTIMIZED: Simplified voting eligibility check
+     */
     function canUserVote(address _treasury, uint256 _proposalId, address _user) 
         external 
         view 
@@ -281,77 +354,55 @@ contract EchoFiHelper {
     {
         EchoFiTreasury treasury = EchoFiTreasury(_treasury);
         
-        // Check 1: Does user have voting power?
+        // ✅ FIX: Simplified checks to reduce stack depth
+        return _checkVotingEligibility(treasury, _proposalId, _user);
+    }
+
+    /**
+     * @dev ✅ EXTRACTED: Voting eligibility logic in separate function
+     */
+    function _checkVotingEligibility(EchoFiTreasury treasury, uint256 _proposalId, address _user) 
+        internal 
+        view 
+        returns (bool, string memory) 
+    {
+        // Check voting power first
         uint256 userVotingPower = treasury.memberVotingPower(_user);
         if (userVotingPower == 0) {
             return (false, "User has no voting power");
         }
         
-        // Check 2: Does the proposal exist?
-        if (_proposalId >= treasury.proposalCount()) {
-            return (false, "Proposal does not exist");
+        // Check if proposal exists
+        try treasury.proposalCount() returns (uint256 count) {
+            if (_proposalId >= count) {
+                return (false, "Proposal does not exist");
+            }
+        } catch {
+            return (false, "Failed to retrieve proposal count");
         }
         
-        // Check 3: Has user already voted?
+        // Check if already voted
         if (treasury.hasVoted(_proposalId, _user)) {
             return (false, "User has already voted");
         }
         
-        //  Use new optimized treasury function
+        // Check proposal status
         try treasury.getProposalBasic(_proposalId) returns (
             EchoFiTreasury.ProposalData memory,
             EchoFiTreasury.VotingData memory voting
         ) {
-            // Check proposal status
-            if (voting.executed) {
-                return (false, "Proposal already executed");
-            }
+            if (voting.executed) return (false, "Proposal already executed");
+            if (voting.cancelled) return (false, "Proposal was cancelled");
+            if (block.timestamp > voting.deadline) return (false, "Voting period has ended");
             
-            if (voting.cancelled) {
-                return (false, "Proposal was cancelled");
-            }
-            
-            if (block.timestamp > voting.deadline) {
-                return (false, "Voting period has ended");
-            }
-            
-            // All checks passed
             return (true, "Can vote");
-            
         } catch {
             return (false, "Failed to retrieve proposal details");
         }
     }
 
     /**
-     * @dev Simplified proposal status function
-     */
-    function _getProposalStatus(
-        EchoFiTreasury.VotingData memory voting,
-        EchoFiTreasury treasury
-    ) internal view returns (string memory) {
-        if (voting.executed) return "Executed";
-        if (voting.cancelled) return "Cancelled";
-        if (block.timestamp <= voting.deadline) return "Active";
-        
-        bool passes = _calculateVoteResult(treasury, voting.votesFor, voting.votesAgainst);
-        return passes ? "Passed - Ready to Execute" : "Failed";
-    }
-
-    /**
-     * @dev Batch function to get user's treasury details
-     */
-    function getUserTreasuryDetails(address _user) 
-        external 
-        view 
-        returns (TreasuryDetails[] memory) 
-    {
-        address[] memory userTreasuries = factory.getUserTreasuries(_user);
-        return this.getTreasuryDetails(userTreasuries);
-    }
-
-    /**
-     * @dev Optimized treasury statistics
+     * @dev ✅ OPTIMIZED: Simplified treasury statistics
      */
     function getTreasuryStats(address _treasury) 
         external 
@@ -365,20 +416,34 @@ contract EchoFiHelper {
         ) 
     {
         EchoFiTreasury treasury = EchoFiTreasury(_treasury);
-        totalProposals = treasury.proposalCount();
-        totalVotingPower = treasury.totalVotingPower();
         
-        (uint256 usdcBalance, uint256 aUsdcBalance) = treasury.getTreasuryBalance();
+        // ✅ FIX: Get basic stats first
+        totalProposals = _getProposalCount(_treasury);
+        totalVotingPower = _getTotalVotingPower(treasury);
+        
+        // ✅ FIX: Get treasury value
+        (uint256 usdcBalance, uint256 aUsdcBalance) = _getTreasuryBalances(_treasury);
         treasuryValue = usdcBalance + aUsdcBalance;
         
-        //  Use optimized counting function
-        (activeProposals, executedProposals) = _getProposalCounts(treasury, totalProposals);
+        // ✅ FIX: Get proposal counts separately to avoid stack depth
+        (activeProposals, executedProposals) = _getProposalStatistics(_treasury, totalProposals);
     }
 
     /**
-     * @dev Extract proposal counting to separate function
+     * @dev ✅ EXTRACTED: Get total voting power safely
      */
-    function _getProposalCounts(EchoFiTreasury treasury, uint256 totalProposals) 
+    function _getTotalVotingPower(EchoFiTreasury treasury) internal view returns (uint256) {
+        try treasury.totalVotingPower() returns (uint256 power) {
+            return power;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
+     * @dev ✅ EXTRACTED: Get proposal statistics to reduce stack depth
+     */
+    function _getProposalStatistics(address _treasury, uint256 totalProposals) 
         internal 
         view 
         returns (uint256 active, uint256 executed) 
@@ -387,7 +452,7 @@ contract EchoFiHelper {
         executed = 0;
         
         for (uint256 i = 0; i < totalProposals; i++) {
-            try treasury.getProposalBasic(i) returns (
+            try EchoFiTreasury(_treasury).getProposalBasic(i) returns (
                 EchoFiTreasury.ProposalData memory,
                 EchoFiTreasury.VotingData memory voting
             ) {
@@ -398,7 +463,38 @@ contract EchoFiHelper {
                 }
             } catch {
                 // Skip invalid proposals
+                continue;
             }
         }
+    }
+
+    /**
+     * @dev ✅ OPTIMIZED: Batch function to get user's treasury details
+     */
+    function getUserTreasuryDetails(address _user) 
+        external 
+        view 
+        returns (TreasuryDetails[] memory) 
+    {
+        address[] memory userTreasuries = factory.getUserTreasuries(_user);
+        return this.getTreasuryDetails(userTreasuries);
+    }
+
+    /**
+     * @dev Get detailed information about a single treasury (public wrapper)
+     */
+    function getTreasuryDetail(address _treasury) external view returns (TreasuryDetails memory) {
+        return _getTreasuryDetailOptimized(_treasury);
+    }
+
+    /**
+     * @dev Get detailed information about a specific proposal (public wrapper)
+     */
+    function getProposalDetail(address _treasury, uint256 _proposalId) 
+        external 
+        view 
+        returns (ProposalDetails memory) 
+    {
+        return _getProposalDetailSimplified(_treasury, _proposalId);
     }
 }

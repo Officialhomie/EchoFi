@@ -7,21 +7,24 @@ remappings = [
     "@forge-std/=lib/forge-std/src/"
 ]
 
-# ✅ STACK TOO DEEP FIX: Enable viaIR compilation
+# ✅ OPTIMIZED COMPILATION SETTINGS
 solc_version = "0.8.25"
 optimizer = true
 optimizer_runs = 200
-via_ir = true  # 🔧 This is the key fix for stack too deep errors
-
-# Additional optimizations for complex contracts
-evm_version = "paris"
+via_ir = true  # 🔧 Essential for stack too deep fixes
+evm_version = "cancun"  # ✅ Updated to latest stable EVM version
 bytecode_hash = "none"
+
+# ✅ ENHANCED ERROR REPORTING
+verbosity = 2
+force = false
+ignored_error_codes = [5667]  # ✅ Ignore unused parameter warnings during development
 
 # Testing and Gas Reports
 gas_reports = ["*"]
 gas_reports_ignore = ["Test*", "Mock*"]
 
-# Base Sepolia configuration
+# Base network configuration
 [rpc_endpoints]
 base_sepolia = "https://sepolia.base.org"
 base_mainnet = "https://mainnet.base.org"
@@ -30,23 +33,24 @@ base_mainnet = "https://mainnet.base.org"
 base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
 base_mainnet = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
 
-# ✅ OPTIMIZATION PROFILE: For production deployment with maximum optimization
+# ✅ PRODUCTION PROFILE: Maximum optimization for deployment
 [profile.production]
 src = "src"
 out = "out"
 libs = ["lib"]
 solc_version = "0.8.25"
 optimizer = true
-optimizer_runs = 1000000  # Maximum optimization for production
+optimizer_runs = 1000000  # Maximum optimization for gas efficiency
 via_ir = true
-evm_version = "paris"
+evm_version = "cancun"
 bytecode_hash = "none"
+ignored_error_codes = []  # Don't ignore any errors in production
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/",
     "@forge-std/=lib/forge-std/src/"
 ]
 
-# ✅ TESTING PROFILE: For comprehensive testing
+# ✅ TESTING PROFILE: Optimized for comprehensive testing
 [profile.test]
 src = "src"
 out = "out"
@@ -57,12 +61,14 @@ optimizer_runs = 200
 via_ir = true
 verbosity = 3
 gas_reports = ["*"]
+ffi = true  # Enable for advanced testing if needed
+ignored_error_codes = [5667]  # Allow unused parameters in tests
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/",
     "@forge-std/=lib/forge-std/src/"
 ]
 
-# DEBUG PROFILE
+# ✅ DEBUG PROFILE: Maximum verbosity for troubleshooting
 [profile.debug]
 src = "src"
 out = "out"
@@ -74,3 +80,5 @@ via_ir = true
 verbosity = 4  # Maximum verbosity
 extra_output = ["storageLayout", "devdoc", "userdoc"]
 extra_output_files = ["metadata"]
+detailed_cache = true
+ignored_error_codes = [5667]
