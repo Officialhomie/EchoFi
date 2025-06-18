@@ -171,12 +171,13 @@ The AgentKit-powered agent responds to natural language:
 
 ## 📱 Demo
 
-**Live Demo**: [https://echofi.vercel.app](https://echofi.vercel.app) *(Base Sepolia testnet)*
+**Live Demo**: [https://echofi.vercel.app](https://echo-fi-one.vercel.app/) *(Base Sepolia testnet)*
 
 **Example Treasury**: `0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5`
 **Example LInk**: `0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5`(https://sepolia.basescan.org/tx/0x824ee8407e0dcf964a7172b6b9e7e265abef85d25179f0c2cf87b0ea78d9e1a5)
 
 **Demo Video**: [Watch on YouTube](https://youtube.com/watch?v=demo-link)
+
 
 ### Demo Flow
 
