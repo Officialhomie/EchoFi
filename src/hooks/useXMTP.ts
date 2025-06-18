@@ -832,19 +832,12 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     try {
       const report = await xmtpManager.current.performHealthCheck();
       setDatabaseHealth(report);
-      
-      // Call refreshConversations directly if database is healthy
-      if (report.isHealthy) {
-        await refreshConversations();
-      }
-      
       return report;
     } catch (error) {
       console.error('❌ Health check failed:', error);
       throw error;
     }
-  }, [refreshConversations]);
-
+  }, []);
 
   // Separate effect to handle conversation refresh after health check
   useEffect(() => {
