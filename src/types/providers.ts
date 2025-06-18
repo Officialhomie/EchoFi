@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { WalletState } from './wallet';
-import { XMTPState } from './messaging';
+import { XMTPClientState } from './messaging';
 import { AgentState } from './agent';
 
 // App State Types
@@ -51,7 +51,7 @@ export interface GlobalState {
 // Provider Hook Return Types
 export interface UseAppReturn extends AppContextType {
   wallet: WalletState;
-  xmtp: XMTPState;
+  xmtp: XMTPClientState;
   agent: AgentState;
 }
 

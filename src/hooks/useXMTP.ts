@@ -781,7 +781,7 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       setConversations(convos);
       console.log(`✅ Loaded ${convos.length} conversations`);
       
-      if (error && convos.length >= 0) {
+      if (error) {
         setError(null);
       }
       
@@ -828,16 +828,23 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     if (!xmtpManager.current) {
       throw new Error('XMTP not initialized');
     }
-
+  
     try {
       const report = await xmtpManager.current.performHealthCheck();
       setDatabaseHealth(report);
+      
+      // Call refreshConversations directly if database is healthy
+      if (report.isHealthy) {
+        await refreshConversations();
+      }
+      
       return report;
     } catch (error) {
       console.error('❌ Health check failed:', error);
       throw error;
     }
-  }, [xmtpManager]);
+  }, [refreshConversations]);
+
 
   // Separate effect to handle conversation refresh after health check
   useEffect(() => {
@@ -887,7 +894,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       });
       
       console.log('✅ Database reset complete');
-      
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -947,9 +953,6 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
       return await xmtpManager.current.canMessage(addresses);
     } catch (error) {
       console.error('❌ Failed to check message capabilities:', error);
-      
-      // FIXED: Removed unused variable 'addressError'
-      // Previously had: const addressError = error instanceof Error ? error.message : String(error);
       
       // Return a map with all addresses set to false on error
       const result = new Map<string, boolean>();
