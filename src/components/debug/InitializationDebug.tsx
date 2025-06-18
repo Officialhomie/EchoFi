@@ -170,7 +170,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Wallet retry failed: ${errorMsg}`);
     }
-  }, [wallet.connect, addToHistory]); // FIXED: Added wallet dependency
+  }, [wallet, addToHistory]);
 
   const retryXMTP = useCallback(async () => {
     try {
@@ -181,7 +181,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP retry failed: ${errorMsg}`);
     }
-  }, [xmtp.initializeXMTP, addToHistory]); // FIXED: Added xmtp dependency
+  }, [xmtp, addToHistory]);
 
   const resetXMTPDatabase = useCallback(async () => {
     try {
@@ -192,7 +192,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`XMTP reset failed: ${errorMsg}`);
     }
-  }, [xmtp.resetDatabase, addToHistory]); // FIXED: Added xmtp dependency
+  }, [xmtp, addToHistory]);
 
   const retryAgent = useCallback(async () => {
     try {
@@ -204,7 +204,7 @@ export function InitializationDebug() {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       addToHistory(`Agent retry failed: ${errorMsg}`);
     }
-  }, [agent.initializeAgent, checkAgentHealth, addToHistory]); // FIXED: Added agent dependency
+  }, [agent, checkAgentHealth, addToHistory]);
 
   // FIXED: Enhanced monitoring with stable dependencies
   useEffect(() => {

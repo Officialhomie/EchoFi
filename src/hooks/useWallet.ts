@@ -259,6 +259,60 @@ export function useWallet(): UseWalletReturn {
     }
   }, [checkConnection, disconnect]);
 
+  // Enhanced chain switching with proper error handling
+  const switchChain = useCallback(async (targetChainId: number) => {
+    const ethereum = detectWallet();
+    if (!ethereum) {
+      throw new Error('No wallet found');
+    }
+  
+    try {
+      console.log(`🔗 Switching to chain ${targetChainId}...`);
+      
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${targetChainId.toString(16)}` }],
+      });
+      
+      console.log('✅ Chain switched successfully');
+      
+      // Update our tracking
+      lastConnectedChainId.current = targetChainId;
+      
+    } catch (error: unknown) {
+      console.error('❌ Chain switch failed:', error);
+      
+      if (error && typeof error === 'object' && 'code' in error) {
+        const switchError = error as { code: number; message?: string };
+        
+        if (switchError.code === 4902) {
+          // Chain not added to wallet, try to add it
+          const chainData = getChainData(targetChainId);
+          if (chainData) {
+            try {
+              await ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [chainData],
+              });
+              console.log('✅ Chain added and switched successfully');
+            } catch (addError) {
+              console.error('❌ Failed to add chain:', addError);
+              throw new Error(`Failed to add chain ${targetChainId} to wallet`);
+            }
+          } else {
+            throw new Error(`Unsupported chain ID: ${targetChainId}`);
+          }
+        } else if (switchError.code === 4001) {
+          throw new Error('User rejected chain switch request');
+        } else {
+          throw new Error(switchError.message || `Failed to switch to chain ${targetChainId}`);
+        }
+      } else {
+        throw error;
+      }
+    }
+  }, []); 
+
   // FIXED: Enhanced connection function with Base Sepolia as default
   const connect = useCallback(async () => {
     if (isConnecting || connectionInProgress.current) {
@@ -380,61 +434,7 @@ export function useWallet(): UseWalletReturn {
       setIsConnecting(false);
       connectionInProgress.current = false;
     }
-  }, [isConnecting, clearError]);
-
-  // Enhanced chain switching with proper error handling
-  const switchChain = useCallback(async (targetChainId: number) => {
-    const ethereum = detectWallet();
-    if (!ethereum) {
-      throw new Error('No wallet found');
-    }
-  
-    try {
-      console.log(`🔗 Switching to chain ${targetChainId}...`);
-      
-      await ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${targetChainId.toString(16)}` }],
-      });
-      
-      console.log('✅ Chain switched successfully');
-      
-      // Update our tracking
-      lastConnectedChainId.current = targetChainId;
-      
-    } catch (error: unknown) {
-      console.error('❌ Chain switch failed:', error);
-      
-      if (error && typeof error === 'object' && 'code' in error) {
-        const switchError = error as { code: number; message?: string };
-        
-        if (switchError.code === 4902) {
-          // Chain not added to wallet, try to add it
-          const chainData = getChainData(targetChainId);
-          if (chainData) {
-            try {
-              await ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [chainData],
-              });
-              console.log('✅ Chain added and switched successfully');
-            } catch (addError) {
-              console.error('❌ Failed to add chain:', addError);
-              throw new Error(`Failed to add chain ${targetChainId} to wallet`);
-            }
-          } else {
-            throw new Error(`Unsupported chain ID: ${targetChainId}`);
-          }
-        } else if (switchError.code === 4001) {
-          throw new Error('User rejected chain switch request');
-        } else {
-          throw new Error(switchError.message || `Failed to switch to chain ${targetChainId}`);
-        }
-      } else {
-        throw error;
-      }
-    }
-  }, []); 
+  }, [isConnecting, clearError, switchChain]);
 
   const refreshBalance = useCallback(async () => {
     if (walletState.provider && walletState.address) {

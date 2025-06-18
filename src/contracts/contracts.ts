@@ -2983,3 +2983,103 @@ export function calculateQuorumProgress(votesFor: bigint, votesAgainst: bigint, 
   if (requiredVotes === 0n) return 0;
   return Math.min(100, (Number(totalVotes) / Number(requiredVotes)) * 100);
 }
+
+
+// Add this function to your src/contracts/contracts.ts file
+
+/**
+ * Validates USDC amount for treasury operations
+ * @param amount - The amount string to validate
+ * @returns Error message if invalid, null if valid
+ */
+export function validateUSDCAmount(amount: string): string | null {
+  // Remove any whitespace and convert to lowercase for validation
+  const cleanAmount = amount.trim();
+  
+  // Check if empty
+  if (!cleanAmount) {
+    return 'Amount cannot be empty';
+  }
+  
+  // Check if it's a valid number
+  const numericAmount = parseFloat(cleanAmount);
+  if (isNaN(numericAmount)) {
+    return 'Amount must be a valid number';
+  }
+  
+  // Check for negative amounts
+  if (numericAmount <= 0) {
+    return 'Amount must be greater than zero';
+  }
+  
+  // Check for reasonable maximum (e.g., 1 billion USDC)
+  if (numericAmount > 1_000_000_000) {
+    return 'Amount exceeds maximum limit of 1 billion USDC';
+  }
+  
+  // Check for reasonable minimum (e.g., 0.01 USDC)
+  if (numericAmount < 0.01) {
+    return 'Amount must be at least 0.01 USDC';
+  }
+  
+  // Check for too many decimal places (USDC has 6 decimals, but for UI we usually allow 2)
+  const decimalPart = cleanAmount.split('.')[1];
+  if (decimalPart && decimalPart.length > 6) {
+    return 'Amount cannot have more than 6 decimal places';
+  }
+  
+  // Check for scientific notation (not allowed for user input)
+  if (cleanAmount.toLowerCase().includes('e')) {
+    return 'Scientific notation is not allowed';
+  }
+  
+  // All validations passed
+  return null;
+}
+
+/**
+ * Validates and formats USDC amount for display
+ * @param amount - The amount to format
+ * @returns Formatted amount string
+ */
+export function formatUSDCAmount(amount: string | number | bigint): string {
+  let numericAmount: number;
+  
+  if (typeof amount === 'bigint') {
+    // Convert from wei (6 decimals for USDC)
+    numericAmount = Number(amount) / 1e6;
+  } else if (typeof amount === 'string') {
+    numericAmount = parseFloat(amount);
+  } else {
+    numericAmount = amount;
+  }
+  
+  // Format with appropriate decimal places
+  if (numericAmount >= 1000000) {
+    return `${(numericAmount / 1000000).toFixed(2)}M`;
+  } else if (numericAmount >= 1000) {
+    return `${(numericAmount / 1000).toFixed(2)}K`;
+  } else if (numericAmount >= 1) {
+    return numericAmount.toFixed(2);
+  } else {
+    return numericAmount.toFixed(4);
+  }
+}
+
+/**
+ * Converts USDC amount string to wei (6 decimals)
+ * @param amount - Amount in USDC
+ * @returns Amount in wei as bigint
+ */
+export function parseUSDCAmount(amount: string): bigint {
+  const validation = validateUSDCAmount(amount);
+  if (validation) {
+    throw new Error(validation);
+  }
+  
+  try {
+    return parseUnits(amount, 6);
+  } catch (error) {
+    throw new Error(`Failed to parse USDC amount: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

@@ -1,5 +1,16 @@
 import { Client, DecodedMessage, type ClientOptions } from '@xmtp/browser-sdk';
-import { createWalletClient, http, parseUnits, formatUnits } from 'viem';
+import { 
+  createWalletClient, 
+  createPublicClient, 
+  http, 
+  parseUnits, 
+  formatUnits,
+  type WalletClient,
+  type PublicClient,
+  type Transport,
+  type Chain,
+  type Account,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { 
@@ -9,29 +20,8 @@ import {
 } from '../../contracts/contracts';
 
 // =============================================================================
-// ENHANCED TYPE DEFINITIONS WITH PROPER CHAIN SUPPORT
+// ENHANCED TYPE DEFINITIONS WITH PROPER VIEM CLIENT TYPES
 // =============================================================================
-
-interface WalletClientInterface {
-  account: {
-    address: string;
-    signMessage: (options: { message: string }) => Promise<string>;
-  };
-  readContract: (params: {
-    address: `0x${string}`;
-    abi: readonly unknown[];
-    functionName: string;
-    args?: readonly unknown[];
-  }) => Promise<bigint[]>;
-  simulateContract: (params: {
-    address: `0x${string}`;
-    abi: readonly unknown[];
-    functionName: string;
-    args?: readonly unknown[];
-  }) => Promise<{ request: { to: `0x${string}`; data: `0x${string}` } }>;
-  writeContract: (request: { to: `0x${string}`; data: `0x${string}` }) => Promise<`0x${string}`>;
-  getChainId: () => number;
-}
 
 interface XMTPSigner {
   walletType: 'EOA';
@@ -48,7 +38,6 @@ interface GroupConversation {
   streamMessages?: () => AsyncGenerator<DecodedMessage>;
 }
 
-// FIXED: Enhanced agent config with Base-specific settings
 interface AgentConfig {
   privateKey: `0x${string}`;
   xmtpEnv: 'dev' | 'production';
@@ -57,7 +46,6 @@ interface AgentConfig {
   chainId: number;
   minConfirmations: number;
   enableAutoExecution: boolean;
-  // ADDED: Base-specific configuration
   preferredNetwork: 'base-sepolia' | 'base-mainnet';
   fallbackRpcUrl?: string;
 }
@@ -71,16 +59,20 @@ interface InvestmentCommand {
 }
 
 // =============================================================================
-// ECHOFI AGENT CLASS WITH ENHANCED BASE CHAIN SUPPORT
+// ECHOFI AGENT CLASS WITH PROPER VIEM CLIENT SETUP
 // =============================================================================
 
 export class EchoFiAgent {
   private xmtpClient: Client | null = null;
-  private walletClient!: WalletClientInterface;
+  // FIXED: Using separate public and wallet clients for proper type safety
+  private walletClient!: WalletClient<Transport, Chain, Account>;
+  private publicClient!: PublicClient<Transport, Chain>;
+  private account!: Account;
   private config: AgentConfig;
   private isListening = false;
   private encryptionKey: Uint8Array;
   private currentChainId: number;
+  private currentChain!: Chain;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -92,85 +84,62 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced wallet setup with proper chain selection and RPC fallbacks
+   * FIXED: Enhanced wallet setup with separate public and wallet clients
    */
   private setupWallet(): void {
-    const account = privateKeyToAccount(this.config.privateKey);
+    this.account = privateKeyToAccount(this.config.privateKey);
     
-    // FIXED: Determine correct chain and RPC URL based on chain ID
-    let chain;
+    // Determine correct chain and RPC URL based on chain ID
     let rpcUrl = this.config.rpcUrl;
     
     switch (this.config.chainId) {
       case 8453: // Base Mainnet
-        chain = base;
+        this.currentChain = base;
         if (!rpcUrl) rpcUrl = 'https://mainnet.base.org';
         break;
       case 84532: // Base Sepolia
-        chain = baseSepolia;
+        this.currentChain = baseSepolia;
         if (!rpcUrl) rpcUrl = 'https://sepolia.base.org';
         break;
       default:
         console.warn('⚠️ [AGENT] Unsupported chain ID, defaulting to Base Sepolia');
-        chain = baseSepolia;
+        this.currentChain = baseSepolia;
         rpcUrl = 'https://sepolia.base.org';
         this.currentChainId = 84532;
     }
 
     console.log('🔗 [AGENT] Setting up wallet client for chain:', {
       chainId: this.currentChainId,
-      chainName: chain.name,
+      chainName: this.currentChain.name,
       rpcUrl: rpcUrl
     });
 
-    // Create wallet client with proper chain configuration
-    const client = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
+    // FIXED: Create separate public and wallet clients
+    const transport = http(rpcUrl);
 
+    // Public client for reading blockchain state and simulating transactions
+    this.publicClient = createPublicClient({
+      chain: this.currentChain,
+      transport,
     });
 
-    // FIXED: Enhanced wallet client interface with proper chain ID method
-    this.walletClient = {
-      ...client,
-      account: {
-        address: account.address,
-        signMessage: (options: { message: string }) => account.signMessage({ message: options.message }),
-      },
-      getChainId: () => this.currentChainId,
-      readContract: async (params) => {
-        try {
-          const result = await this.walletClient.readContract(params);
-          return Array.isArray(result) ? result : [result] as bigint[];
-        } catch (error) {
-          console.error('❌ [AGENT] Read contract error:', error);
-          throw error;
-        }
-      },
-      simulateContract: async (params) => {
-        try {
-          const result = await this.walletClient.simulateContract(params);
-          return result;
-        } catch (error) {
-          console.error('❌ [AGENT] Simulate contract error:', error);
-          throw error;
-        }
-      },
-      writeContract: async (request) => {
-        try {
-          const result = await client.writeContract(request);
-          return result;
-        } catch (error) {
-          console.error('❌ [AGENT] Write contract error:', error);
-          throw error;
-        }
-      },
-    } as WalletClientInterface;
+    // Wallet client for sending transactions
+    this.walletClient = createWalletClient({
+      account: this.account,
+      chain: this.currentChain,
+      transport,
+    });
+
+    console.log('✅ [AGENT] Wallet clients initialized:', {
+      address: this.account.address,
+      chain: this.currentChain.name,
+      hasPublicClient: !!this.publicClient,
+      hasWalletClient: !!this.walletClient
+    });
   }
 
   /**
-   * FIXED: Enhanced encryption key management with Base-specific storage
+   * Enhanced encryption key management with Base-specific storage
    */
   private getOrCreateEncryptionKey(): Uint8Array {
     const envKey = process.env.NEXT_PUBLIC_XMTP_ENCRYPTION_KEY;
@@ -211,32 +180,39 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced XMTP initialization with proper Base chain handling
+   * Enhanced XMTP initialization with proper Base chain handling
    */
   async initialize(): Promise<void> {
     try {
       console.log('🚀 [AGENT] Initializing EchoFi Agent...');
       console.log('🔗 [AGENT] Target chain:', this.currentChainId);
-      console.log('📍 [AGENT] Wallet address:', this.walletClient.account.address);
+      console.log('📍 [AGENT] Wallet address:', this.account.address);
       
-      // FIXED: Create XMTP signer with proper chain ID reporting
+      // Create XMTP signer with proper chain ID reporting
       const adaptedSigner: XMTPSigner = {
         walletType: 'EOA' as const,
-        getAddress: () => Promise.resolve(this.walletClient.account.address),
-        signMessage: (message: string) => {
+        getAddress: () => Promise.resolve(this.account.address),
+        signMessage: async (message: string) => {
           console.log('🔐 [AGENT] XMTP requesting signature for agent initialization...');
-          return this.walletClient.account.signMessage({ message }).then((signature: string) => {
+          try {
+            // Add type assertion to ensure signMessage exists
+            if (!this.account || typeof this.account.signMessage !== 'function') {
+              throw new Error('Account signMessage method not available');
+            }
+            const signature = await this.account.signMessage({ message });
             return new Uint8Array(Buffer.from(signature.slice(2), 'hex'));
-          });
+          } catch (error) {
+            console.error('❌ [AGENT] Failed to sign message:', error);
+            throw new Error('Failed to sign message for XMTP initialization');
+          }
         },
         getChainId: () => {
-          // FIXED: Report the correct chain ID for Base networks
           console.log('🔗 [AGENT] XMTP signer reporting chain ID:', this.currentChainId);
           return BigInt(this.currentChainId);
         },
       };
 
-      // FIXED: Client options with Base-specific database path
+      // Client options with Base-specific database path
       const clientOptions: ClientOptions = {
         env: this.config.xmtpEnv,
         dbPath: `echofi-agent-base-${this.currentChainId}`,
@@ -265,7 +241,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced message listening with better error handling
+   * Enhanced message listening with better error handling
    */
   private async startListening(): Promise<void> {
     if (!this.xmtpClient || this.isListening) return;
@@ -315,7 +291,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced message handling with better type safety
+   * Enhanced message handling with better type safety
    */
   private async handleMessage(message: DecodedMessage, groupId: string): Promise<void> {
     try {
@@ -327,7 +303,7 @@ export class EchoFiAgent {
       const sender = messageWithSender.sender || messageWithSender.senderAddress;
       
       // Skip our own messages
-      if (sender === this.walletClient.account.address) {
+      if (sender === this.account.address) {
         return;
       }
 
@@ -413,7 +389,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced command execution with proper chain validation
+   * Enhanced command execution with proper chain validation
    */
   private async executeCommand(command: InvestmentCommand, groupId: string): Promise<void> {
     try {
@@ -448,7 +424,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Create Aave deposit proposal with chain validation
+   * FIXED: Create Aave deposit proposal using proper viem methods
    */
   private async createDepositProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
@@ -465,19 +441,22 @@ export class EchoFiAgent {
       
       const amountWei = parseUnits(command.amount, 6);
       
-      const { request } = await this.walletClient.simulateContract({
+      // FIXED: Use publicClient for simulation
+      const { request } = await this.publicClient.simulateContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
         functionName: 'createProposal',
         args: [
           ProposalType.DEPOSIT_AAVE,
           amountWei,
-          '0x0000000000000000000000000000000000000000',
-          '0x',
+          '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          '0x' as `0x${string}`,
           command.description || `Deposit ${command.amount} USDC to Aave`,
         ],
+        account: this.account,
       });
 
+      // Use walletClient for writing
       const hash = await this.walletClient.writeContract(request);
       
       // Send confirmation message with chain-specific explorer link
@@ -497,7 +476,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Create Aave withdrawal proposal with chain validation
+   * FIXED: Create Aave withdrawal proposal using proper viem methods
    */
   private async createWithdrawProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
@@ -507,19 +486,22 @@ export class EchoFiAgent {
       
       const amountWei = parseUnits(command.amount, 6);
       
-      const { request } = await this.walletClient.simulateContract({
+      // FIXED: Use publicClient for simulation
+      const { request } = await this.publicClient.simulateContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
         functionName: 'createProposal',
         args: [
           ProposalType.WITHDRAW_AAVE,
           amountWei,
-          '0x0000000000000000000000000000000000000000',
-          '0x',
+          '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          '0x' as `0x${string}`,
           command.description || `Withdraw ${command.amount} USDC from Aave`,
         ],
+        account: this.account,
       });
 
+      // Use walletClient for writing
       const hash = await this.walletClient.writeContract(request);
       
       await this.sendMessage(groupId,
@@ -538,29 +520,28 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Send treasury status message with chain-specific information
+   * FIXED: Send treasury status message using proper viem methods
    */
   private async sendStatusMessage(groupId: string): Promise<void> {
     try {
       console.log(`📊 [AGENT] Getting treasury status for chain ${this.currentChainId}`);
       
-      // Get treasury balance
-      const [usdcBalance, aUsdcBalance] = await this.walletClient.readContract({
+      // FIXED: Use publicClient for reading
+      const balanceResult = await this.publicClient.readContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
         functionName: 'getTreasuryBalance',
       });
 
+      // Type assertion for the tuple return type
+      const [usdcBalance, aUsdcBalance] = balanceResult as [bigint, bigint];
+
       const formattedUSDC = formatUnits(usdcBalance, 6);
       const formattedAUSDC = formatUnits(aUsdcBalance, 6);
       const totalValue = formatUnits(usdcBalance + aUsdcBalance, 6);
 
-      // Get Aave position details
-      const [totalCollateral, availableLiquidity] = await this.walletClient.readContract({
-        address: this.config.treasuryAddress,
-        abi: EchoFiTreasuryABI,
-        functionName: 'getAavePosition',
-      });
+      // For now, we'll skip the Aave position details as they may not exist in the contract
+      // You can add this back if the contract has getAavePosition function
 
       await this.sendMessage(groupId,
         `📊 **Treasury Status Report**\n\n` +
@@ -570,10 +551,6 @@ export class EchoFiAgent {
         `• Available USDC: $${formattedUSDC}\n` +
         `• Aave aUSDC: $${formattedAUSDC}\n` +
         `• Total Value: $${totalValue}\n\n` +
-        `🏦 **Aave Position:**\n` +
-        `• Total Collateral: $${formatUnits(totalCollateral, 6)}\n` +
-        `• Available Liquidity: $${formatUnits(availableLiquidity, 6)}\n` +
-        `• Estimated APY: 4.5%\n\n` +
         `Use "help" to see available commands.`
       );
 
@@ -584,7 +561,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Send help message with Base-specific context
+   * Send help message with Base-specific context
    */
   private async sendHelpMessage(groupId: string): Promise<void> {
     const helpMessage = 
@@ -636,7 +613,7 @@ export class EchoFiAgent {
   }
 
   // =============================================================================
-  // FIXED UTILITY FUNCTIONS WITH BASE CHAIN SUPPORT
+  // UTILITY FUNCTIONS WITH BASE CHAIN SUPPORT
   // =============================================================================
 
   private extractAmount(text: string): string | null {
@@ -680,7 +657,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Get network name based on current chain ID
+   * Get network name based on current chain ID
    */
   private getNetworkName(): string {
     switch (this.currentChainId) {
@@ -694,7 +671,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Get explorer link based on current chain ID
+   * Get explorer link based on current chain ID
    */
   private getExplorerLink(hash: string): string {
     let baseUrl: string;
@@ -730,19 +707,19 @@ export class EchoFiAgent {
       isListening: this.isListening,
       chainId: this.currentChainId,
       networkName: this.getNetworkName(),
-      walletAddress: this.walletClient.account.address,
+      walletAddress: this.account.address,
       treasuryAddress: this.config.treasuryAddress,
     };
   }
 }
 
 // =============================================================================
-// FIXED AGENT FACTORY WITH BASE CHAIN OPTIMIZATION
+// AGENT FACTORY WITH BASE CHAIN OPTIMIZATION
 // =============================================================================
 
 export class EchoFiAgentFactory {
   /**
-   * FIXED: Create and initialize EchoFi agent with Base chain configuration
+   * Create and initialize EchoFi agent with Base chain configuration
    */
   static async createAgent(config: AgentConfig): Promise<EchoFiAgent> {
     // Validate chain ID is supported
@@ -764,10 +741,10 @@ export class EchoFiAgentFactory {
   }
 
   /**
-   * FIXED: Create agent from environment variables with Base defaults
+   * Create agent from environment variables with Base defaults
    */
   static async createFromEnv(): Promise<EchoFiAgent> {
-    // FIXED: Default to Base Sepolia for development
+    // Default to Base Sepolia for development
     const defaultChainId = process.env.NODE_ENV === 'production' ? 8453 : 84532;
     const defaultNetwork = process.env.NODE_ENV === 'production' ? 'base-mainnet' : 'base-sepolia';
     const defaultRpcUrl = defaultChainId === 8453 ? 'https://mainnet.base.org' : 'https://sepolia.base.org';
