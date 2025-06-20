@@ -24,7 +24,7 @@ interface MemberManagementProps {
   maxMembers?: number;
 }
 
-export function MemberManagementEnhanced({ 
+export function MemberManagement({ 
   onSubmit, 
   onBack, 
   isLoading = false,
