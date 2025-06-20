@@ -67,7 +67,7 @@ export function DatabaseCreation({
       }, 1500);
       
     } catch (error) {
-      console.log('Database creation failed, error stored in state');
+      console.log(`Database creation failed, ${error} stored in state`);
     }
   }, [createGroup, groupData, conversation, onSuccess]);
 

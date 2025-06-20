@@ -73,7 +73,7 @@ export function SuccessConfirmation({
             
             {groupData.description && (
               <div className="text-sm text-green-800 bg-green-100 rounded p-3">
-                "{groupData.description}"
+                &quot;{groupData.description}&quot;
               </div>
             )}
           </div>
@@ -145,7 +145,7 @@ export function SuccessConfirmation({
 
         {/* Feature Highlights */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-blue-900 mb-3">What's Next?</h4>
+          <h4 className="text-sm font-medium text-blue-900 mb-3">What&apos;s Next?</h4>
           <div className="space-y-2 text-sm text-blue-800">
             <div className="flex items-center gap-2">
               <MessageCircleIcon className="w-4 h-4 text-blue-600" />

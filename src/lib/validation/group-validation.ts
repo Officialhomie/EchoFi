@@ -153,29 +153,6 @@ export function createValidationResult(
 }
 
 /**
- * Generate contextual recovery suggestions
- */
-function generateRecoverySuggestions(error: string, address: string): string[] {
-  const suggestions: string[] = [];
-  
-  if (error.includes('format') || error.includes('invalid')) {
-    suggestions.push('Check that the address starts with 0x and is 42 characters long');
-    suggestions.push('Copy the address directly from the wallet or block explorer');
-  }
-  
-  if (error.includes('XMTP') || error.includes('message')) {
-    suggestions.push('Ask the member to install an XMTP-compatible app first');
-    suggestions.push('Verify the address is active and has sent transactions');
-  }
-  
-  if (error.includes('duplicate')) {
-    suggestions.push('Remove the duplicate entry');
-  }
-  
-  return suggestions;
-}
-
-/**
  * Validate entire form state
  * Single source of truth for form validation
  */
@@ -192,8 +169,7 @@ export interface FormValidationResult {
 export function validateCompleteForm(
   name: string,
   description: string,
-  memberResults: Record<string, MemberValidationResult>,
-  currentUserAddress?: string
+  memberResults: Record<string, MemberValidationResult>
 ): FormValidationResult {
   const errors: FormValidationResult['errors'] = {};
   const warnings: string[] = [];

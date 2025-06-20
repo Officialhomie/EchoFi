@@ -64,7 +64,7 @@ export function XMTPCreation({
       
     } catch (error) {
       // Error is already handled in the hook state
-      console.log('XMTP group creation failed, error stored in state');
+      console.log(`XMTP group creation failed, ${error} stored in state`);
     }
   }, [createXMTPGroup, groupData, onSuccess]);
 

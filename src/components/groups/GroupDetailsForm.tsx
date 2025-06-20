@@ -115,7 +115,7 @@ export function GroupDetailsForm({
             error={descriptionError || undefined}
           >
             <Textarea
-              placeholder="Describe your group's investment focus, strategy, or goals..."
+              placeholder="Describe your group&apos;s investment focus, strategy, or goals..."
               value={formState.description}
               onChange={(e) => updateFormField('description', e.target.value)}
               error={descriptionError || undefined}
@@ -128,7 +128,7 @@ export function GroupDetailsForm({
             {/* Character count */}
             <div className="flex justify-between items-center mt-1">
               <p className="text-xs text-gray-500">
-                Optional - help members understand your group's purpose
+                Optional - help members understand your group&apos;s purpose
               </p>
               <span className={`text-xs ${
                 descriptionCharCount > VALIDATION_CONFIG.DESCRIPTION.MAX_LENGTH * 0.8 
@@ -148,7 +148,7 @@ export function GroupDetailsForm({
                 <div className="text-sm">
                   <div className="text-blue-800 font-medium">Next Step</div>
                   <div className="text-blue-700 text-xs mt-1">
-                    After this, you'll add group members and configure messaging
+                    After this, you&apos;ll add group members and configure messaging
                   </div>
                 </div>
               </div>

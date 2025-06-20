@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { 
@@ -8,6 +7,7 @@ import {
   GroupCreationError,
   GroupCreationErrorType 
 } from '@/types/group-creation';
+import type { Conversation } from '@xmtp/browser-sdk';
 
 interface GroupCreationState {
   isCreating: boolean;
@@ -208,7 +208,7 @@ export function useGroupCreation(): UseGroupCreationReturn {
           id: params.xmtpGroupId,
           name: apiResponse.group.name,
           description: apiResponse.group.description
-        } as any, // Mock conversation object for now
+        } as Conversation, // Mock conversation object for now
         databaseGroupId: apiResponse.group.id,
         // Treasury fields will be added in Phase 5
         treasuryAddress: undefined,

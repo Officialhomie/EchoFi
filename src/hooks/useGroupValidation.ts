@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useWallet } from '@/hooks/useWallet';
-import { isValidAddress } from '@/lib/utils';
 import { 
   MemberValidationResult, 
-  GroupCreationFormState,
-  EthereumAddress 
+  GroupCreationFormState
 } from '@/types/group-creation';
 import {
   validateGroupName,
@@ -103,8 +101,7 @@ export function useGroupValidation(): UseGroupValidationReturn {
   const formValidationResult = validateCompleteForm(
     formState.name,
     formState.description || '',
-    memberValidation,
-    currentUserAddress ?? undefined
+    memberValidation
   );
   
   const canSubmit = formValidationResult.isValid && !isValidating && !formState.isSubmitting;
@@ -120,7 +117,7 @@ export function useGroupValidation(): UseGroupValidationReturn {
     value: string
   ) => {
     setFormState(prev => {
-      const { [field]: _, ...restErrors } = prev.errors;
+      const restErrors = { ...prev.errors };
       return {
         ...prev,
         [field]: value,
@@ -256,7 +253,7 @@ export function useGroupValidation(): UseGroupValidationReturn {
    */
   const clearField = useCallback((field: keyof GroupCreationFormState) => {
     setFormState(prev => {
-      const { [field]: _, ...restErrors } = prev.errors;
+      const restErrors = { ...prev.errors };
       return {
         ...prev,
         [field]: '',

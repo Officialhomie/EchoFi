@@ -2,12 +2,10 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Input, Textarea, FormField } from '@/components/ui/input';
+import { Textarea, FormField } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
   UsersIcon, 
-  PlusIcon, 
-  XIcon, 
   CheckIcon, 
   AlertCircleIcon,
   InfoIcon,
@@ -40,7 +38,6 @@ export function MemberManagementEnhanced({
     membersError,
     warnings,
     memberValidation,
-    validateMembers,
     clearField
   } = useGroupValidation();
 
