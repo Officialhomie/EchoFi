@@ -1,7 +1,3 @@
-// src/types/group-creation.ts
-// Complete type definitions for XMTP group creation flow
-// Designed to work with XMTP browser SDK 0.0.21 and avoid 'any' types
-
 import type { Conversation, DecodedMessage } from '@xmtp/browser-sdk';
 
 // =============================================================================
