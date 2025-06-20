@@ -1,4 +1,3 @@
-// src/lib/agentkit/prepare-agentkit.ts
 import {
   ActionProvider,
   AgentKit,

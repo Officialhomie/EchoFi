@@ -1,4 +1,3 @@
-// src/hooks/usePerformance.ts - Performance optimization hooks
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { Logger } from '@/lib/logger';
 
