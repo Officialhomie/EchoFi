@@ -1,12 +1,28 @@
-
+/**
+ * StreamManager - Enhanced Schema Integration (CORRECTED)
+ * 
+ * This version fixes all the database integration errors by properly using
+ * the enhanced schema tables and fields. Think of this as "teaching" the
+ * StreamManager to speak the new database "language".
+ * 
+ * Key Changes Made:
+ * 1. Fixed imports to use correct table names
+ * 2. Updated all database operations to use proper schema
+ * 3. Added required agentInstanceId parameter
+ * 4. Integrated with enhanced error logging system
+ */
 
 import { Client, DecodedMessage } from '@xmtp/browser-sdk';
 import { db } from '../db-enhanced';
-import { conversationHealth, messageMetrics } from '../db-enhanced';
-import { sql } from 'drizzle-orm';
+import { 
+  streamHealthRecords, 
+  agentMetrics, 
+  errorRecoveryLogs 
+} from '../db-enhanced';
+import { eq, and } from 'drizzle-orm';
 
 // =============================================================================
-// TYPE DEFINITIONS
+// TYPE DEFINITIONS (unchanged)
 // =============================================================================
 
 export interface GroupConversation {
@@ -65,7 +81,7 @@ export interface StreamConfig {
 }
 
 // =============================================================================
-// ERROR CLASSIFICATION
+// ERROR CLASSIFICATION (unchanged)
 // =============================================================================
 
 export enum StreamErrorType {
@@ -85,7 +101,7 @@ export interface ClassifiedError {
 }
 
 // =============================================================================
-// CIRCUIT BREAKER IMPLEMENTATION
+// CIRCUIT BREAKER IMPLEMENTATION (unchanged)
 // =============================================================================
 
 class CircuitBreaker {
@@ -144,7 +160,7 @@ class CircuitBreaker {
 }
 
 // =============================================================================
-// STREAM MANAGER CLASS
+// ENHANCED STREAM MANAGER CLASS
 // =============================================================================
 
 export class StreamManager {
@@ -159,6 +175,9 @@ export class StreamManager {
   private onMessageCallback: ((message: DecodedMessage, groupId: string) => Promise<void>) | null = null;
   private onStreamHealthChange: ((status: StreamHealthStatus) => void) | null = null;
   private onError: ((error: Error, groupId: string) => void) | null = null;
+
+  // ✅ NEW: Required for enhanced schema integration
+  private agentInstanceId: string | null = null;
 
   private config: StreamConfig = {
     maxReconnectionAttempts: 10,
@@ -184,21 +203,26 @@ export class StreamManager {
 
   constructor(
     xmtpClient: Client,
-    config?: Partial<StreamConfig>
+    config?: Partial<StreamConfig>,
+    agentInstanceId?: string // ✅ NEW: Accept agentInstanceId for database operations
   ) {
     this.xmtpClient = xmtpClient;
     this.config = { ...this.config, ...config };
+    this.agentInstanceId = agentInstanceId || null;
     this.startHealthMonitoring();
     this.startHeartbeat();
   }
 
+  // ✅ NEW: Method to set agent instance ID after construction
+  setAgentInstanceId(agentInstanceId: string): void {
+    this.agentInstanceId = agentInstanceId;
+    console.log(`🆔 [STREAM-MANAGER] Agent instance ID set: ${agentInstanceId}`);
+  }
+
   // =============================================================================
-  // CORE STREAM MANAGEMENT
+  // CORE STREAM MANAGEMENT (mostly unchanged)
   // =============================================================================
 
-  /**
-   * Create and manage a message stream for a group with automatic recovery
-   */
   async createStream(groupId: string): Promise<AsyncGenerator<DecodedMessage> | null> {
     console.log(`🔄 [STREAM-MANAGER] Creating stream for group: ${groupId}`);
 
@@ -216,7 +240,7 @@ export class StreamManager {
         this.activeStreams.set(groupId, stream);
         this.resetReconnectionAttempts(groupId);
         this.updateMetrics();
-        await this.updateDatabaseHealth(groupId, true);
+        await this.updateStreamHealthRecord(groupId, true);
         
         // Start processing messages from this stream
         this.processStreamMessages(groupId, stream);
@@ -233,9 +257,6 @@ export class StreamManager {
     }
   }
 
-  /**
-   * Restart a failed stream with exponential backoff
-   */
   async restartStream(groupId: string): Promise<void> {
     console.log(`🔄 [STREAM-MANAGER] Restarting stream for group: ${groupId}`);
 
@@ -270,9 +291,6 @@ export class StreamManager {
     }
   }
 
-  /**
-   * Perform comprehensive health check on all streams
-   */
   async healthCheck(): Promise<StreamHealthStatus> {
     const status: StreamHealthStatus = {
       isHealthy: true,
@@ -322,12 +340,9 @@ export class StreamManager {
   }
 
   // =============================================================================
-  // RECOVERY MECHANISMS
+  // RECOVERY MECHANISMS (mostly unchanged)
   // =============================================================================
 
-  /**
-   * Reconnect with exponential backoff strategy
-   */
   async reconnectWithBackoff(groupId: string): Promise<void> {
     const circuitBreaker = this.circuitBreakers.get(groupId);
     if (!circuitBreaker) return;
@@ -342,15 +357,12 @@ export class StreamManager {
     }
   }
 
-  /**
-   * Handle stream failure with appropriate recovery strategy
-   */
   async handleStreamFailure(groupId: string, error: Error): Promise<void> {
     console.error(`❌ [STREAM-MANAGER] Stream failure for group ${groupId}:`, error);
 
     const classifiedError = this.classifyError(error);
     
-    // Log error to database
+    // Log error to database using enhanced schema
     await this.logStreamError(groupId, error, classifiedError);
 
     // Clean up failed stream
@@ -370,7 +382,6 @@ export class StreamManager {
       
       case 'circuit_break':
         console.warn(`⚠️ [STREAM-MANAGER] Triggering circuit breaker for group: ${groupId}`);
-        // Circuit breaker will handle this automatically
         break;
       
       case 'escalate':
@@ -384,18 +395,14 @@ export class StreamManager {
     // Update metrics and database
     this.metrics.failedStreams++;
     this.updateMetrics();
-    await this.updateDatabaseHealth(groupId, false, error.message);
+    await this.updateStreamHealthRecord(groupId, false, error.message);
   }
 
   // =============================================================================
-  // MONITORING AND METRICS
+  // MONITORING AND METRICS (unchanged)
   // =============================================================================
 
-  /**
-   * Get comprehensive stream metrics
-   */
   getStreamMetrics(): StreamMetrics {
-    // Calculate success rate
     const totalOperations = this.metrics.totalReconnections + this.activeStreams.size;
     this.metrics.successRate = totalOperations > 0 
       ? ((this.activeStreams.size / totalOperations) * 100) 
@@ -404,9 +411,6 @@ export class StreamManager {
     return { ...this.metrics };
   }
 
-  /**
-   * Get current connection status
-   */
   getConnectionStatus(): ConnectionStatus {
     const activeStreams = this.activeStreams.size;
     const totalExpectedStreams = this.metrics.totalStreams;
@@ -443,29 +447,20 @@ export class StreamManager {
     };
   }
 
-  /**
-   * Set callback for message handling
-   */
   setMessageCallback(callback: (message: DecodedMessage, groupId: string) => Promise<void>): void {
     this.onMessageCallback = callback;
   }
 
-  /**
-   * Set callback for stream health changes
-   */
   setHealthChangeCallback(callback: (status: StreamHealthStatus) => void): void {
     this.onStreamHealthChange = callback;
   }
 
-  /**
-   * Set callback for critical errors
-   */
   setErrorCallback(callback: (error: Error, groupId: string) => void): void {
     this.onError = callback;
   }
 
   // =============================================================================
-  // PRIVATE IMPLEMENTATION METHODS
+  // PRIVATE IMPLEMENTATION METHODS (mostly unchanged)
   // =============================================================================
 
   private async initializeStream(groupId: string): Promise<AsyncGenerator<DecodedMessage> | null> {
@@ -504,13 +499,12 @@ export class StreamManager {
             await this.onMessageCallback(message, groupId);
           } catch (error) {
             console.error(`❌ [STREAM-MANAGER] Error processing message for group ${groupId}:`, error);
-            // Queue message for retry
             await this.queueMessage(groupId, message);
           }
         }
 
         // Update metrics
-        await this.updateMessageMetrics(groupId, 'receive', true);
+        await this.recordMessageMetric(groupId, 'message_received', 1);
       }
     } catch (error) {
       console.error(`❌ [STREAM-MANAGER] Stream processing error for group ${groupId}:`, error);
@@ -618,14 +612,11 @@ export class StreamManager {
   }
 
   private cleanupStream(groupId: string): void {
-    // Abort active stream
     const controller = this.streamControllers.get(groupId);
     if (controller) {
       controller.abort();
       this.streamControllers.delete(groupId);
     }
-
-    // Remove from active streams
     this.activeStreams.delete(groupId);
   }
 
@@ -643,10 +634,8 @@ export class StreamManager {
   private async handleMaxRetriesReached(groupId: string): Promise<void> {
     console.error(`🚨 [STREAM-MANAGER] Max retries reached for group: ${groupId}, marking as permanently failed`);
     
-    // Mark stream as permanently failed in database
-    await this.updateDatabaseHealth(groupId, false, 'Max reconnection attempts exceeded');
+    await this.updateStreamHealthRecord(groupId, false, 'Max reconnection attempts exceeded');
     
-    // Notify error callback
     if (this.onError) {
       this.onError(new Error(`Max reconnection attempts exceeded for group: ${groupId}`), groupId);
     }
@@ -662,8 +651,6 @@ export class StreamManager {
   }
 
   private async validateStreamHealth(groupId: string): Promise<boolean> {
-    // For now, just check if stream exists and is active
-    // In the future, this could include heartbeat validation
     return this.activeStreams.has(groupId) && 
            !this.streamControllers.get(groupId)?.signal.aborted;
   }
@@ -690,7 +677,6 @@ export class StreamManager {
 
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(async () => {
-      // Send heartbeat to all active streams to ensure they're still alive
       for (const groupId of this.activeStreams.keys()) {
         if (!await this.validateStreamHealth(groupId)) {
           console.warn(`💔 [STREAM-MANAGER] Heartbeat failed for group: ${groupId}`);
@@ -701,97 +687,169 @@ export class StreamManager {
   }
 
   // =============================================================================
-  // DATABASE INTEGRATION
+  // ✅ FIXED: DATABASE INTEGRATION WITH ENHANCED SCHEMA
   // =============================================================================
 
-  private async updateDatabaseHealth(groupId: string, isHealthy: boolean, issue?: string): Promise<void> {
-    try {
-      // Update conversation health in database
-      await db.insert(conversationHealth)
-        .values({
-          id: `${groupId}-${Date.now()}`,
-          conversationId: groupId,
-          lastHealthCheck: new Date(),
-          isHealthy,
-          syncStatus: isHealthy ? 'synced' : 'failed',
-          lastIssue: issue || null,
-          recoveryAttempts: this.reconnectionAttempts.get(groupId) || 0,
-          lastRecoveryAttempt: new Date()
-        })
-        .onConflictDoUpdate({
-          target: conversationHealth.conversationId,
-          set: {
-            lastHealthCheck: new Date(),
-            isHealthy,
-            syncStatus: isHealthy ? 'synced' : 'failed',
-            lastIssue: issue || null,
-            recoveryAttempts: this.reconnectionAttempts.get(groupId) || 0,
-            lastRecoveryAttempt: new Date(),
-            updatedAt: new Date()
-          }
-        });
-    } catch (error) {
-      console.error('❌ [STREAM-MANAGER] Failed to update database health:', error);
+  /**
+   * ✅ FIXED: Update stream health using the correct streamHealthRecords table
+   */
+  private async updateStreamHealthRecord(groupId: string, isHealthy: boolean, error?: string): Promise<void> {
+    // Skip database operations if agentInstanceId is not set
+    if (!this.agentInstanceId) {
+      console.warn(`⚠️ [STREAM-MANAGER] Agent instance ID not set, skipping database health update for group: ${groupId}`);
+      return;
     }
-  }
 
-  private async logStreamError(groupId: string, error: Error, classifiedError: ClassifiedError): Promise<void> {
     try {
-      await db.insert(messageMetrics)
-        .values({
-          id: `error-${groupId}-${Date.now()}`,
-          date: new Date(),
-          conversationId: groupId,
-          operationType: 'stream',
-          method: 'xmtp',
-          failureCount: 1,
-          errorRate: '100.00',
-          networkErrors: classifiedError.type === StreamErrorType.NETWORK_ERROR ? 1 : 0
-        });
+      const now = new Date();
+      const streamId = `stream-${groupId}`; // Generate a consistent stream ID
+      
+      // Try to find existing health record
+      const existingRecord = await db
+        .select()
+        .from(streamHealthRecords)
+        .where(
+          and(
+            eq(streamHealthRecords.agentInstanceId, this.agentInstanceId),
+            eq(streamHealthRecords.groupId, groupId),
+            eq(streamHealthRecords.streamId, streamId)
+          )
+        )
+        .limit(1);
+
+      const healthData = {
+        agentInstanceId: this.agentInstanceId,
+        groupId,
+        streamId,
+        isHealthy,
+        lastHealthCheck: now,
+        isActive: true,
+        connectionStatus: isHealthy ? 'connected' : 'error',
+        connectionQuality: isHealthy ? 'excellent' : 'critical',
+        errorCount: isHealthy ? 0 : 1,
+        lastError: error || null,
+        lastErrorTime: error ? now : null,
+        reconnectionAttempts: this.reconnectionAttempts.get(groupId) || 0,
+        circuitBreakerStatus: this.circuitBreakers.get(groupId)?.getState() || 'closed',
+        queuedMessageCount: this.messageQueues.get(groupId)?.length || 0,
+        updatedAt: now
+      };
+
+      if (existingRecord.length > 0) {
+        // Update existing record
+        await db
+          .update(streamHealthRecords)
+          .set(healthData)
+          .where(eq(streamHealthRecords.id, existingRecord[0].id));
+      } else {
+        // Insert new record
+        await db
+          .insert(streamHealthRecords)
+          .values({
+            ...healthData,
+            id: crypto.randomUUID(),
+            createdAt: now
+          });
+      }
+
+      console.log(`📊 [STREAM-MANAGER] Updated health record for group ${groupId}: ${isHealthy ? 'HEALTHY' : 'UNHEALTHY'}`);
+      
     } catch (dbError) {
-      console.error('❌ [STREAM-MANAGER] Failed to log error to database:', dbError);
+      console.error(`❌ [STREAM-MANAGER] Failed to update stream health record:`, dbError);
     }
   }
 
-  private async updateMessageMetrics(groupId: string, operation: string, success: boolean): Promise<void> {
+  /**
+   * ✅ FIXED: Log stream errors using the enhanced errorRecoveryLogs table
+   */
+  private async logStreamError(groupId: string, error: Error, classifiedError: ClassifiedError): Promise<void> {
+    // Skip database operations if agentInstanceId is not set
+    if (!this.agentInstanceId) {
+      console.warn(`⚠️ [STREAM-MANAGER] Agent instance ID not set, skipping error logging for group: ${groupId}`);
+      return;
+    }
+
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const errorRecord = {
+        id: crypto.randomUUID(),
+        agentInstanceId: this.agentInstanceId,
+        errorType: 'stream',
+        errorCategory: classifiedError.isRecoverable ? 'recoverable' : 'critical',
+        severity: classifiedError.severity,
+        errorMessage: error.message,
+        errorStack: error.stack || '',
+        errorCode: classifiedError.type,
+        groupId,
+        streamId: `stream-${groupId}`,
+        context: {
+          recommendedAction: classifiedError.recommendedAction,
+          circuitBreakerState: this.circuitBreakers.get(groupId)?.getState() || 'unknown',
+          reconnectionAttempts: this.reconnectionAttempts.get(groupId) || 0
+        },
+        recoveryAttempted: false,
+        isResolved: false,
+        requiresAttention: classifiedError.severity === 'critical',
+        occurredAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-      await db.insert(messageMetrics)
-        .values({
-          id: `${operation}-${groupId}-${Date.now()}`,
-          date: today,
-          conversationId: groupId,
-          operationType: operation,
-          method: 'xmtp',
-          successCount: success ? 1 : 0,
-          failureCount: success ? 0 : 1,
-          errorRate: success ? '0.00' : '100.00'
-        })
-        .onConflictDoUpdate({
-          target: [messageMetrics.date, messageMetrics.conversationId, messageMetrics.operationType],
-          set: {
-            successCount: success ? 
-              sql`${messageMetrics.successCount} + 1` : 
-              messageMetrics.successCount,
-            failureCount: !success ? 
-              sql`${messageMetrics.failureCount} + 1` : 
-              messageMetrics.failureCount
-          }
-        });
-    } catch (error) {
-      console.error('❌ [STREAM-MANAGER] Failed to update message metrics:', error);
+      await db.insert(errorRecoveryLogs).values(errorRecord);
+      
+      console.log(`🚨 [STREAM-MANAGER] Logged stream error for group ${groupId}: ${error.message}`);
+      
+    } catch (dbError) {
+      console.error(`❌ [STREAM-MANAGER] Failed to log stream error:`, dbError);
     }
   }
 
+  /**
+   * ✅ FIXED: Record metrics using the enhanced agentMetrics table
+   */
+  private async recordMessageMetric(groupId: string, metricName: string, value: number): Promise<void> {
+    // Skip database operations if agentInstanceId is not set
+    if (!this.agentInstanceId) {
+      return;
+    }
+
+    try {
+      const metricRecord = {
+        id: crypto.randomUUID(),
+        agentInstanceId: this.agentInstanceId,
+        metricType: 'stream_performance',
+        metricName,
+        metricCategory: 'message_processing',
+        numericValue: value.toString(),
+        aggregationType: 'count',
+        aggregationPeriod: '1min',
+        groupId,
+        source: 'stream_manager',
+        tags: {
+          groupId,
+          streamId: `stream-${groupId}`
+        },
+        recordedAt: new Date(),
+        createdAt: new Date()
+      };
+
+      await db.insert(agentMetrics).values(metricRecord);
+      
+    } catch (error) {
+      console.error(`❌ [STREAM-MANAGER] Failed to record message metric:`, error);
+    }
+  }
+
+  /**
+   * ✅ FIXED: Persist health status using the enhanced schema
+   */
   private async persistHealthStatus(status: StreamHealthStatus): Promise<void> {
-    // Store the health status summary in database for monitoring
+    // Update health records for all groups in the status
     for (const groupId of Object.keys(status.reconnectionAttempts)) {
-      await this.updateDatabaseHealth(
+      const isHealthy = !status.failedStreams.includes(groupId);
+      await this.updateStreamHealthRecord(
         groupId, 
-        !status.failedStreams.includes(groupId),
-        status.failedStreams.includes(groupId) ? 'Stream unhealthy' : undefined
+        isHealthy,
+        status.failedStreams.includes(groupId) ? 'Stream marked as unhealthy during health check' : undefined
       );
     }
   }
