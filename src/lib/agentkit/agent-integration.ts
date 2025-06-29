@@ -1,3 +1,17 @@
+/**
+ * EchoFiAgent with StreamManager Integration
+ * 
+ * This file contains the updated version of EchoFiAgent that replaces
+ * vulnerable direct stream calls with the bulletproof StreamManager.
+ * 
+ * Key improvements:
+ * - Replaces direct group.streamMessages() with StreamManager
+ * - Adds stream health status reporting to groups
+ * - Implements failover messaging during outages
+ * - Ensures zero message loss during reconnections
+ * - Provides comprehensive error recovery and monitoring
+ */
+
 import { Client, DecodedMessage, type ClientOptions } from '@xmtp/browser-sdk';
 import { 
   createWalletClient, 
@@ -18,9 +32,16 @@ import {
   ProposalType,
   validateUSDCAmount 
 } from '../../contracts/contracts';
+import { 
+  StreamManager, 
+  StreamHealthStatus, 
+  StreamMetrics, 
+  ConnectionStatus,
+  GroupConversation 
+} from '../agents/stream-manager';
 
 // =============================================================================
-// ENHANCED TYPE DEFINITIONS WITH PROPER VIEM CLIENT TYPES
+// TYPE DEFINITIONS WITH PROPER VIEM CLIENT TYPES
 // =============================================================================
 
 interface XMTPSigner {
@@ -28,14 +49,6 @@ interface XMTPSigner {
   getAddress: () => Promise<string>;
   signMessage: (message: string) => Promise<Uint8Array>;
   getChainId: () => bigint;
-}
-
-interface GroupConversation {
-  id: string;
-  name?: string;
-  description?: string;
-  send: (content: string) => Promise<void>;
-  streamMessages?: () => AsyncGenerator<DecodedMessage>;
 }
 
 interface AgentConfig {
@@ -58,13 +71,44 @@ interface InvestmentCommand {
   sender: string;
 }
 
+interface AgentStatus {
+  isInitialized: boolean;
+  isListening: boolean;
+  chainId: number;
+  networkName: string;
+  walletAddress: string;
+  treasuryAddress: string;
+  streamHealth: StreamHealthStatus;
+  streamMetrics: StreamMetrics;
+  connectionStatus: ConnectionStatus;
+  lastMessageProcessed?: Date;
+  messageQueueSize: number;
+  errors: AgentError[];
+}
+
+interface AgentError {
+  timestamp: Date;
+  groupId: string;
+  error: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  resolved: boolean;
+}
+
+interface FailoverMessage {
+  groupId: string;
+  message: string;
+  timestamp: Date;
+  attempts: number;
+  maxAttempts: number;
+}
+
 // =============================================================================
-// ECHOFI AGENT CLASS WITH PROPER VIEM CLIENT SETUP
+// ECHOFI AGENT CLASS WITH STREAMMANAGER INTEGRATION
 // =============================================================================
 
 export class EchoFiAgent {
   private xmtpClient: Client | null = null;
-  // FIXED: Using separate public and wallet clients for proper type safety
+  private streamManager: StreamManager | null = null;
   private walletClient!: WalletClient<Transport, Chain, Account>;
   private publicClient!: PublicClient<Transport, Chain>;
   private account!: Account;
@@ -73,6 +117,15 @@ export class EchoFiAgent {
   private encryptionKey: Uint8Array;
   private currentChainId: number;
   private currentChain!: Chain;
+  
+  // Enhanced monitoring and recovery state
+  private agentErrors: AgentError[] = [];
+  private failoverMessages: FailoverMessage[] = [];
+  private lastHealthCheck: Date = new Date();
+  private messageProcessingCount = 0;
+  private lastMessageProcessed?: Date;
+  private isRecoveryMode = false;
+  private adminNotificationQueue: string[] = [];
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -84,7 +137,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Enhanced wallet setup with separate public and wallet clients
+   * Enhanced wallet setup with separate public and wallet clients
    */
   private setupWallet(): void {
     this.account = privateKeyToAccount(this.config.privateKey);
@@ -114,7 +167,7 @@ export class EchoFiAgent {
       rpcUrl: rpcUrl
     });
 
-    // FIXED: Create separate public and wallet clients
+    // Create separate public and wallet clients
     const transport = http(rpcUrl);
 
     // Public client for reading blockchain state and simulating transactions
@@ -179,9 +232,10 @@ export class EchoFiAgent {
     return sessionKey;
   }
 
-  /**
-   * Enhanced XMTP initialization with proper Base chain handling
-   */
+  // =============================================================================
+  // INITIALIZATION WITH STREAM MANAGER
+  // =============================================================================
+
   async initialize(): Promise<void> {
     try {
       console.log('🚀 [AGENT] Initializing EchoFi Agent...');
@@ -195,7 +249,6 @@ export class EchoFiAgent {
         signMessage: async (message: string) => {
           console.log('🔐 [AGENT] XMTP requesting signature for agent initialization...');
           try {
-            // Add type assertion to ensure signMessage exists
             if (!this.account || typeof this.account.signMessage !== 'function') {
               throw new Error('Account signMessage method not available');
             }
@@ -223,81 +276,193 @@ export class EchoFiAgent {
       // Initialize XMTP client - this will request signature once
       this.xmtpClient = await Client.create(adaptedSigner, this.encryptionKey, clientOptions);
 
-      console.log('✅ [AGENT] EchoFi Agent initialized successfully:', {
+      console.log('✅ [AGENT] XMTP client initialized:', {
         address: this.xmtpClient.accountAddress,
         inboxId: this.xmtpClient.inboxId,
         installationId: this.xmtpClient.installationId,
         chainId: this.currentChainId,
         network: this.currentChainId === 8453 ? 'Base Mainnet' : 'Base Sepolia'
       });
+
+      // Initialize StreamManager with configuration
+      await this.initializeStreamManager();
       
       // Start listening to group messages
       await this.startListening();
       
+      console.log('✅ [AGENT] EchoFi Agent initialized successfully');
+      
     } catch (initError) {
       console.error('❌ [AGENT] Failed to initialize EchoFi Agent:', initError);
+      this.addError('initialization', initError instanceof Error ? initError.message : String(initError), 'critical');
       throw initError;
     }
   }
 
   /**
-   * Enhanced message listening with better error handling
+   * Initialize StreamManager with configuration
+   */
+  private async initializeStreamManager(): Promise<void> {
+    if (!this.xmtpClient) {
+      throw new Error('XMTP client must be initialized before StreamManager');
+    }
+
+    console.log('🔧 [AGENT] Initializing StreamManager...');
+
+    this.streamManager = new StreamManager(this.xmtpClient, {
+      maxReconnectionAttempts: 15, // Increased for production resilience
+      baseReconnectionDelay: 1000,
+      maxReconnectionDelay: 30000,
+      circuitBreakerThreshold: 5,
+      circuitBreakerTimeout: 60000,
+      healthCheckInterval: 30000,
+      messageQueueMaxSize: 1000,
+      heartbeatInterval: 15000
+    });
+
+    console.log('✅ [AGENT] StreamManager initialized successfully');
+  }
+
+  /**
+   * Start listening with StreamManager integration
    */
   private async startListening(): Promise<void> {
-    if (!this.xmtpClient || this.isListening) return;
+    if (!this.xmtpClient || !this.streamManager || this.isListening) {
+      return;
+    }
 
     this.isListening = true;
-    console.log('🎧 [AGENT] Starting to listen for group messages...');
+    console.log('🎧 [AGENT] Starting message listening with StreamManager...');
 
     try {
+      // Set up StreamManager callbacks
+      this.setupStreamManagerCallbacks();
+
+      // Get all groups and initialize streams with StreamManager
       const groups = await this.xmtpClient.conversations.listGroups();
-      console.log(`📊 [AGENT] Found ${groups.length} groups to monitor`);
-      
+      console.log(`📊 [AGENT] Found ${groups.length} groups to monitor with StreamManager`);
+
+      // Initialize streams for all groups using StreamManager
       for (const group of groups) {
         const typedGroup = group as unknown as GroupConversation;
         
         if (typeof typedGroup.streamMessages === 'function') {
-          console.log(`🔄 [AGENT] Starting message stream for group: ${typedGroup.name || typedGroup.id}`);
+          console.log(`🔄 [AGENT] Initializing managed stream for group: ${typedGroup.name || typedGroup.id}`);
           
-          // Handle streaming in a non-blocking way
-          this.handleGroupMessageStream(typedGroup).catch(streamError => {
-            console.error(`❌ [AGENT] Stream error for group ${typedGroup.id}:`, streamError);
-          });
+          // Use StreamManager instead of direct stream creation
+          await this.streamManager.createStream(typedGroup.id);
         } else {
           console.warn(`⚠️ [AGENT] Group ${typedGroup.id} does not support message streaming`);
+          this.addError(typedGroup.id, 'Group does not support streaming', 'medium');
         }
       }
+
+      // Start monitoring agent health
+      this.startAgentHealthMonitoring();
+
+      console.log('✅ [AGENT] Message listening started successfully');
+      
     } catch (listenError) {
       console.error('❌ [AGENT] Error starting message listener:', listenError);
       this.isListening = false;
-    }
-  }
-
-  /**
-   * Handle message streaming for a specific group
-   */
-  private async handleGroupMessageStream(group: GroupConversation): Promise<void> {
-    try {
-      if (!group.streamMessages) return;
+      this.addError('listening', listenError instanceof Error ? listenError.message : String(listenError), 'critical');
       
-      const stream = await group.streamMessages();
-      for await (const message of stream) {
-        if (!this.isListening) break;
-        await this.handleMessage(message, group.id);
-      }
-    } catch (streamError) {
-      console.error(`❌ [AGENT] Message stream error for group ${group.id}:`, streamError);
+      // Attempt recovery
+      await this.attemptListeningRecovery();
     }
   }
 
-  /**
-   * Enhanced message handling with better type safety
-   */
+  // =============================================================================
+  // STREAM MANAGER INTEGRATION
+  // =============================================================================
+
+  private setupStreamManagerCallbacks(): void {
+    if (!this.streamManager) return;
+
+    // Set message processing callback
+    this.streamManager.setMessageCallback(async (message: DecodedMessage, groupId: string) => {
+      await this.handleMessage(message, groupId);
+    });
+
+    // Set health change callback
+    this.streamManager.setHealthChangeCallback((status: StreamHealthStatus) => {
+      this.handleStreamHealthChange(status);
+    });
+
+    // Set error callback
+    this.streamManager.setErrorCallback(async (error: Error, groupId: string) => {
+      await this.handleStreamError(error, groupId);
+    });
+  }
+
+  private handleStreamHealthChange(status: StreamHealthStatus): void {
+    console.log(`🏥 [AGENT] Stream health changed: ${status.isHealthy ? 'HEALTHY' : 'UNHEALTHY'}`);
+    
+    this.lastHealthCheck = status.lastHealthCheck;
+
+    if (!status.isHealthy) {
+      // Enter recovery mode if streams are unhealthy
+      this.isRecoveryMode = true;
+      
+      // Add error for each failed stream
+      for (const failedGroupId of status.failedStreams) {
+        this.addError(failedGroupId, 'Stream unhealthy', 'high');
+      }
+
+      // Send admin notification
+      this.queueAdminNotification(`Stream health degraded: ${status.failedStreams.length} failed streams`);
+      
+      // Attempt to recover failed streams
+      this.attemptStreamRecovery(status.failedStreams);
+    } else {
+      // Exit recovery mode if all streams are healthy
+      if (this.isRecoveryMode) {
+        this.isRecoveryMode = false;
+        console.log('✅ [AGENT] Exiting recovery mode - all streams healthy');
+        this.queueAdminNotification('All streams recovered successfully');
+      }
+    }
+  }
+
+  private async handleStreamError(error: Error, groupId: string): Promise<void> {
+    console.error(`❌ [AGENT] Stream error for group ${groupId}:`, error);
+    
+    this.addError(groupId, error.message, 'high');
+    
+    // Queue failover message to notify group of service disruption
+    await this.sendFailoverMessage(groupId, 
+      `⚠️ Experiencing connection issues. Working to restore service. Queuing your messages...`
+    );
+  }
+
+  private async attemptStreamRecovery(failedGroupIds: string[]): Promise<void> {
+    console.log(`🔄 [AGENT] Attempting recovery for ${failedGroupIds.length} failed streams`);
+
+    for (const groupId of failedGroupIds) {
+      try {
+        if (this.streamManager) {
+          await this.streamManager.restartStream(groupId);
+          console.log(`✅ [AGENT] Successfully restarted stream for group: ${groupId}`);
+        }
+      } catch (error) {
+        console.error(`❌ [AGENT] Failed to restart stream for group ${groupId}:`, error);
+        this.addError(groupId, `Recovery failed: ${error}`, 'critical');
+      }
+    }
+  }
+
+  // =============================================================================
+  // MESSAGE HANDLING WITH FAILOVER SUPPORT
+  // =============================================================================
+
   private async handleMessage(message: DecodedMessage, groupId: string): Promise<void> {
     try {
+      this.messageProcessingCount++;
+      this.lastMessageProcessed = new Date();
+
       const messageWithSender = message as DecodedMessage & { 
         sender?: string; 
-        senderAddress?: string 
+        senderAddress?: string; 
       };
       
       const sender = messageWithSender.sender || messageWithSender.senderAddress;
@@ -309,6 +474,9 @@ export class EchoFiAgent {
 
       console.log(`📨 [AGENT] New message from ${sender}: ${message.content}`);
 
+      // Process queued failover messages first
+      await this.processFailoverMessages(groupId);
+
       if (sender) {
         const command = this.parseInvestmentCommand(message.content, sender);
         
@@ -319,6 +487,179 @@ export class EchoFiAgent {
 
     } catch (messageError) {
       console.error('❌ [AGENT] Error handling message:', messageError);
+      this.addError(groupId, `Message processing error: ${messageError}`, 'medium');
+      
+      // Try to send error notification to group
+      await this.sendFailoverMessage(groupId, 
+        `❌ Sorry, I encountered an error processing your message. Please try again in a moment.`
+      );
+    }
+  }
+
+  // =============================================================================
+  // FAILOVER MESSAGING SYSTEM
+  // =============================================================================
+
+  private async sendFailoverMessage(groupId: string, message: string): Promise<void> {
+    const failoverMessage: FailoverMessage = {
+      groupId,
+      message,
+      timestamp: new Date(),
+      attempts: 0,
+      maxAttempts: 3
+    };
+
+    this.failoverMessages.push(failoverMessage);
+    await this.processFailoverMessages(groupId);
+  }
+
+  private async processFailoverMessages(groupId: string): Promise<void> {
+    const groupMessages = this.failoverMessages.filter(msg => msg.groupId === groupId);
+    
+    for (const failoverMessage of groupMessages) {
+      try {
+        await this.sendMessage(groupId, failoverMessage.message);
+        
+        // Remove successful message from queue
+        this.failoverMessages = this.failoverMessages.filter(msg => msg !== failoverMessage);
+        
+      } catch (error) {
+        failoverMessage.attempts++;
+        
+        if (failoverMessage.attempts >= failoverMessage.maxAttempts) {
+          console.error(`❌ [AGENT] Failed to send failover message after ${failoverMessage.maxAttempts} attempts:`, error);
+          
+          // Remove failed message from queue
+          this.failoverMessages = this.failoverMessages.filter(msg => msg !== failoverMessage);
+          
+          this.addError(groupId, `Failover message delivery failed: ${error}`, 'medium');
+        }
+      }
+    }
+  }
+
+  // =============================================================================
+  // AGENT HEALTH MONITORING
+  // =============================================================================
+
+  private startAgentHealthMonitoring(): void {
+    // Monitor agent health every 60 seconds
+    setInterval(async () => {
+      await this.performAgentHealthCheck();
+    }, 60000);
+
+    // Process admin notifications every 30 seconds
+    setInterval(async () => {
+      await this.processAdminNotifications();
+    }, 30000);
+  }
+
+  private async performAgentHealthCheck(): Promise<void> {
+    try {
+      // Check if we've processed messages recently
+      const timeSinceLastMessage = this.lastMessageProcessed 
+        ? Date.now() - this.lastMessageProcessed.getTime()
+        : Infinity;
+
+      // If no messages in 10 minutes and we're supposed to be listening, that's concerning
+      if (timeSinceLastMessage > 600000 && this.isListening) {
+        this.addError('agent', 'No messages processed in 10 minutes', 'medium');
+      }
+
+      // Check StreamManager health
+      if (this.streamManager) {
+        const streamHealth = await this.streamManager.healthCheck();
+        if (!streamHealth.isHealthy) {
+          this.addError('streams', `${streamHealth.failedStreams.length} streams unhealthy`, 'high');
+        }
+      }
+
+      // Clean up old errors (keep last 50)
+      if (this.agentErrors.length > 50) {
+        this.agentErrors = this.agentErrors.slice(-50);
+      }
+
+      // If in recovery mode for too long, escalate
+      if (this.isRecoveryMode && timeSinceLastMessage > 1800000) { // 30 minutes
+        this.queueAdminNotification('Agent has been in recovery mode for 30+ minutes - manual intervention may be required');
+      }
+
+    } catch (error) {
+      console.error('❌ [AGENT] Health check failed:', error);
+      this.addError('health-check', error instanceof Error ? error.message : String(error), 'medium');
+    }
+  }
+
+  private async processAdminNotifications(): Promise<void> {
+    if (this.adminNotificationQueue.length === 0) return;
+
+    // In a real implementation, this would send notifications via email, Slack, etc.
+    // For now, we'll log them prominently
+    console.log('🚨 [ADMIN-ALERT] Processing admin notifications:');
+    for (const notification of this.adminNotificationQueue) {
+      console.log(`   📢 ${notification}`);
+    }
+
+    // Clear the queue
+    this.adminNotificationQueue = [];
+  }
+
+  private queueAdminNotification(message: string): void {
+    const timestamp = new Date().toISOString();
+    this.adminNotificationQueue.push(`[${timestamp}] ${message}`);
+    
+    // Limit queue size
+    if (this.adminNotificationQueue.length > 20) {
+      this.adminNotificationQueue = this.adminNotificationQueue.slice(-20);
+    }
+  }
+
+  private addError(groupId: string, errorMessage: string, severity: 'low' | 'medium' | 'high' | 'critical'): void {
+    const error: AgentError = {
+      timestamp: new Date(),
+      groupId,
+      error: errorMessage,
+      severity,
+      resolved: false
+    };
+
+    this.agentErrors.push(error);
+
+    // Log based on severity
+    if (severity === 'critical') {
+      console.error(`🚨 [AGENT] CRITICAL ERROR in ${groupId}: ${errorMessage}`);
+      this.queueAdminNotification(`CRITICAL: ${groupId} - ${errorMessage}`);
+    } else if (severity === 'high') {
+      console.error(`❌ [AGENT] HIGH SEVERITY in ${groupId}: ${errorMessage}`);
+      this.queueAdminNotification(`HIGH: ${groupId} - ${errorMessage}`);
+    } else {
+      console.warn(`⚠️ [AGENT] ${severity.toUpperCase()} in ${groupId}: ${errorMessage}`);
+    }
+  }
+
+  private async attemptListeningRecovery(): Promise<void> {
+    console.log('🔄 [AGENT] Attempting listening recovery...');
+    
+    // Wait a bit before retrying
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    try {
+      // Reinitialize if necessary
+      if (!this.streamManager) {
+        await this.initializeStreamManager();
+      }
+      
+      await this.startListening();
+      console.log('✅ [AGENT] Listening recovery successful');
+      
+    } catch (error) {
+      console.error('❌ [AGENT] Listening recovery failed:', error);
+      this.addError('recovery', `Listening recovery failed: ${error}`, 'critical');
+      
+      // Schedule another recovery attempt
+      setTimeout(() => {
+        this.attemptListeningRecovery();
+      }, 30000); // Try again in 30 seconds
     }
   }
 
@@ -389,7 +730,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * Enhanced command execution with proper chain validation
+   * Command execution with proper chain validation
    */
   private async executeCommand(command: InvestmentCommand, groupId: string): Promise<void> {
     try {
@@ -424,7 +765,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Create Aave deposit proposal using proper viem methods
+   * Create Aave deposit proposal using proper viem methods
    */
   private async createDepositProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
@@ -441,7 +782,7 @@ export class EchoFiAgent {
       
       const amountWei = parseUnits(command.amount, 6);
       
-      // FIXED: Use publicClient for simulation
+      // Use publicClient for simulation
       const { request } = await this.publicClient.simulateContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
@@ -476,7 +817,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Create Aave withdrawal proposal using proper viem methods
+   * Create Aave withdrawal proposal using proper viem methods
    */
   private async createWithdrawProposal(command: InvestmentCommand, groupId: string): Promise<void> {
     if (!command.amount) return;
@@ -486,7 +827,7 @@ export class EchoFiAgent {
       
       const amountWei = parseUnits(command.amount, 6);
       
-      // FIXED: Use publicClient for simulation
+      // Use publicClient for simulation
       const { request } = await this.publicClient.simulateContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
@@ -520,13 +861,13 @@ export class EchoFiAgent {
   }
 
   /**
-   * FIXED: Send treasury status message using proper viem methods
+   * Send treasury status message using proper viem methods
    */
   private async sendStatusMessage(groupId: string): Promise<void> {
     try {
       console.log(`📊 [AGENT] Getting treasury status for chain ${this.currentChainId}`);
       
-      // FIXED: Use publicClient for reading
+      // Use publicClient for reading
       const balanceResult = await this.publicClient.readContract({
         address: this.config.treasuryAddress,
         abi: EchoFiTreasuryABI,
@@ -540,8 +881,8 @@ export class EchoFiAgent {
       const formattedAUSDC = formatUnits(aUsdcBalance, 6);
       const totalValue = formatUnits(usdcBalance + aUsdcBalance, 6);
 
-      // For now, we'll skip the Aave position details as they may not exist in the contract
-      // You can add this back if the contract has getAavePosition function
+      // Get stream health for this group
+      const groupHealth = await this.getGroupStreamHealth(groupId);
 
       await this.sendMessage(groupId,
         `📊 **Treasury Status Report**\n\n` +
@@ -551,6 +892,8 @@ export class EchoFiAgent {
         `• Available USDC: $${formattedUSDC}\n` +
         `• Aave aUSDC: $${formattedAUSDC}\n` +
         `• Total Value: $${totalValue}\n\n` +
+        `🔄 **Stream Status**: ${groupHealth.isHealthy ? '✅ Healthy' : '❌ Unhealthy'}\n` +
+        `📊 **Messages Processed**: ${this.messageProcessingCount}\n\n` +
         `Use "help" to see available commands.`
       );
 
@@ -581,7 +924,8 @@ export class EchoFiAgent {
       `• "withdraw 1500 from aave to cover expenses"\n` +
       `• "what's our current balance?"\n\n` +
       `📝 All commands create proposals that require group voting to execute.\n` +
-      `💡 Powered by Base L2 for fast, low-cost transactions.`;
+      `💡 Powered by Base L2 for fast, low-cost transactions.\n` +
+      `🛡️ Enhanced with StreamManager for enterprise reliability.`;
 
     await this.sendMessage(groupId, helpMessage);
   }
@@ -594,7 +938,7 @@ export class EchoFiAgent {
   }
 
   /**
-   * Send message to group
+   * Send message to group with failover support
    */
   private async sendMessage(groupId: string, content: string): Promise<void> {
     if (!this.xmtpClient) return;
@@ -609,7 +953,82 @@ export class EchoFiAgent {
       }
     } catch (sendError) {
       console.error('❌ [AGENT] Failed to send message:', sendError);
+      // Add to failover queue
+      await this.sendFailoverMessage(groupId, content);
     }
+  }
+
+  // =============================================================================
+  // STATUS AND HEALTH REPORTING
+  // =============================================================================
+
+  /**
+   * Get comprehensive agent status including stream health
+   */
+  getStatus(): AgentStatus {
+    const streamHealth = this.streamManager?.healthCheck() || {
+      isHealthy: false,
+      activeStreams: 0,
+      failedStreams: [],
+      lastHealthCheck: new Date(),
+      reconnectionAttempts: {},
+      circuitBreakerStatus: {},
+      messageQueueSizes: {}
+    } as StreamHealthStatus;
+
+    const streamMetrics = this.streamManager?.getStreamMetrics() || {
+      totalStreams: 0,
+      activeStreams: 0,
+      failedStreams: 0,
+      totalReconnections: 0,
+      averageReconnectionTime: 0,
+      successRate: 0,
+      uptimePercentage: 0,
+      lastSuccessfulConnection: null
+    };
+
+    const connectionStatus = this.streamManager?.getConnectionStatus() || {
+      status: 'disconnected',
+      details: 'StreamManager not initialized',
+      lastStatusChange: new Date(),
+      connectionQuality: 'critical'
+    } as ConnectionStatus;
+
+    return {
+      isInitialized: !!this.xmtpClient && !!this.streamManager,
+      isListening: this.isListening,
+      chainId: this.currentChainId,
+      networkName: this.getNetworkName(),
+      walletAddress: this.account.address,
+      treasuryAddress: this.config.treasuryAddress,
+      streamHealth: streamHealth as StreamHealthStatus,
+      streamMetrics,
+      connectionStatus,
+      lastMessageProcessed: this.lastMessageProcessed,
+      messageQueueSize: this.failoverMessages.length,
+      errors: this.agentErrors.filter(e => !e.resolved).slice(-10) // Last 10 unresolved errors
+    };
+  }
+
+  /**
+   * Get stream health for specific group
+   */
+  async getGroupStreamHealth(groupId: string): Promise<{ isHealthy: boolean; details: string }> {
+    if (!this.streamManager) {
+      return { isHealthy: false, details: 'StreamManager not initialized' };
+    }
+
+    const healthStatus = await this.streamManager.healthCheck();
+    const isHealthy = !healthStatus.failedStreams.includes(groupId);
+    const attempts = healthStatus.reconnectionAttempts[groupId] || 0;
+    const circuitBreaker = healthStatus.circuitBreakerStatus[groupId] || 'closed';
+    const queueSize = healthStatus.messageQueueSizes[groupId] || 0;
+
+    const details = isHealthy 
+      ? `Stream active, queue: ${queueSize} messages`
+      : `Stream failed, attempts: ${attempts}, circuit: ${circuitBreaker}, queue: ${queueSize}`;
+
+    return { isHealthy, details };
   }
 
   // =============================================================================
@@ -691,25 +1110,29 @@ export class EchoFiAgent {
   }
 
   /**
-   * Stop the agent
+   * Stop the agent with proper cleanup
    */
   async stop(): Promise<void> {
+    console.log('🛑 [AGENT] Stopping EchoFi Agent...');
+    
     this.isListening = false;
-    console.log('🛑 [AGENT] EchoFi Agent stopped');
-  }
 
-  /**
-   * Get agent status
-   */
-  getStatus() {
-    return {
-      isInitialized: !!this.xmtpClient,
-      isListening: this.isListening,
-      chainId: this.currentChainId,
-      networkName: this.getNetworkName(),
-      walletAddress: this.account.address,
-      treasuryAddress: this.config.treasuryAddress,
-    };
+    // Shutdown StreamManager
+    if (this.streamManager) {
+      await this.streamManager.shutdown();
+      this.streamManager = null;
+    }
+
+    // Process any remaining failover messages
+    for (const groupId of [...new Set(this.failoverMessages.map(msg => msg.groupId))]) {
+      await this.processFailoverMessages(groupId);
+    }
+
+    // Send final admin notification
+    this.queueAdminNotification('EchoFi Agent stopped gracefully');
+    await this.processAdminNotifications();
+
+    console.log('✅ [AGENT] EchoFi Agent stopped successfully');
   }
 }
 
