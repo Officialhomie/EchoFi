@@ -206,19 +206,53 @@ export type RiskParameters = z.infer<typeof RiskParametersSchema>;
 export function parseAmount(input: string, contextBalance?: string): Amount {
   const cleanInput = input.toLowerCase().trim().replace(/[$,]/g, '');
   
+  // Parse context balance if provided
+  let availableBalance = 0;
+  let balanceCurrency: 'USD' | 'ETH' | 'USDC' | 'PERCENTAGE' = 'USD';
+  
+  if (contextBalance) {
+    const balanceMatch = contextBalance.match(/(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?/);
+    if (balanceMatch) {
+      availableBalance = parseFloat(balanceMatch[1]);
+      if (balanceMatch[2]) {
+        const currency = balanceMatch[2].toUpperCase();
+        // Map common currency strings to our enum values
+        if (['USD', 'USDT', 'USDC'].includes(currency)) {
+          balanceCurrency = 'USD';
+        } else if (['ETH', 'ETHER'].includes(currency)) {
+          balanceCurrency = 'ETH';
+        } else if (currency === 'USDC') {
+          balanceCurrency = 'USDC';
+        }
+        // Default to USD for unknown currencies
+      }
+    }
+  }
+  
   // Handle percentage values
   if (cleanInput.includes('%') || cleanInput.includes('percent')) {
     const percentMatch = cleanInput.match(/(\d+(?:\.\d+)?)/);
     if (percentMatch) {
       const percent = parseFloat(percentMatch[1]);
       if (percent >= 0 && percent <= 100) {
+        // Calculate actual value if context balance is available
+        const actualValue = availableBalance > 0 ? (availableBalance * percent) / 100 : percent;
+        
         return {
           raw: input,
           normalized: `${percent}%`,
           type: 'percentage',
           value: percent,
           currency: 'PERCENTAGE',
-          isValid: true
+          isValid: true,
+          // Add metadata about actual value if context balance was used
+          ...(availableBalance > 0 && {
+            metadata: {
+              actualValue,
+              availableBalance,
+              balanceCurrency
+            }
+          })
         };
       }
     }
@@ -238,13 +272,24 @@ export function parseAmount(input: string, contextBalance?: string): Amount {
   
   for (const [key, value] of Object.entries(relativeMap)) {
     if (cleanInput.includes(key)) {
+      // Calculate actual value if context balance is available
+      const actualValue = availableBalance > 0 ? (availableBalance * value) / 100 : value;
+      
       return {
         raw: input,
         normalized: `${value}%`,
         type: 'relative',
         value: value,
         currency: 'PERCENTAGE',
-        isValid: true
+        isValid: true,
+        // Add metadata about actual value if context balance was used
+        ...(availableBalance > 0 && {
+          metadata: {
+            actualValue,
+            availableBalance,
+            balanceCurrency
+          }
+        })
       };
     }
   }
@@ -266,13 +311,27 @@ export function parseAmount(input: string, contextBalance?: string): Amount {
   if (numericMatch) {
     const value = parseFloat(numericMatch[1]) * multiplier;
     if (value > 0) {
+      // Validate against available balance if provided
+      const isValid = availableBalance === 0 || value <= availableBalance;
+      const validationError = !isValid 
+        ? `Requested amount (${value}) exceeds available balance (${availableBalance})`
+        : undefined;
+      
       return {
         raw: input,
         normalized: value.toString(),
         type: 'absolute',
         value: value,
-        currency: 'USD',
-        isValid: true
+        currency: balanceCurrency,
+        isValid,
+        ...(validationError && { validationError }),
+        ...(availableBalance > 0 && {
+          metadata: {
+            availableBalance,
+            balanceCurrency,
+            remainingBalance: availableBalance - value
+          }
+        })
       };
     }
   }
@@ -283,9 +342,15 @@ export function parseAmount(input: string, contextBalance?: string): Amount {
     normalized: '',
     type: 'absolute',
     value: 0,
-    currency: 'USD',
+    currency: balanceCurrency,
     isValid: false,
-    validationError: `Cannot parse amount: "${input}"`
+    validationError: `Cannot parse amount: "${input}"`,
+    ...(availableBalance > 0 && {
+      metadata: {
+        availableBalance,
+        balanceCurrency
+      }
+    })
   };
 }
 
