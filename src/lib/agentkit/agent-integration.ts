@@ -91,6 +91,15 @@ interface AgentGlobalState {
   initializationTime: Date;
   totalMessagesProcessed: number;
   totalCommandsExecuted: number;
+  isInitialized: boolean;
+  messageProcessingCount: number;
+  lastHealthCheck: Date;
+  operationalMode: 'normal' | 'recovery' | 'maintenance';
+  systemMetrics: {
+    uptime: number;
+    errorCount: number;
+    performanceScore: number;
+  };
 }
 
 interface AgentGroupState {
@@ -100,8 +109,13 @@ interface AgentGroupState {
   commandCount: number;
   lastActivity: Date;
   lastSender?: string;
-  lastMessageTime?: Date;
+  lastMessageTime: Date;
   updatedAt?: Date;
+  groupName?: string;
+  memberCount: number;
+  isActive: boolean;
+  healthStatus: 'healthy' | 'degraded' | 'failed';
+  queuedMessageCount: number;
 }
 
 interface CommandExecutionResult {
@@ -112,6 +126,7 @@ interface CommandExecutionResult {
   description?: string;
   network?: string;
   error?: string;
+  [key: string]: any; // Allow for flexible properties
 }
 
 // ✅ FIX: Proper typing for restored state structure
@@ -134,6 +149,9 @@ interface RestoredAgentState {
     senderAddress: string;
     timestamp: Date;
   }>;
+  isListening: boolean;
+  chainId: number;
+  networkName: string;
 }
 
 interface AgentStatus {
@@ -223,7 +241,16 @@ export class EchoFiAgent {
     lastSavedAt: new Date(),
     initializationTime: new Date(),
     totalMessagesProcessed: 0,
-    totalCommandsExecuted: 0
+    totalCommandsExecuted: 0,
+    isInitialized: false,
+    messageProcessingCount: 0,
+    lastHealthCheck: new Date(),
+    operationalMode: 'normal',
+    systemMetrics: {
+      uptime: 0,
+      errorCount: 0,
+      performanceScore: 100
+    }
   };
   private groupStates: Record<string, AgentGroupState> = {};
   private pendingCommands: Map<string, InvestmentCommand> = new Map();
@@ -462,7 +489,13 @@ export class EchoFiAgent {
       chainId: this.currentChainId,
       networkName: this.getNetworkName(),
       treasuryAddress: this.config.treasuryAddress,
-      xmtpEnv: this.config.xmtpEnv
+      xmtpEnv: this.config.xmtpEnv,
+      enabledFeatures: ['all'],
+      limits: {
+        maxCommandsPerMinute: 100,
+        maxRetries: 3,
+        timeoutSeconds: 30
+      }
     });
 
     // Set up persistence manager callbacks to integrate with agent lifecycle
@@ -478,18 +511,19 @@ export class EchoFiAgent {
     if (!this.persistenceManager) return;
 
     // ✅ FIX: Properly typed callback parameter
-    this.persistenceManager.setStateRestoredCallback(async (restoredState: RestoredAgentState) => {
+    this.persistenceManager.setStateRestoredCallback(async (restoredState: any) => {
       console.log('🔄 [AGENT] Applying restored state to agent');
       
+      const state = restoredState as RestoredAgentState;
       // Restore global agent state
-      this.globalState = restoredState.globalState || this.globalState;
-      this.groupStates = restoredState.groupStates || {};
-      this.stateVersion = restoredState.version || 1;
+      this.globalState = state.globalState || this.globalState;
+      this.groupStates = state.groupStates || {};
+      this.stateVersion = state.version || 1;
       this.recoveredFromState = true;
       this.recoveryTimestamp = new Date();
       
       // Restore pending commands
-      for (const command of restoredState.pendingCommands) {
+      for (const command of state.pendingCommands) {
         this.pendingCommands.set(command.commandId, {
           type: command.commandType as InvestmentCommand['type'],
           amount: command.parsedCommand?.amount,
@@ -505,7 +539,7 @@ export class EchoFiAgent {
       console.log('✅ [AGENT] State restoration completed', {
         groupStates: Object.keys(this.groupStates).length,
         pendingCommands: this.pendingCommands.size,
-        queuedMessages: restoredState.queuedMessages.length
+        queuedMessages: state.queuedMessages.length
       });
     });
 
@@ -628,21 +662,27 @@ export class EchoFiAgent {
     const mockMessage: DecodedMessage = {
       content: `Restored command: ${command.type}`,
       senderAddress: command.sender,
-      contentType: 'text/plain',
+      contentType: { typeId: 'text/plain', encoding: 'UTF-8' } as any,
       conversationId: 'restored-command',
       deliveryStatus: 'sent',
       id: `restored-${Date.now()}`,
       sent: new Date(),
       timestamp: new Date(),
       // Add any other required DecodedMessage properties with sensible defaults
-      error: undefined
-    } as DecodedMessage;
+      error: undefined,
+      encodedContent: new Uint8Array(),
+      fallback: 'fallback',
+      kind: 'text',
+      parameters: {},
+      senderInboxId: 'mock-inbox-id',
+      sentAtNs: BigInt(Date.now() * 1_000_000)
+    } as unknown as DecodedMessage;
     
     // Find the group ID from group states or use default
     const groupId = this.findGroupIdForCommand(command) || 'unknown';
     
     // Execute with persistence tracking
-    await this.executeCommandWithPersistence(command, groupId, mockMessage);
+    await this.executeCommandWithPersistence(command, groupId);
   }
 
   private findGroupIdForCommand(command: InvestmentCommand): string | null {
@@ -781,7 +821,7 @@ export class EchoFiAgent {
           { 
             groupId, 
             commandId, 
-            commandType: command.type,
+            operationType: command.type,
             userAddress: command.sender
           }
         );
@@ -830,12 +870,19 @@ export class EchoFiAgent {
           
           // Persist command immediately before execution
           if (this.persistenceManager) {
+            const parsedCommand = {
+              ...command,
+              parameters: { amount: command.amount || '', target: command.target || '' },
+              confidence: 1,
+              timestamp: command.timestamp || new Date(),
+              retryCount: command.retryCount || 0,
+            };
             await this.persistenceManager.saveCommandHistory(
               command.commandId,
               groupId,
               command.type,
               message.content,
-              command,
+              parsedCommand,
               sender,
               'pending'
             );
@@ -871,7 +918,7 @@ export class EchoFiAgent {
         await this.persistenceManager.logError(
           'message_processing_error',
           messageError as Error,
-          { groupId, messageContent: message.content?.toString().substring(0, 200) }
+          { groupId, additionalData: { messageContent: message.content?.toString().substring(0, 200) } }
         );
       }
       
@@ -896,14 +943,20 @@ export class EchoFiAgent {
         createdAt: new Date(),
         messageCount: 0,
         commandCount: 0,
-        lastActivity: new Date()
+        lastActivity: new Date(),
+        lastMessageTime: new Date(),
+        memberCount: 0,
+        isActive: true,
+        healthStatus: 'healthy',
+        queuedMessageCount: 0
       };
     }
     
     // Merge updates
     Object.assign(this.groupStates[groupId], updates, {
       lastActivity: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      lastMessageTime: updates.lastMessageTime || this.groupStates[groupId].lastMessageTime
     });
     
     console.log(`📊 [AGENT] Updated group state for ${groupId}:`, updates);
@@ -932,7 +985,13 @@ export class EchoFiAgent {
           this.globalState,
           this.groupStates,
           this.streamManager,
-          Array.from(this.pendingCommands.values()),
+          Array.from(this.pendingCommands.values()).map(c => ({
+            ...c,
+            parameters: { amount: c.amount || '', target: c.target || '' },
+            confidence: 1,
+            timestamp: c.timestamp || new Date(),
+            retryCount: c.retryCount || 0,
+          })),
           {
             saveType: 'incremental',
             includeMessageQueue: true,
@@ -1665,7 +1724,13 @@ export class EchoFiAgent {
           this.globalState,
           this.groupStates,
           this.streamManager,
-          Array.from(this.pendingCommands.values()),
+          Array.from(this.pendingCommands.values()).map(c => ({
+            ...c,
+            parameters: { amount: c.amount || '', target: c.target || '' },
+            confidence: 1,
+            timestamp: c.timestamp || new Date(),
+            retryCount: c.retryCount || 0,
+          })),
           {
             saveType: 'emergency',
             includeMessageQueue: true,
