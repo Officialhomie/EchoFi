@@ -1,141 +1,164 @@
+// src/hooks/useXMTPIntegration.ts
 import { useState, useCallback } from 'react';
 import { useXMTP } from '@/hooks/useXMTP';
 import { useWallet } from '@/hooks/useWallet';
-import { Conversation } from '@xmtp/browser-sdk';
-import { 
-  GroupCreationError,
-  GroupCreationErrorType,
-  CreateGroupParams 
-} from '@/types/group-creation';
+import { CreateGroupParams } from '@/types/group-creation';
+import type { Conversation } from '@xmtp/browser-sdk';
 
-interface XMTPCreationState {
-  isCreating: boolean;
-  isSuccess: boolean;
-  error: GroupCreationError | null;
-  conversation: Conversation | null;
-  progress: {
-    phase: 'validation' | 'creating' | 'syncing' | 'complete';
-    message: string;
-  };
+// =============================================================================
+// TYPES & INTERFACES
+// =============================================================================
+
+export interface XMTPIntegrationError {
+  type: 'PERMISSION_DENIED' | 'NETWORK_ERROR' | 'VALIDATION_ERROR' | 'UNKNOWN_ERROR';
+  message: string;
+  userMessage: string;
+  technicalDetails?: string;
+  retryable: boolean;
+  recoverySuggestions?: string[];
 }
 
-interface UseXMTPIntegrationReturn {
-  // State
-  state: XMTPCreationState;
-  
-  // Actions
+export interface XMTPCreationProgress {
+  phase: 'validation' | 'creating' | 'syncing' | 'complete';
+  message: string;
+  progress: number;
+}
+
+export interface XMTPIntegrationState {
+  isCreating: boolean;
+  isSuccess: boolean;
+  error: XMTPIntegrationError | null;
+  conversation: Conversation | null;
+  progress: XMTPCreationProgress;
+}
+
+export interface UseXMTPIntegrationReturn {
+  state: XMTPIntegrationState;
   createXMTPGroup: (params: CreateGroupParams) => Promise<Conversation>;
-  
   reset: () => void;
-  
-  // Computed properties
   canRetry: boolean;
 }
 
-/**
- * XMTP integration hook for real group creation
- * Uses your existing EnhancedXMTPManager through useXMTP hook
- */
+// =============================================================================
+// HOOK IMPLEMENTATION
+// =============================================================================
+
 export function useXMTPIntegration(): UseXMTPIntegrationReturn {
-  const { client, isInitialized, createGroup, canMessage } = useXMTP();
+  const { createGroup, canMessage, isInitialized, error: xmtpError } = useXMTP();
   const { address, isConnected } = useWallet();
-  
-  const [state, setState] = useState<XMTPCreationState>({
+
+  const [state, setState] = useState<XMTPIntegrationState>({
     isCreating: false,
     isSuccess: false,
     error: null,
     conversation: null,
     progress: {
       phase: 'validation',
-      message: 'Ready to create XMTP group'
+      message: 'Ready to create group',
+      progress: 0
     }
   });
 
   /**
-   * Create structured XMTP error
+   * Create structured error with recovery suggestions
    */
-  const createXMTPError = useCallback((
-    type: GroupCreationErrorType,
+  const createError = useCallback((
+    type: XMTPIntegrationError['type'],
+    message: string,
     userMessage: string,
     technicalDetails?: string,
     retryable = true
-  ): GroupCreationError => {
-    const error = new Error(userMessage) as GroupCreationError;
-    error.type = type;
-    error.userMessage = userMessage;
-    error.technicalDetails = technicalDetails;
-    error.retryable = retryable;
+  ): XMTPIntegrationError => {
+    const recoverySuggestions = getRecoverySuggestions(type);
     
-    // Add contextual recovery suggestions for XMTP
-    error.recoverySuggestions = generateXMTPRecoverySuggestions(type);
-    
-    return error;
+    return {
+      type,
+      message,
+      userMessage,
+      technicalDetails,
+      retryable,
+      recoverySuggestions
+    };
   }, []);
 
   /**
-   * Generate XMTP-specific recovery suggestions
+   * Get recovery suggestions based on error type
    */
-  const generateXMTPRecoverySuggestions = useCallback((type: GroupCreationErrorType): string[] => {
+  const getRecoverySuggestions = useCallback((type: XMTPIntegrationError['type']): string[] => {
     switch (type) {
-      case 'XMTP_CONNECTION_FAILED':
-        return [
-          'Check your internet connection',
-          'Ensure your wallet is connected',
-          'Try refreshing the page and reconnecting wallet'
-        ];
-      case 'INVALID_MEMBER_ADDRESSES':
-        return [
-          'Verify all member addresses are valid wallet addresses',
-          'Ensure members have used XMTP before or can receive messages',
-          'Remove any invalid addresses and try again'
-        ];
       case 'PERMISSION_DENIED':
         return [
-          'Accept the wallet signature request to create XMTP identity',
-          'XMTP requires a signature to create secure messaging keys',
-          'This is a one-time setup for your wallet'
+          'Accept the signature request in your wallet',
+          'XMTP needs this signature to create your secure messaging identity',
+          'This is a one-time setup for encrypted messaging'
+        ];
+      case 'NETWORK_ERROR':
+        return [
+          'Check your internet connection',
+          'Try again in a few moments',
+          'Ensure your wallet is connected'
+        ];
+      case 'VALIDATION_ERROR':
+        return [
+          'Verify all member addresses are valid',
+          'Ensure members have used XMTP before',
+          'Check that group name is not empty'
         ];
       default:
         return [
           'Try again in a few moments',
-          'Check that your wallet is properly connected',
-          'Contact support if the issue persists'
+          'Check your internet connection',
+          'Contact support if issue persists'
         ];
     }
   }, []);
 
   /**
-   * Update progress state
+   * Update creation progress
    */
-  const updateProgress = useCallback((phase: XMTPCreationState['progress']['phase'], message: string) => {
+  const updateProgress = useCallback((
+    phase: XMTPCreationProgress['phase'],
+    message: string,
+    progress: number
+  ) => {
     setState(prev => ({
       ...prev,
-      progress: { phase, message }
+      progress: { phase, message, progress }
     }));
   }, []);
 
   /**
    * Main XMTP group creation function
-   * Uses your existing createGroup method from useXMTP
    */
   const createXMTPGroup = useCallback(async (params: CreateGroupParams): Promise<Conversation> => {
-    
     // Pre-flight validation
     if (!isConnected || !address) {
-      throw createXMTPError(
+      throw createError(
         'VALIDATION_ERROR',
         'Wallet not connected',
+        'Please connect your wallet to create a group',
         'No wallet address available',
         false
       );
     }
 
-    if (!isInitialized || !client) {
-      throw createXMTPError(
-        'XMTP_CONNECTION_FAILED',
+    if (!isInitialized) {
+      throw createError(
+        'NETWORK_ERROR',
+        'XMTP not initialized',
+        'Messaging system is not ready. Please wait and try again.',
         'XMTP client not initialized',
-        'Client initialization required before group creation',
         true
+      );
+    }
+
+    if (!params.name?.trim()) {
+      throw createError(
+        'VALIDATION_ERROR',
+        'Group name required',
+        'Please provide a valid group name',
+        'Empty group name provided',
+        false
       );
     }
 
@@ -148,48 +171,54 @@ export function useXMTPIntegration(): UseXMTPIntegrationReturn {
     }));
 
     try {
-      // Phase 1: Validate member addresses
-      updateProgress('validation', 'Validating member addresses...');
+      // Step 1: Validate member addresses
+      updateProgress('validation', 'Validating member addresses...', 10);
       
-      if (params.members.length > 0) {
-        console.log('🔍 Validating XMTP capability for members:', params.members);
+      if (params.members && params.members.length > 0) {
+        console.log('🔍 Checking XMTP capability for members:', params.members);
         
-        const canMessageMap = await canMessage(params.members);
-        const invalidMembers = params.members.filter(addr => !canMessageMap.get(addr));
-        
-        if (invalidMembers.length > 0) {
-          throw createXMTPError(
-            'INVALID_MEMBER_ADDRESSES',
-            `${invalidMembers.length} member${invalidMembers.length > 1 ? 's' : ''} cannot receive XMTP messages`,
-            `Invalid addresses: ${invalidMembers.join(', ')}`
-          );
+        try {
+          const capabilities = await canMessage(params.members);
+          const invalidMembers = params.members.filter(member => !capabilities.get(member));
+          
+          if (invalidMembers.length > 0) {
+            throw createError(
+              'VALIDATION_ERROR',
+              'Invalid member addresses',
+              `Some members cannot receive XMTP messages: ${invalidMembers.join(', ')}`,
+              `Invalid addresses: ${invalidMembers.join(', ')}`,
+              false
+            );
+          }
+        } catch (capabilityError) {
+          console.warn('⚠️ Could not verify member capabilities, proceeding anyway:', capabilityError);
+          // Continue without strict validation in case of API issues
         }
       }
 
-      // Phase 2: Create XMTP group
-      updateProgress('creating', 'Creating encrypted XMTP group...');
+      // Step 2: Create XMTP group
+      updateProgress('creating', 'Creating encrypted group conversation...', 40);
       
-      console.log('🚀 Creating XMTP group:', {
+      console.log('🏗️ Creating XMTP group:', {
         name: params.name,
-        memberCount: params.members.length,
-        description: params.description
+        description: params.description,
+        memberCount: params.members?.length || 0
       });
 
-      // Use your existing createGroup method from useXMTP hook
       const conversation = await createGroup(
         params.name,
-        params.description,
-        params.members
+        params.description || '',
+        params.members || []
       );
 
-      // Phase 3: Sync and validate
-      updateProgress('syncing', 'Syncing group data...');
+      // Step 3: Sync with network
+      updateProgress('syncing', 'Synchronizing with XMTP network...', 80);
       
-      // Small delay to ensure group is properly synced
+      // Give time for network sync
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Phase 4: Complete
-      updateProgress('complete', 'XMTP group created successfully');
+      // Step 4: Complete
+      updateProgress('complete', 'Group created successfully!', 100);
 
       setState(prev => ({
         ...prev,
@@ -201,44 +230,52 @@ export function useXMTPIntegration(): UseXMTPIntegrationReturn {
       console.log('✅ XMTP group created successfully:', {
         id: conversation.id,
         name: params.name,
-        memberCount: params.members.length + 1
+        memberCount: params.members?.length || 0
       });
 
       return conversation;
 
     } catch (error) {
-      let xmtpError: GroupCreationError;
+      console.error('❌ XMTP group creation failed:', error);
       
-      if (error instanceof Error && 'type' in error) {
-        // Already a structured error
-        xmtpError = error as GroupCreationError;
+      let structuredError: XMTPIntegrationError;
+      
+      if (error && typeof error === 'object' && 'type' in error) {
+        structuredError = error as XMTPIntegrationError;
       } else {
-        // Convert XMTP errors to structured format
-        const errorMessage = error instanceof Error ? error.message : 'Unknown XMTP error occurred';
+        const errorMessage = error instanceof Error ? error.message : String(error);
         
-        if (errorMessage.includes('signature') || errorMessage.includes('rejected')) {
-          xmtpError = createXMTPError(
+        if (errorMessage.includes('user rejected') || errorMessage.includes('User rejected')) {
+          structuredError = createError(
             'PERMISSION_DENIED',
-            'Wallet signature required for XMTP messaging',
-            errorMessage
+            'Signature rejected',
+            'Signature request was cancelled. XMTP requires a signature to create your secure messaging identity.',
+            errorMessage,
+            true
           );
-        } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
-          xmtpError = createXMTPError(
-            'XMTP_CONNECTION_FAILED',
-            'Failed to connect to XMTP network',
-            errorMessage
+        } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+          structuredError = createError(
+            'NETWORK_ERROR',
+            'Network connection failed',
+            'Unable to connect to XMTP network. Please check your connection and try again.',
+            errorMessage,
+            true
           );
         } else if (errorMessage.includes('address') || errorMessage.includes('member')) {
-          xmtpError = createXMTPError(
-            'INVALID_MEMBER_ADDRESSES',
-            'One or more member addresses are invalid',
-            errorMessage
+          structuredError = createError(
+            'VALIDATION_ERROR',
+            'Invalid addresses',
+            'Some member addresses are invalid or cannot receive messages.',
+            errorMessage,
+            false
           );
         } else {
-          xmtpError = createXMTPError(
+          structuredError = createError(
             'UNKNOWN_ERROR',
-            'Unexpected error during XMTP group creation',
-            errorMessage
+            'Unexpected error',
+            'An unexpected error occurred while creating the group. Please try again.',
+            errorMessage,
+            true
           );
         }
       }
@@ -246,26 +283,18 @@ export function useXMTPIntegration(): UseXMTPIntegrationReturn {
       setState(prev => ({
         ...prev,
         isCreating: false,
-        isSuccess: false,
-        error: xmtpError
+        error: structuredError
       }));
 
-      console.error('❌ XMTP group creation failed:', {
-        type: xmtpError.type,
-        message: xmtpError.userMessage,
-        technical: xmtpError.technicalDetails
-      });
-
-      throw xmtpError;
+      throw structuredError;
     }
   }, [
-    isConnected, 
-    address, 
-    isInitialized, 
-    client, 
-    createGroup, 
-    canMessage, 
-    createXMTPError, 
+    isConnected,
+    address,
+    isInitialized,
+    createGroup,
+    canMessage,
+    createError,
     updateProgress
   ]);
 
@@ -280,13 +309,31 @@ export function useXMTPIntegration(): UseXMTPIntegrationReturn {
       conversation: null,
       progress: {
         phase: 'validation',
-        message: 'Ready to create XMTP group'
+        message: 'Ready to create group',
+        progress: 0
       }
     });
   }, []);
 
-  // Determine if operation can be retried
+  // Compute derived state
   const canRetry = state.error?.retryable === true && !state.isCreating;
+
+  // Sync external XMTP errors
+  const currentXmtpError = xmtpError;
+  if (currentXmtpError && !state.error && !state.isCreating) {
+    const structuredError = createError(
+      'NETWORK_ERROR',
+      'XMTP system error',
+      currentXmtpError,
+      'External XMTP error detected',
+      true
+    );
+    
+    setState(prev => ({
+      ...prev,
+      error: structuredError
+    }));
+  }
 
   return {
     state,
