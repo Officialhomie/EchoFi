@@ -441,7 +441,7 @@ async function handleGetWalletAddress() {
 }
 
 /**
- * Handle performance analysis
+ * Handle performance analysis with enhanced error handling
  */
 async function handleAnalyzePerformance(params: AgentActionParams) {
   try {
@@ -449,48 +449,116 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     
     console.log(`📊 Analyzing performance for timeframe: ${timeframe}`);
     
-    // Get current agent status
-    const { walletProvider } = await prepareAgentkitAndWalletProvider();
-    const address = walletProvider.getAddress();
-    const network = walletProvider.getNetwork();
+    // Check service availability
+    const coinbaseAvailable = canUseService('coinbase');
+    const blockchainAvailable = canUseService('blockchain');
     
-    let balance = 'Unable to fetch';
-    try {
-      const balanceWei = await walletProvider.getBalance();
-      balance = `${formatEther(BigInt(balanceWei))} ETH`;
-    } catch (balanceError) {
-      console.warn('⚠️ Could not fetch balance for analysis:', getErrorMessage(balanceError));
+    if (!coinbaseAvailable && !blockchainAvailable) {
+      throw new Error('Analysis services temporarily unavailable. Please try again later.');
     }
-    
+
+    // Get current agent status with error handling
+    let agentStatus: any = {};
+    let statusError: string | null = null;
+
+    try {
+      const { walletProvider } = await prepareAgentkitAndWalletProvider();
+      const address = walletProvider.getAddress();
+      const network = walletProvider.getNetwork();
+      
+      agentStatus = {
+        address,
+        network: network.networkId,
+        chainId: network.chainId
+      };
+
+      // Try to get balance if blockchain service is available
+      if (blockchainAvailable) {
+        try {
+          const balanceWei = await getBalanceWithRetry(walletProvider, 2); // Fewer retries for analysis
+          const balance = `${formatEther(BigInt(balanceWei))} ETH`;
+          agentStatus.balance = balance;
+        } catch (balanceError) {
+          console.warn('⚠️ Could not fetch balance for analysis:', getErrorMessage(balanceError));
+          agentStatus.balance = 'Unable to fetch';
+          statusError = getErrorMessage(balanceError);
+        }
+      } else {
+        agentStatus.balance = 'Service unavailable';
+        statusError = 'Blockchain service degraded';
+      }
+
+    } catch (initError) {
+      console.error('❌ Failed to get agent status for analysis:', getErrorMessage(initError));
+      statusError = getErrorMessage(initError);
+      agentStatus = {
+        address: 'Unknown',
+        network: 'Unknown',
+        chainId: 'Unknown',
+        balance: 'Unable to fetch'
+      };
+    }
+
+    // Get service health information
+    const healthStatus = await serviceHealthMonitor.getHealthStatus();
+    const degradedServices = serviceHealthMonitor.getDegradedServices();
+
     const analysis = `Portfolio Performance Analysis (${timeframe}):
 
-📊 Current Status: Portfolio tracking initialized
-🏦 Wallet Address: ${address}
-🌐 Network: ${network.networkId} (Chain ID: ${network.chainId})
-💰 Current Balance: ${balance}
-🔧 AgentKit Status: Connected and ready
-⚡ Real-time Updates: Available
-🎯 Next Steps: Fund wallet to begin active portfolio tracking
+📊 Current Status: Portfolio tracking ${statusError ? 'experiencing issues' : 'initialized'}
+🏦 Wallet Address: ${agentStatus.address}
+🌐 Network: ${agentStatus.network} (Chain ID: ${agentStatus.chainId})
+💰 Current Balance: ${agentStatus.balance}
+${statusError ? `⚠️ Status Note: ${statusError}` : ''}
+
+🔧 System Health:
+- Overall Status: ${healthStatus.overall.systemStatus}
+- Healthy Services: ${healthStatus.overall.healthyServices}/${healthStatus.overall.totalServices}
+${degradedServices.length > 0 ? `- Degraded Services: ${degradedServices.join(', ')}` : '- All Services: Operational'}
+
+⚡ Capabilities:
+- AgentKit: ${coinbaseAvailable ? '✅ Available' : '❌ Limited'}
+- Blockchain RPC: ${blockchainAvailable ? '✅ Available' : '❌ Degraded'}
+- Real-time Updates: ${healthStatus.overall.systemStatus === 'operational' ? '✅ Available' : '⚠️ Limited'}
+- Caching: ${FEATURE_FLAGS.enableRequestCaching ? '✅ Enabled' : '❌ Disabled'}
+- Auto-Retry: ${FEATURE_FLAGS.enableNetworkRetries ? '✅ Enabled' : '❌ Disabled'}
+
+🎯 Next Steps: ${statusError ? 'System recovery in progress. Please try again in a few moments.' : 'Fund wallet to begin active portfolio tracking'}
 
 Technical Integration:
-- AgentKit: ✅ Initialized successfully
-- LangChain: ✅ Agent configured  
+- Network Manager: ✅ Active with circuit breaker protection
+- Service Health Monitor: ✅ Monitoring ${Object.keys(healthStatus.services).length} services  
 - Database: ✅ Connected and ready
-- XMTP: ✅ Messaging system active
+- XMTP: ${canUseService('xmtp') ? '✅ Messaging system active' : '⚠️ Limited connectivity'}
 
-Ready for live portfolio management once funds are added to the connected wallet.`;
+${degradedServices.length > 0 ? '⚠️ Some features may be limited due to service degradation. The system will automatically recover.' : 'Ready for live portfolio management once funds are added to the connected wallet.'}`;
 
     return NextResponse.json({ 
       success: true, 
       data: analysis,
       metadata: {
         timeframe,
-        address,
-        network: network.networkId,
+        address: agentStatus.address,
+        network: agentStatus.network,
+        systemHealth: healthStatus.overall.systemStatus,
+        degradedServices,
+        hasErrors: !!statusError,
         timestamp: new Date().toISOString()
       }
     });
   } catch (analysisError) {
+    console.error('❌ Performance analysis failed:', getErrorMessage(analysisError));
+    
+    if (isNetworkError(analysisError)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Network connectivity issues prevented analysis. Please try again later.',
+        code: analysisError.code,
+        retryAfter: analysisError.retryAfter,
+        timestamp: new Date().toISOString()
+      }, { status: 503 });
+    }
+    
     throw new Error(`Performance analysis failed: ${getErrorMessage(analysisError)}`);
   }
 }
