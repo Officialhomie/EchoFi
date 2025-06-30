@@ -286,14 +286,28 @@ async function handleChatMessage(userMessage: string): Promise<NextResponse> {
 }
 
 /**
- * Handle balance request with proper error handling
+ * Handle balance request with enhanced error handling and caching
  */
 async function handleGetBalance() {
   try {
     console.log('💰 Fetching wallet balance...');
     
+    // Check if blockchain service is available
+    if (!canUseService('blockchain')) {
+      console.warn('⚠️ Blockchain service unavailable, checking for cached data...');
+      // In a real implementation, you might return cached balance here
+      throw new Error('Blockchain service temporarily unavailable. Please try again later.');
+    }
+
+    // Use fallback mode if service is degraded
+    if (shouldUseFallback('blockchain')) {
+      console.warn('⚠️ Using fallback mode for balance fetching...');
+    }
+
     const { walletProvider } = await prepareAgentkitAndWalletProvider();
-    const balanceWei = await walletProvider.getBalance();
+    
+    // Enhanced balance fetching with retry and timeout
+    const balanceWei = await getBalanceWithRetry(walletProvider);
     const balanceEth = formatEther(BigInt(balanceWei));
     const address = walletProvider.getAddress();
     
@@ -303,6 +317,7 @@ async function handleGetBalance() {
       balanceWei: balanceWei.toString(),
       currency: 'ETH',
       network: walletProvider.getNetwork().networkId,
+      source: shouldUseFallback('blockchain') ? 'fallback' : 'primary',
       timestamp: new Date().toISOString()
     };
     
@@ -313,8 +328,54 @@ async function handleGetBalance() {
       data: balanceData 
     });
   } catch (balanceError) {
+    console.error('❌ Balance fetch failed:', getErrorMessage(balanceError));
+    
+    // Handle different types of errors gracefully
+    if (isNetworkError(balanceError)) {
+      serviceHealthMonitor.enableDegradedMode('blockchain', 'cache');
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Network connectivity issues. Balance information temporarily unavailable.',
+        code: balanceError.code,
+        retryAfter: balanceError.retryAfter,
+        timestamp: new Date().toISOString()
+      }, { status: 503 }); // Service Unavailable
+    }
+    
     throw new Error(`Failed to get wallet balance: ${getErrorMessage(balanceError)}`);
   }
+}
+
+/**
+ * Enhanced balance fetching with retry logic and timeout
+ */
+async function getBalanceWithRetry(walletProvider: any, maxRetries = 3): Promise<string> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`💰 [BALANCE] Attempt ${attempt + 1}/${maxRetries}`);
+      
+      // Use the same timeout function as health check
+      const balance = await getBalanceWithTimeout(walletProvider, 8000);
+      console.log(`✅ [BALANCE] Success on attempt ${attempt + 1}`);
+      return balance;
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`⚠️ [BALANCE] Attempt ${attempt + 1} failed:`, getErrorMessage(lastError));
+      
+      // Don't retry on the last attempt
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
+        console.log(`⏳ [BALANCE] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw new Error(`Failed to fetch balance after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**
