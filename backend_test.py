@@ -470,17 +470,6 @@ def main():
     # Get base URL from environment or use default
     base_url = "http://localhost:3000"  # Default URL
     
-    # Check if we're running in a container environment
-    try:
-        import socket
-        hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
-        if ip_address != "127.0.0.1":
-            print(f"Running in container with IP: {ip_address}")
-            base_url = f"http://{ip_address}:3000"
-    except Exception as e:
-        print(f"Error detecting container IP: {e}")
-    
     # Create tester instance
     tester = EchoFiNetworkResilienceTest(base_url)
     
