@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "total_tests": 9,
+    "passed_tests": 0,
+    "success_rate": "0.0%",
+    "timestamp": "2025-06-30T19:02:04.837490",
+    "base_url": "http://localhost:3000"
+  },
+  "test_results": [
+    {
+      "name": "Health Check Endpoint",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae44490>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Metrics Endpoint",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768adf0750>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Agent Health Check",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/agent (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae46c90>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Agent getBalance Action",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/agent (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae5d050>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Agent analyzePerformance Action",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/agent (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae5f3d0>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "User Groups Endpoint",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/user-groups?address=0x25A40049c13Edf6DcBbcd51Ca0De2C055D3885B5 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae65710>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Health Check After Circuit Breaker Test",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768c1ddad0>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "Enable Degraded Mode",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae46d10>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    {
+      "name": "First Request (Uncached)",
+      "success": false,
+      "error": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: /api/health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0xfb768ae2c190>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    }
+  ]
+}
