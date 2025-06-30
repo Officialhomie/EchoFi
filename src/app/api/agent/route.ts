@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
+import { networkManager, isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
+import { serviceHealthMonitor, canUseService, shouldUseFallback } from '@/lib/service-health';
+import { FEATURE_FLAGS } from '@/lib/network-config';
 
 /**
  * Agent action parameters interface
