@@ -13,6 +13,9 @@ import fs from "fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { formatEther } from "viem";
+import { networkManager, NetworkError, isNetworkError } from '../network-utils';
+import { serviceHealthMonitor, canUseService, shouldUseFallback } from '../service-health';
+import { FEATURE_FLAGS } from '../network-config';
 
 /**
  * WalletData type for persisting wallet information
