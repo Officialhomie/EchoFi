@@ -19,9 +19,12 @@ interface AgentActionParams {
 }
 
 /**
- * Safe error message extraction utility
+ * Safe error message extraction utility with network error handling
  */
 function getErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return getNetworkErrorMessage(error);
+  }
   if (error instanceof Error && error.message) {
     return error.message;
   }
