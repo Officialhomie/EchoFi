@@ -897,44 +897,288 @@ export function useXMTP(config?: XMTPConfig): UseXMTPReturn {
     }
   }, [config]);
 
-  // Placeholder implementations for future phases
+  /**
+   * IMPLEMENTED: Create XMTP group with proper error handling and validation
+   */
   const createGroup = useCallback(async (name: string, description: string, members: string[]): Promise<Conversation> => {
-    console.log(`Creating group "${name}" with description "${description}" and ${members.length} members`);
-    throw new Error('Group creation will be implemented in Phase 2');
-  }, []);
+    if (!xmtpManager.current) {
+      throw new Error('XMTP not initialized');
+    }
 
+    try {
+      console.log(`🚀 Creating group "${name}" with description "${description}" and ${members.length} members`);
+      
+      // Validate member addresses first
+      if (members.length > 0) {
+        const messageCapabilities = await xmtpManager.current.canMessage(members);
+        const invalidMembers = Array.from(messageCapabilities.entries())
+          .filter(([, canMsg]) => !canMsg)
+          .map(([address]) => address);
+        
+        if (invalidMembers.length > 0) {
+          throw new Error(`Some members cannot receive XMTP messages: ${invalidMembers.join(', ')}`);
+        }
+      }
+
+      // Create group using enhanced manager
+      const groupConfig = {
+        name,
+        description,
+        imageUrlSquare: undefined,
+        permissions: undefined
+      };
+      
+      const conversation = await xmtpManager.current.createInvestmentGroup(groupConfig, members);
+      
+      // Update conversations list
+      await refreshConversations();
+      
+      console.log(`✅ Group "${name}" created successfully with ID: ${conversation.id}`);
+      return conversation;
+      
+    } catch (error) {
+      console.error('❌ Group creation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create group: ${errorMessage}`);
+    }
+  }, [refreshConversations]);
+
+  /**
+   * IMPLEMENTED: Create direct message conversation
+   */
   const createDM = useCallback(async (peerAddress: string): Promise<Conversation> => {
-    console.log(`Creating DM with peer: ${peerAddress}`);
-    throw new Error('DM creation will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
 
+    try {
+      console.log(`🚀 Creating DM with peer: ${peerAddress}`);
+      
+      // Check if peer can receive messages
+      const canMessageMap = await client.canMessage([peerAddress]);
+      if (!canMessageMap.get(peerAddress)) {
+        throw new Error(`Address ${peerAddress} cannot receive XMTP messages`);
+      }
+
+      // Create conversation
+      const conversation = await client.conversations.newConversation(peerAddress);
+      
+      // Update conversations list
+      await refreshConversations();
+      
+      console.log(`✅ DM created successfully with ${peerAddress}`);
+      return conversation;
+      
+    } catch (error) {
+      console.error('❌ DM creation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create DM: ${errorMessage}`);
+    }
+  }, [client, refreshConversations]);
+
+  /**
+   * IMPLEMENTED: Send message to conversation
+   */
   const sendMessage = useCallback(async (conversationId: string, message: string): Promise<void> => {
-    console.log(`Sending message to conversation ${conversationId}: ${message}`);
-    throw new Error('Message sending will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
 
+    try {
+      console.log(`📤 Sending message to conversation ${conversationId}: ${message.substring(0, 50)}...`);
+      
+      // Find conversation by ID
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Send message
+      await conversation.send(message);
+      
+      console.log(`✅ Message sent successfully to ${conversationId}`);
+      
+    } catch (error) {
+      console.error('❌ Message sending failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to send message: ${errorMessage}`);
+    }
+  }, [client, conversations]);
+
+  /**
+   * IMPLEMENTED: Get messages from conversation with pagination
+   */
   const getMessages = useCallback(async (conversationId: string, limit?: number): Promise<DecodedMessage[]> => {
-    console.log(`Getting messages from conversation ${conversationId} with limit: ${limit || 'unlimited'}`);
-    throw new Error('Message retrieval will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
 
+    try {
+      console.log(`📨 Getting messages from conversation ${conversationId} with limit: ${limit || 'unlimited'}`);
+      
+      // Find conversation by ID
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Get messages with optional limit
+      const messages = await conversation.messages({ limit });
+      
+      console.log(`✅ Retrieved ${messages.length} messages from ${conversationId}`);
+      return messages;
+      
+    } catch (error) {
+      console.error('❌ Message retrieval failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get messages: ${errorMessage}`);
+    }
+  }, [client, conversations]);
+
+  /**
+   * IMPLEMENTED: Stream real-time messages from conversation
+   */
   const streamMessages = useCallback(async (
     conversationId: string,
     onMessage: (message: DecodedMessage) => void
   ): Promise<() => void> => {
-    console.log(`Streaming messages from conversation ${conversationId}`, onMessage.name || 'callback');
-    throw new Error('Message streaming will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
 
+    try {
+      console.log(`🔄 Starting message stream for conversation ${conversationId}`);
+      
+      // Find conversation by ID
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Start streaming messages
+      const stream = conversation.streamMessages();
+      
+      // Process incoming messages
+      const processStream = async () => {
+        try {
+          for await (const message of stream) {
+            console.log(`📬 New message received in ${conversationId}:`, message.content);
+            onMessage(message);
+          }
+        } catch (streamError) {
+          console.error('❌ Message stream error:', streamError);
+        }
+      };
+      
+      // Start processing stream
+      processStream();
+      
+      // Return cleanup function
+      const stopStream = () => {
+        try {
+          stream.return();
+          console.log(`🛑 Stopped message stream for ${conversationId}`);
+        } catch (stopError) {
+          console.warn('⚠️ Error stopping stream:', stopError);
+        }
+      };
+      
+      // Store stream cleanup function
+      messageStreams.current.set(conversationId, stopStream);
+      
+      console.log(`✅ Message stream started for ${conversationId}`);
+      return stopStream;
+      
+    } catch (error) {
+      console.error('❌ Message streaming failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to stream messages: ${errorMessage}`);
+    }
+  }, [client, conversations]);
+
+  /**
+   * IMPLEMENTED: Add members to group conversation
+   */
   const addMembers = useCallback(async (conversationId: string, addresses: string[]): Promise<void> => {
-    console.log(`Adding ${addresses.length} members to conversation ${conversationId}`);
-    throw new Error('Member management will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
 
+    try {
+      console.log(`👥 Adding ${addresses.length} members to conversation ${conversationId}`);
+      
+      // Find conversation by ID
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Check if it's a group conversation
+      if (conversation.conversationType !== 'group') {
+        throw new Error('Can only add members to group conversations');
+      }
+
+      // Validate member addresses
+      const messageCapabilities = await client.canMessage(addresses);
+      const invalidMembers = Array.from(messageCapabilities.entries())
+        .filter(([, canMsg]) => !canMsg)
+        .map(([address]) => address);
+      
+      if (invalidMembers.length > 0) {
+        throw new Error(`Some addresses cannot receive XMTP messages: ${invalidMembers.join(', ')}`);
+      }
+
+      // Add members to group
+      await conversation.addMembers(addresses);
+      
+      // Update conversations list
+      await refreshConversations();
+      
+      console.log(`✅ Successfully added ${addresses.length} members to ${conversationId}`);
+      
+    } catch (error) {
+      console.error('❌ Adding members failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to add members: ${errorMessage}`);
+    }
+  }, [client, conversations, refreshConversations]);
+
+  /**
+   * IMPLEMENTED: Remove members from group conversation
+   */
   const removeMembers = useCallback(async (conversationId: string, addresses: string[]): Promise<void> => {
-    console.log(`Removing ${addresses.length} members from conversation ${conversationId}`);
-    throw new Error('Member management will be implemented in Phase 2');
-  }, []);
+    if (!client) {
+      throw new Error('XMTP client not initialized');
+    }
+
+    try {
+      console.log(`👥 Removing ${addresses.length} members from conversation ${conversationId}`);
+      
+      // Find conversation by ID
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Check if it's a group conversation
+      if (conversation.conversationType !== 'group') {
+        throw new Error('Can only remove members from group conversations');
+      }
+
+      // Remove members from group
+      await conversation.removeMembers(addresses);
+      
+      // Update conversations list
+      await refreshConversations();
+      
+      console.log(`✅ Successfully removed ${addresses.length} members from ${conversationId}`);
+      
+    } catch (error) {
+      console.error('❌ Removing members failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to remove members: ${errorMessage}`);
+    }
+  }, [client, conversations, refreshConversations]);
 
   // FIXED: Enhanced canMessage implementation with proper error handling
   const canMessage = useCallback(async (addresses: string[]): Promise<Map<string, boolean>> => {
