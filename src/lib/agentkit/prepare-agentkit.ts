@@ -32,6 +32,9 @@ const WALLET_DATA_FILE = "wallet_data.json";
  * Safe error message extraction utility
  */
 export function getErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return `[${error.code}] ${error.message}${error.service ? ` (${error.service})` : ''}`;
+  }
   if (error instanceof Error && error.message) {
     return error.message;
   }
