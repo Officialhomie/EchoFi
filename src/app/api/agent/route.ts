@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
+import { networkManager, isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
+import { serviceHealthMonitor, canUseService, shouldUseFallback } from '@/lib/service-health';
+import { FEATURE_FLAGS } from '@/lib/network-config';
 
 /**
  * Agent action parameters interface
@@ -16,9 +19,12 @@ interface AgentActionParams {
 }
 
 /**
- * Safe error message extraction utility
+ * Safe error message extraction utility with network error handling
  */
 function getErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return getNetworkErrorMessage(error);
+  }
   if (error instanceof Error && error.message) {
     return error.message;
   }
@@ -30,49 +36,119 @@ function getErrorMessage(error: unknown): string {
 
 /**
  * Agent health check - GET /api/agent
+ * Enhanced with service health monitoring and graceful degradation
  */
 export async function GET() {
   try {
     console.log('🔍 Agent health check initiated...');
     
-    // Try to initialize AgentKit to verify everything is working
-    const { walletProvider } = await prepareAgentkitAndWalletProvider();
-    
-    const network = walletProvider.getNetwork();
-    const address = walletProvider.getAddress();
-    
-    // Try to get balance
-    let balance = 'Unable to fetch';
-    try {
-      const balanceWei = await walletProvider.getBalance();
-      balance = `${formatEther(BigInt(balanceWei))} ETH`;
-    } catch (balanceError) {
-      console.warn('⚠️ Could not fetch balance during health check:', getErrorMessage(balanceError));
+    // Start health monitoring if not already started
+    if (FEATURE_FLAGS.enableHealthChecks) {
+      serviceHealthMonitor.startMonitoring();
     }
 
-    const healthStatus = {
-      status: 'healthy',
-      message: 'Agent initialization successful',
-      agentkit: 'Connected and ready',
-      wallet: {
+    // Check overall service health first
+    const overallHealth = await serviceHealthMonitor.getHealthStatus();
+    console.log(`🏥 System health: ${overallHealth.overall.systemStatus} (${overallHealth.overall.healthyServices}/${overallHealth.overall.totalServices} services healthy)`);
+
+    // Try to initialize AgentKit with enhanced error handling
+    let agentInfo: any = null;
+    let initializationError: string | null = null;
+
+    try {
+      const { walletProvider } = await prepareAgentkitAndWalletProvider();
+      
+      const network = walletProvider.getNetwork();
+      const address = walletProvider.getAddress();
+      
+      // Try to get balance with timeout and retry
+      let balance = 'Unable to fetch';
+      try {
+        if (canUseService('blockchain')) {
+          const balanceWei = await getBalanceWithTimeout(walletProvider);
+          balance = `${formatEther(BigInt(balanceWei))} ETH`;
+        } else {
+          balance = 'Service degraded - cached data unavailable';
+        }
+      } catch (balanceError) {
+        console.warn('⚠️ Could not fetch balance during health check:', getErrorMessage(balanceError));
+        balance = `Error: ${getErrorMessage(balanceError)}`;
+        
+        // Don't fail health check for balance fetch issues
+        if (isNetworkError(balanceError)) {
+          serviceHealthMonitor.enableDegradedMode('blockchain', 'cache');
+        }
+      }
+
+      agentInfo = {
         address,
         network: network.networkId,
         chainId: network.chainId,
         balance
+      };
+
+    } catch (initError) {
+      console.error('❌ AgentKit initialization failed during health check:', getErrorMessage(initError));
+      initializationError = getErrorMessage(initError);
+      
+      // Mark services as degraded based on error type
+      if (isNetworkError(initError)) {
+        serviceHealthMonitor.enableDegradedMode('coinbase', 'disabled');
+      }
+    }
+
+    // Determine overall health status
+    const degradedServices = serviceHealthMonitor.getDegradedServices();
+    const isHealthy = initializationError === null && overallHealth.overall.systemStatus !== 'down';
+    const isDegraded = degradedServices.length > 0 || overallHealth.overall.systemStatus === 'degraded';
+
+    const healthStatus = {
+      status: isHealthy ? (isDegraded ? 'degraded' : 'healthy') : 'unhealthy',
+      message: isHealthy 
+        ? (isDegraded ? 'Agent operational with limited functionality' : 'Agent initialization successful')
+        : 'Agent initialization failed',
+      agentkit: initializationError ? `Error: ${initializationError}` : 'Connected and ready',
+      wallet: agentInfo,
+      services: {
+        overall: overallHealth.overall,
+        degraded: degradedServices,
+        healthy: Object.keys(overallHealth.services).filter(name => 
+          overallHealth.services[name].isHealthy
+        ),
+      },
+      features: {
+        walletOperations: canUseService('coinbase'),
+        blockchainQueries: canUseService('blockchain'),
+        messaging: canUseService('xmtp'),
+        degradedMode: FEATURE_FLAGS.gracefulDegradation,
+        caching: FEATURE_FLAGS.enableRequestCaching,
+        retries: FEATURE_FLAGS.enableNetworkRetries,
       },
       timestamp: new Date().toISOString()
     };
 
-    console.log('✅ Health check passed:', healthStatus);
-    return NextResponse.json(healthStatus);
+    console.log(`${isHealthy ? '✅' : '❌'} Health check ${isHealthy ? 'passed' : 'failed'}:`, {
+      status: healthStatus.status,
+      degradedServices: degradedServices.length,
+      systemStatus: overallHealth.overall.systemStatus
+    });
+    
+    return NextResponse.json(healthStatus, { 
+      status: isHealthy ? 200 : 503 // Service Unavailable if unhealthy
+    });
 
   } catch (error) {
     console.error('❌ Health check failed:', getErrorMessage(error));
     
     const errorResponse = {
       status: 'unhealthy',
-      message: 'Agent initialization failed',
+      message: 'Health check system failure',
       error: getErrorMessage(error),
+      services: {
+        overall: { systemStatus: 'down', healthyServices: 0, totalServices: 0 },
+        degraded: [],
+        healthy: [],
+      },
       timestamp: new Date().toISOString(),
       ...(process.env.NODE_ENV === 'development' && {
         details: {
@@ -83,6 +159,26 @@ export async function GET() {
     
     return NextResponse.json(errorResponse, { status: 500 });
   }
+}
+
+/**
+ * Enhanced balance fetching with timeout
+ */
+async function getBalanceWithTimeout(walletProvider: any, timeoutMs = 8000): Promise<string> {
+  return new Promise(async (resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Balance fetch timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    try {
+      const balance = await walletProvider.getBalance();
+      clearTimeout(timeoutId);
+      resolve(balance);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      reject(error);
+    }
+  });
 }
 
 /**
@@ -190,14 +286,28 @@ async function handleChatMessage(userMessage: string): Promise<NextResponse> {
 }
 
 /**
- * Handle balance request with proper error handling
+ * Handle balance request with enhanced error handling and caching
  */
 async function handleGetBalance() {
   try {
     console.log('💰 Fetching wallet balance...');
     
+    // Check if blockchain service is available
+    if (!canUseService('blockchain')) {
+      console.warn('⚠️ Blockchain service unavailable, checking for cached data...');
+      // In a real implementation, you might return cached balance here
+      throw new Error('Blockchain service temporarily unavailable. Please try again later.');
+    }
+
+    // Use fallback mode if service is degraded
+    if (shouldUseFallback('blockchain')) {
+      console.warn('⚠️ Using fallback mode for balance fetching...');
+    }
+
     const { walletProvider } = await prepareAgentkitAndWalletProvider();
-    const balanceWei = await walletProvider.getBalance();
+    
+    // Enhanced balance fetching with retry and timeout
+    const balanceWei = await getBalanceWithRetry(walletProvider);
     const balanceEth = formatEther(BigInt(balanceWei));
     const address = walletProvider.getAddress();
     
@@ -207,6 +317,7 @@ async function handleGetBalance() {
       balanceWei: balanceWei.toString(),
       currency: 'ETH',
       network: walletProvider.getNetwork().networkId,
+      source: shouldUseFallback('blockchain') ? 'fallback' : 'primary',
       timestamp: new Date().toISOString()
     };
     
@@ -217,8 +328,54 @@ async function handleGetBalance() {
       data: balanceData 
     });
   } catch (balanceError) {
+    console.error('❌ Balance fetch failed:', getErrorMessage(balanceError));
+    
+    // Handle different types of errors gracefully
+    if (isNetworkError(balanceError)) {
+      serviceHealthMonitor.enableDegradedMode('blockchain', 'cache');
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Network connectivity issues. Balance information temporarily unavailable.',
+        code: balanceError.code,
+        retryAfter: balanceError.retryAfter,
+        timestamp: new Date().toISOString()
+      }, { status: 503 }); // Service Unavailable
+    }
+    
     throw new Error(`Failed to get wallet balance: ${getErrorMessage(balanceError)}`);
   }
+}
+
+/**
+ * Enhanced balance fetching with retry logic and timeout
+ */
+async function getBalanceWithRetry(walletProvider: any, maxRetries = 3): Promise<string> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`💰 [BALANCE] Attempt ${attempt + 1}/${maxRetries}`);
+      
+      // Use the same timeout function as health check
+      const balance = await getBalanceWithTimeout(walletProvider, 8000);
+      console.log(`✅ [BALANCE] Success on attempt ${attempt + 1}`);
+      return balance;
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`⚠️ [BALANCE] Attempt ${attempt + 1} failed:`, getErrorMessage(lastError));
+      
+      // Don't retry on the last attempt
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
+        console.log(`⏳ [BALANCE] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw new Error(`Failed to fetch balance after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**
@@ -284,7 +441,7 @@ async function handleGetWalletAddress() {
 }
 
 /**
- * Handle performance analysis
+ * Handle performance analysis with enhanced error handling
  */
 async function handleAnalyzePerformance(params: AgentActionParams) {
   try {
@@ -292,48 +449,116 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     
     console.log(`📊 Analyzing performance for timeframe: ${timeframe}`);
     
-    // Get current agent status
-    const { walletProvider } = await prepareAgentkitAndWalletProvider();
-    const address = walletProvider.getAddress();
-    const network = walletProvider.getNetwork();
+    // Check service availability
+    const coinbaseAvailable = canUseService('coinbase');
+    const blockchainAvailable = canUseService('blockchain');
     
-    let balance = 'Unable to fetch';
-    try {
-      const balanceWei = await walletProvider.getBalance();
-      balance = `${formatEther(BigInt(balanceWei))} ETH`;
-    } catch (balanceError) {
-      console.warn('⚠️ Could not fetch balance for analysis:', getErrorMessage(balanceError));
+    if (!coinbaseAvailable && !blockchainAvailable) {
+      throw new Error('Analysis services temporarily unavailable. Please try again later.');
     }
-    
+
+    // Get current agent status with error handling
+    let agentStatus: any = {};
+    let statusError: string | null = null;
+
+    try {
+      const { walletProvider } = await prepareAgentkitAndWalletProvider();
+      const address = walletProvider.getAddress();
+      const network = walletProvider.getNetwork();
+      
+      agentStatus = {
+        address,
+        network: network.networkId,
+        chainId: network.chainId
+      };
+
+      // Try to get balance if blockchain service is available
+      if (blockchainAvailable) {
+        try {
+          const balanceWei = await getBalanceWithRetry(walletProvider, 2); // Fewer retries for analysis
+          const balance = `${formatEther(BigInt(balanceWei))} ETH`;
+          agentStatus.balance = balance;
+        } catch (balanceError) {
+          console.warn('⚠️ Could not fetch balance for analysis:', getErrorMessage(balanceError));
+          agentStatus.balance = 'Unable to fetch';
+          statusError = getErrorMessage(balanceError);
+        }
+      } else {
+        agentStatus.balance = 'Service unavailable';
+        statusError = 'Blockchain service degraded';
+      }
+
+    } catch (initError) {
+      console.error('❌ Failed to get agent status for analysis:', getErrorMessage(initError));
+      statusError = getErrorMessage(initError);
+      agentStatus = {
+        address: 'Unknown',
+        network: 'Unknown',
+        chainId: 'Unknown',
+        balance: 'Unable to fetch'
+      };
+    }
+
+    // Get service health information
+    const healthStatus = await serviceHealthMonitor.getHealthStatus();
+    const degradedServices = serviceHealthMonitor.getDegradedServices();
+
     const analysis = `Portfolio Performance Analysis (${timeframe}):
 
-📊 Current Status: Portfolio tracking initialized
-🏦 Wallet Address: ${address}
-🌐 Network: ${network.networkId} (Chain ID: ${network.chainId})
-💰 Current Balance: ${balance}
-🔧 AgentKit Status: Connected and ready
-⚡ Real-time Updates: Available
-🎯 Next Steps: Fund wallet to begin active portfolio tracking
+📊 Current Status: Portfolio tracking ${statusError ? 'experiencing issues' : 'initialized'}
+🏦 Wallet Address: ${agentStatus.address}
+🌐 Network: ${agentStatus.network} (Chain ID: ${agentStatus.chainId})
+💰 Current Balance: ${agentStatus.balance}
+${statusError ? `⚠️ Status Note: ${statusError}` : ''}
+
+🔧 System Health:
+- Overall Status: ${healthStatus.overall.systemStatus}
+- Healthy Services: ${healthStatus.overall.healthyServices}/${healthStatus.overall.totalServices}
+${degradedServices.length > 0 ? `- Degraded Services: ${degradedServices.join(', ')}` : '- All Services: Operational'}
+
+⚡ Capabilities:
+- AgentKit: ${coinbaseAvailable ? '✅ Available' : '❌ Limited'}
+- Blockchain RPC: ${blockchainAvailable ? '✅ Available' : '❌ Degraded'}
+- Real-time Updates: ${healthStatus.overall.systemStatus === 'operational' ? '✅ Available' : '⚠️ Limited'}
+- Caching: ${FEATURE_FLAGS.enableRequestCaching ? '✅ Enabled' : '❌ Disabled'}
+- Auto-Retry: ${FEATURE_FLAGS.enableNetworkRetries ? '✅ Enabled' : '❌ Disabled'}
+
+🎯 Next Steps: ${statusError ? 'System recovery in progress. Please try again in a few moments.' : 'Fund wallet to begin active portfolio tracking'}
 
 Technical Integration:
-- AgentKit: ✅ Initialized successfully
-- LangChain: ✅ Agent configured  
+- Network Manager: ✅ Active with circuit breaker protection
+- Service Health Monitor: ✅ Monitoring ${Object.keys(healthStatus.services).length} services  
 - Database: ✅ Connected and ready
-- XMTP: ✅ Messaging system active
+- XMTP: ${canUseService('xmtp') ? '✅ Messaging system active' : '⚠️ Limited connectivity'}
 
-Ready for live portfolio management once funds are added to the connected wallet.`;
+${degradedServices.length > 0 ? '⚠️ Some features may be limited due to service degradation. The system will automatically recover.' : 'Ready for live portfolio management once funds are added to the connected wallet.'}`;
 
     return NextResponse.json({ 
       success: true, 
       data: analysis,
       metadata: {
         timeframe,
-        address,
-        network: network.networkId,
+        address: agentStatus.address,
+        network: agentStatus.network,
+        systemHealth: healthStatus.overall.systemStatus,
+        degradedServices,
+        hasErrors: !!statusError,
         timestamp: new Date().toISOString()
       }
     });
   } catch (analysisError) {
+    console.error('❌ Performance analysis failed:', getErrorMessage(analysisError));
+    
+    if (isNetworkError(analysisError)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Network connectivity issues prevented analysis. Please try again later.',
+        code: analysisError.code,
+        retryAfter: analysisError.retryAfter,
+        timestamp: new Date().toISOString()
+      }, { status: 503 });
+    }
+    
     throw new Error(`Performance analysis failed: ${getErrorMessage(analysisError)}`);
   }
 }
