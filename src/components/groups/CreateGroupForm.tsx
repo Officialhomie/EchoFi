@@ -195,7 +195,7 @@ export function CreateGroupForm({ onSuccess, onCancel, className }: CreateGroupF
     const equalPower = Math.floor(100 / validMembers.length);
     const remainder = 100 % validMembers.length;
 
-    setMembers(prev => prev.map((member, index) => {
+    setMembers(prev => prev.map((member) => {
       if (!member.address.trim()) return member;
       
       const memberIndex = validMembers.findIndex(vm => vm.address === member.address);
