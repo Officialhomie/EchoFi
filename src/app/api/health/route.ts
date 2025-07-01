@@ -13,7 +13,7 @@ import { HealthResponse } from '@/types/api';
  * Comprehensive health check endpoint
  * GET /api/health
  */
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const startTime = Date.now();
   
   try {
