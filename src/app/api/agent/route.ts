@@ -485,7 +485,12 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     }
 
     // Get current agent status with error handling
-    let agentStatus: any = {};
+    let agentStatus: AgentInfo = {
+      address: 'Unknown',
+      network: 'Unknown',
+      chainId: 'Unknown',
+      balance: 'Unable to fetch'
+    };
     let statusError: string | null = null;
 
     try {
