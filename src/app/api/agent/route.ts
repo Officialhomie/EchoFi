@@ -53,7 +53,7 @@ export async function GET() {
     console.log(`🏥 System health: ${overallHealth.overall.systemStatus} (${overallHealth.overall.healthyServices}/${overallHealth.overall.totalServices} services healthy)`);
 
     // Try to initialize AgentKit with enhanced error handling
-    let agentInfo: any = null;
+    let agentInfo: AgentInfo | null = null;
     let initializationError: string | null = null;
 
     try {
