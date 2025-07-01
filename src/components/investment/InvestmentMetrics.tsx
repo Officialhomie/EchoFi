@@ -50,71 +50,88 @@ export function InvestmentMetrics({ groupId, detailed = false }: InvestmentMetri
       setLoading(true);
       
       try {
-        // Mock data for demonstration - in real app would fetch from API
-        const mockMetrics: Metrics = {
-          totalApy: 8.45,
-          riskScore: 6.2, // out of 10
-          diversificationScore: 8.1, // out of 10
-          strategies: [
-            {
-              name: 'Aave USDC Lending',
-              allocation: 35,
-              apy: 4.2,
-              risk: 'low',
-              protocol: 'Aave V3',
-              status: 'active'
-            },
-            {
-              name: 'Aerodrome LP Farming',
-              allocation: 30,
-              apy: 12.8,
-              risk: 'medium',
-              protocol: 'Aerodrome',
-              status: 'active'
-            },
-            {
-              name: 'ETH Liquid Staking',
-              allocation: 25,
-              apy: 5.1,
-              risk: 'low',
-              protocol: 'Lido',
-              status: 'active'
-            },
-            {
-              name: 'Base Yield Strategy',
-              allocation: 10,
-              apy: 15.2,
-              risk: 'high',
-              protocol: 'Base Ecosystem',
-              status: 'pending'
-            }
-          ],
-          recentActivity: [
-            {
-              type: 'deposit',
-              amount: '50000',
-              timestamp: Date.now() - (2 * 60 * 60 * 1000),
-              description: 'Deployed to Aave USDC strategy'
-            },
-            {
-              type: 'reward',
-              amount: '342.18',
-              timestamp: Date.now() - (6 * 60 * 60 * 1000),
-              description: 'Aerodrome LP rewards claimed'
-            },
-            {
-              type: 'rebalance',
-              amount: '25000',
-              timestamp: Date.now() - (24 * 60 * 60 * 1000),
-              description: 'Portfolio rebalanced - moved funds to higher yield'
-            }
-          ]
-        };
+        // Try to fetch real metrics data first
+        const metricsResponse = await fetch(`/api/metrics?groupId=${groupId}`);
         
-        setMetrics(mockMetrics);
+        let useRealData = false;
+        let apiData = null;
+        
+        if (metricsResponse.ok) {
+          apiData = await metricsResponse.json();
+          useRealData = apiData && apiData.metrics;
+        }
+        
+        if (useRealData) {
+          // Use real API data
+          setMetrics(apiData.metrics);
+        } else {
+          // Fallback to mock data for demonstration
+          const mockMetrics: Metrics = {
+            totalApy: 8.45,
+            riskScore: 6.2, // out of 10
+            diversificationScore: 8.1, // out of 10
+            strategies: [
+              {
+                name: 'Aave USDC Lending',
+                allocation: 35,
+                apy: 4.2,
+                risk: 'low',
+                protocol: 'Aave V3',
+                status: 'active'
+              },
+              {
+                name: 'Aerodrome LP Farming',
+                allocation: 30,
+                apy: 12.8,
+                risk: 'medium',
+                protocol: 'Aerodrome',
+                status: 'active'
+              },
+              {
+                name: 'ETH Liquid Staking',
+                allocation: 25,
+                apy: 5.1,
+                risk: 'low',
+                protocol: 'Lido',
+                status: 'active'
+              },
+              {
+                name: 'Base Yield Strategy',
+                allocation: 10,
+                apy: 15.2,
+                risk: 'high',
+                protocol: 'Base Ecosystem',
+                status: 'pending'
+              }
+            ],
+            recentActivity: [
+              {
+                type: 'deposit',
+                amount: '50000',
+                timestamp: Date.now() - (2 * 60 * 60 * 1000),
+                description: 'Deployed to Aave USDC strategy'
+              },
+              {
+                type: 'reward',
+                amount: '342.18',
+                timestamp: Date.now() - (6 * 60 * 60 * 1000),
+                description: 'Aerodrome LP rewards claimed'
+              },
+              {
+                type: 'rebalance',
+                amount: '25000',
+                timestamp: Date.now() - (24 * 60 * 60 * 1000),
+                description: 'Portfolio rebalanced - moved funds to higher yield'
+              }
+            ]
+          };
+          
+          setMetrics(mockMetrics);
+        }
         
       } catch (error) {
         console.error('Failed to load investment metrics:', error);
+        setMetrics(null);
       } finally {
         setLoading(false);
       }
