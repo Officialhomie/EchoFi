@@ -170,8 +170,9 @@ async function generatePrometheusMetrics(): Promise<string> {
   // Service health
   prometheusMetrics += `# HELP echofi_service_healthy Service health status (1=healthy, 0=unhealthy)\n`;
   prometheusMetrics += `# TYPE echofi_service_healthy gauge\n`;
-  Object.entries(healthStatus.services).forEach(([serviceName, service]: [string, any]) => {
-    prometheusMetrics += `echofi_service_healthy{service="${serviceName}"} ${service.isHealthy ? 1 : 0}\n`;
+  Object.entries(healthStatus.services).forEach(([serviceName, service]) => {
+    const serviceHealth = service as { isHealthy: boolean };
+    prometheusMetrics += `echofi_service_healthy{service="${serviceName}"} ${serviceHealth.isHealthy ? 1 : 0}\n`;
   });
   prometheusMetrics += '\n';
   
