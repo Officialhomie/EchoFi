@@ -6,6 +6,7 @@ import { monitoringSystem, recordMetric, recordError } from '@/lib/monitoring';
 import { serviceHealthMonitor } from '@/lib/service-health';
 import { cacheManager } from '@/lib/cache-manager';
 import { networkManager } from '@/lib/network-utils';
+import { SystemMetricsData, MetricsServiceData } from '@/types/api';
 
 /**
  * Get system metrics
