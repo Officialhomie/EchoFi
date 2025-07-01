@@ -41,7 +41,7 @@ export function XMTPCreation({
     if (!state.isCreating && !state.isSuccess && !state.error) {
       handleCreateXMTPGroup();
     }
-  }, []);
+  }, [handleCreateXMTPGroup, state.error, state.isCreating, state.isSuccess]);
 
   const handleCreateXMTPGroup = useCallback(async () => {
     try {
