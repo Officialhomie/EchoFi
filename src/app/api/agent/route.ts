@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
-import { networkManager, isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
+import { isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
 import { serviceHealthMonitor, canUseService, shouldUseFallback } from '@/lib/service-health';
 import { FEATURE_FLAGS } from '@/lib/network-config';
+import type { AgentInfo, WalletProvider } from '@/types/api';
 
 /**
  * Agent action parameters interface
@@ -52,7 +53,7 @@ export async function GET() {
     console.log(`🏥 System health: ${overallHealth.overall.systemStatus} (${overallHealth.overall.healthyServices}/${overallHealth.overall.totalServices} services healthy)`);
 
     // Try to initialize AgentKit with enhanced error handling
-    let agentInfo: any = null;
+    let agentInfo: AgentInfo | null = null;
     let initializationError: string | null = null;
 
     try {
@@ -82,8 +83,8 @@ export async function GET() {
 
       agentInfo = {
         address,
-        network: network.networkId,
-        chainId: network.chainId,
+        network: network.networkId ?? 'unknown',
+        chainId: network.chainId ?? 'unknown',
         balance
       };
 
@@ -164,7 +165,7 @@ export async function GET() {
 /**
  * Enhanced balance fetching with timeout
  */
-async function getBalanceWithTimeout(walletProvider: any, timeoutMs = 8000): Promise<string> {
+async function getBalanceWithTimeout(walletProvider: WalletProvider, timeoutMs = 8000): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error(`Balance fetch timeout after ${timeoutMs}ms`));
@@ -173,7 +174,7 @@ async function getBalanceWithTimeout(walletProvider: any, timeoutMs = 8000): Pro
     try {
       const balance = await walletProvider.getBalance();
       clearTimeout(timeoutId);
-      resolve(balance);
+      resolve(balance.toString());
     } catch (error) {
       clearTimeout(timeoutId);
       reject(error);
@@ -329,7 +330,8 @@ async function handleGetBalance() {
       balance: balanceEth,
       balanceWei: balanceWei.toString(),
       currency: 'ETH',
-      network: walletProvider.getNetwork().networkId,
+      network: walletProvider.getNetwork().networkId ?? 'unknown',
+      chainId: walletProvider.getNetwork().chainId ?? 'unknown',
       source: (!blockchainAvailable && developmentMode) ? 'development-override' : shouldUseFallback('blockchain') ? 'fallback' : 'primary',
       timestamp: new Date().toISOString()
     };
@@ -363,7 +365,7 @@ async function handleGetBalance() {
 /**
  * Enhanced balance fetching with retry logic and timeout
  */
-async function getBalanceWithRetry(walletProvider: any, maxRetries = 3): Promise<string> {
+async function getBalanceWithRetry(walletProvider: WalletProvider, maxRetries = 3): Promise<string> {
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -437,8 +439,8 @@ async function handleGetWalletAddress() {
     
     const addressData = {
       address,
-      network: network.networkId,
-      chainId: network.chainId,
+      network: network.networkId ?? 'unknown',
+      chainId: network.chainId ?? 'unknown',
       timestamp: new Date().toISOString()
     };
     
@@ -484,7 +486,7 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     }
 
     // Get current agent status with error handling
-    let agentStatus: any = {};
+    let agentStatus: Partial<AgentInfo> = {};
     let statusError: string | null = null;
 
     try {
@@ -494,8 +496,8 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
       
       agentStatus = {
         address,
-        network: network.networkId,
-        chainId: network.chainId
+        network: network.networkId ?? 'unknown',
+        chainId: network.chainId ?? 'unknown',
       };
 
       // Try to get balance if blockchain service is available OR in development mode
@@ -566,6 +568,7 @@ ${degradedServices.length > 0 ? '⚠️ Some features may be limited due to serv
         timeframe,
         address: agentStatus.address,
         network: agentStatus.network,
+        chainId: agentStatus.chainId,
         systemHealth: healthStatus.overall.systemStatus,
         degradedServices,
         hasErrors: !!statusError,

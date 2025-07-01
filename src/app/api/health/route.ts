@@ -7,25 +7,13 @@ import { monitoringSystem, recordMetric } from '@/lib/monitoring';
 import { cacheManager } from '@/lib/cache-manager';
 import { networkManager } from '@/lib/network-utils';
 import { FEATURE_FLAGS } from '@/lib/network-config';
-
-interface HealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  timestamp: Date;
-  uptime: number;
-  version: string;
-  services: any;
-  features: any;
-  performance: any;
-  cache: any;
-  network: any;
-  alerts?: any[];
-}
+import type { HealthResponse } from '@/types/api';
 
 /**
  * Comprehensive health check endpoint
  * GET /api/health
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const startTime = Date.now();
   
   try {
@@ -74,13 +62,17 @@ export async function GET(request: NextRequest) {
       timestamp: new Date(),
       uptime,
       version: process.env.npm_package_version || '1.0.0',
-      services: {
-        status: serviceHealth.overall.systemStatus,
-        healthy: serviceHealth.overall.healthyServices,
-        total: serviceHealth.overall.totalServices,
-        details: serviceHealth.services,
-        degraded: serviceHealthMonitor.getDegradedServices(),
-      },
+      services: Object.fromEntries(
+        Object.entries(serviceHealth.services).map(([key, svc]) => [
+          key,
+          {
+            isHealthy: svc.isHealthy,
+            lastCheck: svc.lastHealthCheck,
+            responseTime: svc.responseTime,
+            error: undefined,
+          },
+        ])
+      ),
       features: {
         healthChecks: FEATURE_FLAGS.enableHealthChecks,
         networkRetries: FEATURE_FLAGS.enableNetworkRetries,
@@ -99,7 +91,9 @@ export async function GET(request: NextRequest) {
         enabled: FEATURE_FLAGS.enableRequestCaching,
       },
       network: {
-        metrics: networkMetrics,
+        metrics: typeof networkMetrics === 'object' && !Array.isArray(networkMetrics) && networkMetrics !== null && !('requests' in networkMetrics)
+          ? networkMetrics as Record<string, { requests: number; successes: number; failures: number; averageResponseTime: number; }>
+          : {},
         retries: FEATURE_FLAGS.enableNetworkRetries,
         circuitBreaker: FEATURE_FLAGS.enableCircuitBreaker,
       },

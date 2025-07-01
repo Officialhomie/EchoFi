@@ -106,10 +106,10 @@ export interface HealthResponse {
 // Agent types
 export interface WalletProvider {
   getAddress(): string;
-  getBalance(): Promise<string>;
+  getBalance(): Promise<bigint>;
   getNetwork(): {
-    networkId: string;
-    chainId: string;
+    networkId?: string;
+    chainId?: string;
   };
 }
 
