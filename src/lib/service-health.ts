@@ -398,11 +398,22 @@ export const serviceHealthMonitor = ServiceHealthMonitor.getInstance();
 // Helper functions for graceful degradation
 export function canUseService(serviceName: string): boolean {
   if (!FEATURE_FLAGS.gracefulDegradation) return true;
+    
+  // In development mode with lenient health checks, always allow service usage
+  if (FEATURE_FLAGS.lenientHealthChecks) {
+    console.log(`🛠️ [HEALTH] Service ${serviceName} allowed in lenient development mode`);
+    return true;
+  }
+  
   return serviceHealthMonitor.isServiceHealthy(serviceName);
 }
 
 export function shouldUseFallback(serviceName: string): boolean {
   if (!FEATURE_FLAGS.gracefulDegradation) return false;
+
+  // In lenient development mode, don't use fallbacks
+  if (FEATURE_FLAGS.lenientHealthChecks) return false;
+  
   const status = serviceHealthMonitor.getServiceStatus(serviceName);
   return status?.isDegraded || false;
 }

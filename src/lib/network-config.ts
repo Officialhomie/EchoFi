@@ -300,6 +300,8 @@ export const FEATURE_FLAGS = {
   enableHealthChecks: process.env.ENABLE_HEALTH_CHECKS !== 'false',
   enableMetrics: process.env.ENABLE_NETWORK_METRICS !== 'false',
   gracefulDegradation: process.env.ENABLE_GRACEFUL_DEGRADATION !== 'false',
+  developmentMode: process.env.NODE_ENV === 'development',
+  lenientHealthChecks: process.env.NODE_ENV === 'development' && process.env.STRICT_HEALTH_CHECKS !== 'true',
 } as const;
 
 // Error codes for network issues
