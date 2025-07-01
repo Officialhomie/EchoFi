@@ -42,7 +42,7 @@ export function DatabaseCreation({
     if (!state.isCreating && !state.isSuccess && !state.error) {
       handleCreateGroup();
     }
-  }, []);
+  }, [handleCreateGroup, state.error, state.isCreating, state.isSuccess]);
 
   const handleCreateGroup = useCallback(async () => {
     try {
