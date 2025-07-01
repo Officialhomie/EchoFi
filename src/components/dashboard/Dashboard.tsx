@@ -215,7 +215,7 @@ const renderPortfolioContent = (
   );
 };
 
-export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
+export function Dashboard({ onViewGroups }: DashboardProps) {
   const { address } = useWallet();
   const { conversations, getMessages, initializeXMTP, resetDatabase, clearError } = useXMTP();
   const { getBalance, analyzePerformance, isInitialized: agentInitialized } = useInvestmentAgent();
