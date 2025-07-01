@@ -4,7 +4,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useIntegratedGroupCreation, GroupMember, formatVotingDistribution } from '@/hooks/useIntegratedGroupCreation';
+import { useIntegratedGroupCreation, formatVotingDistribution } from '@/hooks/useIntegratedGroupCreation';
 import { useWallet } from '@/hooks/useWallet';
 import { useXMTP } from '@/hooks/useXMTP';
 import { Button } from '@/components/ui/button';
