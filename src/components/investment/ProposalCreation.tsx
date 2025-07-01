@@ -107,15 +107,14 @@ export function ProposalCreation({ groupId, treasuryAddress, onSuccess, onCancel
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          // Map form to API format
           title: form.title,
           description: form.description,
           strategy: form.strategy || form.type,
           requestedAmount: form.amount,
-          proposedBy: treasuryAddress, // This should be the user's wallet address
+          proposedBy: address || treasuryAddress,
           deadline: new Date(Date.now() + (form.duration || 7) * 24 * 60 * 60 * 1000).toISOString(),
           requiredVotes: 5, // Default quorum
-          groupId: 'current-group-id' // This should come from context
+          groupId: groupId
         })
       });
 

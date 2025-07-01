@@ -121,17 +121,33 @@ export function ProposalList({ proposals, groupData, onProposalClick }: Proposal
     setVotingProposal(proposalId);
     
     try {
-      // In a real app, this would make an API call to vote
-      console.log(`Voting ${vote} on proposal ${proposalId}`);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update the proposal in the list (in real app, this would trigger a refetch)
-      console.log('Vote submitted successfully');
+     // Make API call to vote
+     const response = await fetch('/api/votes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        proposalId,
+        voterAddress: 'current-user-address', // Should come from wallet context
+        vote: vote === 'for' ? 'approve' : 'reject',
+        votingPower: groupData.userVotingPower.toString()
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to submit vote');
+    }
+    
+    const result = await response.json();
+    console.log('Vote submitted successfully:', result);
+    
+    // In a real app, this would trigger a refetch of proposals
+    alert(`Vote submitted successfully! You voted ${vote}.`);
       
     } catch (error) {
       console.error('Failed to vote:', error);
+      alert('Failed to submit vote. Please try again.');
     } finally {
       setVotingProposal(null);
     }
