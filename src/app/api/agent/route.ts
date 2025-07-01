@@ -2,10 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prepareAgentkitAndWalletProvider } from '@/lib/agentkit/prepare-agentkit';
 import { formatEther } from 'viem';
-import { isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
+import { networkManager, isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
 import { serviceHealthMonitor, canUseService, shouldUseFallback } from '@/lib/service-health';
 import { FEATURE_FLAGS } from '@/lib/network-config';
-import { WalletProvider, AgentInfo } from '@/types/api';
 
 /**
  * Agent action parameters interface
@@ -53,7 +52,7 @@ export async function GET() {
     console.log(`🏥 System health: ${overallHealth.overall.systemStatus} (${overallHealth.overall.healthyServices}/${overallHealth.overall.totalServices} services healthy)`);
 
     // Try to initialize AgentKit with enhanced error handling
-    let agentInfo: AgentInfo | null = null;
+    let agentInfo: any = null;
     let initializationError: string | null = null;
 
     try {
@@ -165,7 +164,7 @@ export async function GET() {
 /**
  * Enhanced balance fetching with timeout
  */
-async function getBalanceWithTimeout(walletProvider: WalletProvider, timeoutMs = 8000): Promise<string> {
+async function getBalanceWithTimeout(walletProvider: any, timeoutMs = 8000): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error(`Balance fetch timeout after ${timeoutMs}ms`));
@@ -364,7 +363,7 @@ async function handleGetBalance() {
 /**
  * Enhanced balance fetching with retry logic and timeout
  */
-async function getBalanceWithRetry(walletProvider: WalletProvider, maxRetries = 3): Promise<string> {
+async function getBalanceWithRetry(walletProvider: any, maxRetries = 3): Promise<string> {
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -485,12 +484,7 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     }
 
     // Get current agent status with error handling
-    let agentStatus: AgentInfo = {
-      address: 'Unknown',
-      network: 'Unknown',
-      chainId: 'Unknown',
-      balance: 'Unable to fetch'
-    };
+    let agentStatus: any = {};
     let statusError: string | null = null;
 
     try {
