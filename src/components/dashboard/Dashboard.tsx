@@ -588,7 +588,7 @@ export function Dashboard({ onViewGroups }: DashboardProps) {
   }, [loadGroups, isLoading]);
 
     // Handlers for navigation
-    const handleJoinGroup = (groupId: string, groupName: string) => {
+    const handleJoinGroup = (groupId: string) => {
       setDashboardState({
         currentView: 'group-investment',
         selectedGroupId: groupId
