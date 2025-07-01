@@ -229,15 +229,36 @@ const PRODUCTION_CONFIG: NetworkConfiguration = {
 // Get current environment configuration
 export function getNetworkConfig(): NetworkConfiguration {
   const env = process.env.NODE_ENV || 'development';
+  const networkId = process.env.NETWORK_ID || 'base-sepolia';
+  
+  let config: NetworkConfiguration;
   
   switch (env) {
     case 'production':
-      return PRODUCTION_CONFIG;
+      config = PRODUCTION_CONFIG;
+      break;
     case 'development':
     case 'test':
     default:
-      return DEVELOPMENT_CONFIG;
+      config = DEVELOPMENT_CONFIG;
+      break;
   }
+  
+  // Populate blockchain service endpoints based on current network
+  const rpcEndpoints = config.rpcEndpoints[networkId] || [];
+  config.services.blockchain.endpoints = rpcEndpoints.map(endpoint => ({
+    url: endpoint.url,
+    name: endpoint.name,
+    priority: endpoint.priority,
+    timeout: endpoint.timeout,
+    rateLimit: endpoint.rateLimit,
+  }));
+  
+  // For services that don't need explicit health check endpoints, leave empty
+  // but don't mark them as unhealthy
+  config.services.coinbase.endpoints = []; // AgentKit handles its own connectivity
+  
+  return config;
 }
 
 // Export current configuration
