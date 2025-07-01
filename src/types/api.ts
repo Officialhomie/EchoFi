@@ -48,3 +48,108 @@ export interface WebSocketConnection {
   lastPing: number | null;
   reconnectAttempts: number;
 }
+
+// Health check types
+export interface ServiceHealth {
+  isHealthy: boolean;
+  lastCheck: Date;
+  responseTime?: number;
+  error?: string;
+}
+
+export interface HealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: Date;
+  uptime: number;
+  version: string;
+  services: Record<string, ServiceHealth>;
+  features: Record<string, boolean>;
+  performance: {
+    responseTime: number;
+    metrics: Array<{
+      name: string;
+      value: number;
+      unit: string;
+      timestamp: Date;
+    }>;
+    errors: Array<{
+      error: string;
+      count: number;
+      lastOccurrence: Date;
+      severity: string;
+      service?: string;
+    }>;
+  };
+  cache: {
+    totalEntries: number;
+    hitRate: number;
+    totalSize: number;
+    enabled: boolean;
+  };
+  network: {
+    metrics: Record<string, {
+      requests: number;
+      successes: number;
+      failures: number;
+      averageResponseTime: number;
+    }>;
+    retries: boolean;
+    circuitBreaker: boolean;
+  };
+  alerts?: Array<{
+    name: string;
+    severity: string;
+    message: string;
+  }>;
+}
+
+// Agent types
+export interface WalletProvider {
+  getAddress(): string;
+  getBalance(): Promise<string>;
+  getNetwork(): {
+    networkId: string;
+    chainId: string;
+  };
+}
+
+export interface AgentInfo {
+  address: string;
+  network: string;
+  chainId: string;
+  balance: string;
+}
+
+// Metrics types
+export interface MetricsServiceData {
+  requests?: number;
+  failures?: number;
+  averageResponseTime?: number;
+  successRate?: number;
+}
+
+export interface SystemMetricsData {
+  uptime: number;
+  performance: Array<{
+    name: string;
+    value: number;
+    unit: string;
+    timestamp: Date;
+    tags?: Record<string, string>;
+  }>;
+  errors: Array<{
+    error: string;
+    count: number;
+    lastOccurrence: Date;
+    severity: string;
+    service?: string;
+  }>;
+  services: Record<string, ServiceHealth>;
+  cache: {
+    totalEntries: number;
+    hitRate: number;
+    totalSize: number;
+  };
+  network: Record<string, MetricsServiceData>;
+  timestamp: Date;
+}

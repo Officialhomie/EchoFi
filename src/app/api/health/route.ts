@@ -7,25 +7,13 @@ import { monitoringSystem, recordMetric } from '@/lib/monitoring';
 import { cacheManager } from '@/lib/cache-manager';
 import { networkManager } from '@/lib/network-utils';
 import { FEATURE_FLAGS } from '@/lib/network-config';
-
-interface HealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  timestamp: Date;
-  uptime: number;
-  version: string;
-  services: any;
-  features: any;
-  performance: any;
-  cache: any;
-  network: any;
-  alerts?: any[];
-}
+import { HealthResponse } from '@/types/api';
 
 /**
  * Comprehensive health check endpoint
  * GET /api/health
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const startTime = Date.now();
   
   try {
@@ -74,13 +62,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date(),
       uptime,
       version: process.env.npm_package_version || '1.0.0',
-      services: {
-        status: serviceHealth.overall.systemStatus,
-        healthy: serviceHealth.overall.healthyServices,
-        total: serviceHealth.overall.totalServices,
-        details: serviceHealth.services,
-        degraded: serviceHealthMonitor.getDegradedServices(),
-      },
+      services: serviceHealth.services,
       features: {
         healthChecks: FEATURE_FLAGS.enableHealthChecks,
         networkRetries: FEATURE_FLAGS.enableNetworkRetries,
@@ -99,7 +81,12 @@ export async function GET(request: NextRequest) {
         enabled: FEATURE_FLAGS.enableRequestCaching,
       },
       network: {
-        metrics: networkMetrics,
+        metrics: networkMetrics as Record<string, {
+          requests: number;
+          successes: number;
+          failures: number;
+          averageResponseTime: number;
+        }>,
         retries: FEATURE_FLAGS.enableNetworkRetries,
         circuitBreaker: FEATURE_FLAGS.enableCircuitBreaker,
       },
@@ -125,11 +112,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date(),
       error: error instanceof Error ? error.message : String(error),
       uptime: 0,
-      services: {
-        status: 'down',
-        healthy: 0,
-        total: 0,
-      },
+      services: {},
       features: {
         healthChecks: false,
         networkRetries: false,
@@ -137,6 +120,22 @@ export async function GET(request: NextRequest) {
         requestCaching: false,
         metrics: false,
         gracefulDegradation: false,
+      },
+      performance: {
+        responseTime: Date.now() - startTime,
+        metrics: [],
+        errors: [],
+      },
+      cache: {
+        totalEntries: 0,
+        hitRate: 0,
+        totalSize: 0,
+        enabled: false,
+      },
+      network: {
+        metrics: {},
+        retries: false,
+        circuitBreaker: false,
       },
     };
     
