@@ -818,7 +818,7 @@ export function Dashboard({ onViewGroups }: DashboardProps) {
                   <div
                     key={group.id}
                     className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer bg-white/50"
-                    onClick={() => handleJoinGroup(group.id, group.name)}
+                    onClick={() => handleJoinGroup(group.id)}
                   >
                     <div className="flex items-center justify-between">
                     <div className="flex-1">
