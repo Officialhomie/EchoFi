@@ -1,406 +1,382 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
+import { useWallet } from '@/hooks/useWallet';
 import { 
-  DollarSignIcon, 
-  ArrowUpIcon, 
-  ArrowDownIcon,
-  SendIcon,
-  AlertCircleIcon,
-  InfoIcon
+  DollarSignIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
+  SettingsIcon,
+  UsersIcon,
+  CalendarIcon,
+  FileTextIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon
 } from 'lucide-react';
-import { useCreateProposal } from '@/contracts/contracts';
-import { ProposalType, validateUSDCAmount } from '@/contracts/contracts';
-import { parseUnits } from 'viem';
-import { cn } from '@/lib/utils';
-
-// =============================================================================
-// TYPES & INTERFACES
-// =============================================================================
+import { formatUSD } from '@/lib/utils';
 
 interface ProposalCreationProps {
+  groupId: string;
   treasuryAddress: `0x${string}`;
-  onSuccess?: (txHash: string) => void;
-  onCancel?: () => void;
-  className?: string;
+  onSuccess: (txHash: string) => void;
+  onCancel: () => void;
 }
 
-interface ProposalFormData {
+type ProposalType = 'deposit' | 'withdraw' | 'strategy' | 'governance';
+
+interface ProposalForm {
+  title: string;
+  description: string;
   type: ProposalType;
   amount: string;
-  description: string;
-  target?: string;
+  strategy?: string;
+  duration?: number; // in days
+  targetApy?: number;
+  riskLevel?: 'low' | 'medium' | 'high';
 }
 
-interface ValidationErrors {
-  amount?: string;
-  description?: string;
-  target?: string;
-  general?: string;
-}
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
-
-export function ProposalCreation({
-  treasuryAddress,
-  onSuccess,
-  onCancel,
-  className
-}: ProposalCreationProps) {
-  
-  const { createProposal, isLoading, isSuccess, txHash } = useCreateProposal(treasuryAddress);
-  
-  const [formData, setFormData] = useState<ProposalFormData>({
-    type: ProposalType.DEPOSIT_AAVE,
+export function ProposalCreation({ groupId, treasuryAddress, onSuccess, onCancel }: ProposalCreationProps) {
+  const { address } = useWallet();
+  const [form, setForm] = useState<ProposalForm>({
+    title: '',
+    description: '',
+    type: 'deposit',
     amount: '',
-    description: ''
+    duration: 7
   });
-  
-  const [errors, setErrors] = useState<ValidationErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<'type' | 'details' | 'review'>('type');
 
-  /**
-   * Validate form data
-   */
-  const validateForm = useCallback((): ValidationErrors => {
-    const newErrors: ValidationErrors = {};
-
-    // Validate amount
-    if (!formData.amount.trim()) {
-      newErrors.amount = 'Amount is required';
-    } else {
-      const amountError = validateUSDCAmount(formData.amount);
-      if (amountError) {
-        newErrors.amount = amountError;
-      }
+  const proposalTypes = [
+    {
+      id: 'deposit' as const,
+      name: 'Deposit Funds',
+      description: 'Deploy capital to new investment strategy',
+      icon: TrendingUpIcon,
+      color: 'text-green-600 bg-green-100'
+    },
+    {
+      id: 'withdraw' as const,
+      name: 'Withdraw Funds',
+      description: 'Remove capital from existing strategy',
+      icon: TrendingDownIcon,
+      color: 'text-red-600 bg-red-100'
+    },
+    {
+      id: 'strategy' as const,
+      name: 'Change Strategy',
+      description: 'Modify or add new investment strategy',
+      icon: SettingsIcon,
+      color: 'text-blue-600 bg-blue-100'
+    },
+    {
+      id: 'governance' as const,
+      name: 'Governance',
+      description: 'Group settings or member changes',
+      icon: UsersIcon,
+      color: 'text-purple-600 bg-purple-100'
     }
+  ];
 
-    // Validate description
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    } else if (formData.description.length < 10) {
-      newErrors.description = 'Description must be at least 10 characters';
-    } else if (formData.description.length > 500) {
-      newErrors.description = 'Description must be less than 500 characters';
-    }
+  const strategies = [
+    'Aave V3 USDC Lending',
+    'Aerodrome LP Farming',
+    'Uniswap V3 Liquidity',
+    'Curve Stable Pools',
+    'Lido ETH Staking',
+    'Custom Strategy'
+  ];
 
-    // Validate target for transfer proposals
-    if (formData.type === ProposalType.TRANSFER) {
-      if (!formData.target?.trim()) {
-        newErrors.target = 'Target address is required for transfers';
-      } else if (!/^0x[a-fA-F0-9]{40}$/.test(formData.target)) {
-        newErrors.target = 'Invalid Ethereum address format';
-      }
-    }
+  const handleTypeSelect = (type: ProposalType) => {
+    setForm({ ...form, type });
+    setStep('details');
+  };
 
-    return newErrors;
-  }, [formData]);
-
-  /**
-   * Handle form submission
-   */
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    if (loading) return;
     
-    // Validate form
-    const validationErrors = validateForm();
-    setErrors(validationErrors);
+    setLoading(true);
     
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
-
     try {
-      setIsSubmitting(true);
-      
-      // Convert amount to wei (USDC has 6 decimals)
-      const amountWei = parseUnits(formData.amount, 6);
-      
-      // Prepare proposal parameters
-      const proposalParams = {
-        proposalType: formData.type,
-        amount: amountWei,
-        target: (formData.target || '0x0000000000000000000000000000000000000000') as `0x${string}`,
-        data: '0x' as `0x${string}`, // Empty data for simple proposals
-        description: formData.description.trim()
-      };
-
-      console.log('🏗️ Creating proposal:', {
-        type: ProposalType[formData.type],
-        amount: formData.amount,
-        description: formData.description,
-        treasury: treasuryAddress
+      // Create proposal via API
+      const response = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          // Map form to API format
+          title: form.title,
+          description: form.description,
+          strategy: form.strategy || form.type,
+          requestedAmount: form.amount,
+          proposedBy: treasuryAddress, // This should be the user's wallet address
+          deadline: new Date(Date.now() + (form.duration || 7) * 24 * 60 * 60 * 1000).toISOString(),
+          requiredVotes: 5, // Default quorum
+          groupId: 'current-group-id' // This should come from context
+        })
       });
 
-      createProposal(proposalParams);
+      if (!response.ok) {
+        throw new Error('Failed to create proposal');
+      }
+
+      const result = await response.json();
+      
+      // In a real implementation, this would be a transaction hash
+      onSuccess(result.proposal.id);
       
     } catch (error) {
-      console.error('❌ Failed to create proposal:', error);
-      setErrors({
-        general: error instanceof Error ? error.message : 'Failed to create proposal'
-      });
+      console.error('Failed to create proposal:', error);
+      alert('Failed to create proposal. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
-  }, [formData, validateForm, createProposal, treasuryAddress]);
+  };
 
-  /**
-   * Handle successful transaction
-   */
-  React.useEffect(() => {
-    if (isSuccess && txHash) {
-      console.log('✅ Proposal created successfully:', txHash);
-      onSuccess?.(txHash);
-    }
-  }, [isSuccess, txHash, onSuccess]);
+  const isFormValid = () => {
+    return form.title.trim() && 
+           form.description.trim() && 
+           form.amount.trim() && 
+           parseFloat(form.amount) > 0;
+  };
 
-  /**
-   * Handle form field changes
-   */
-  const handleFieldChange = useCallback((field: keyof ProposalFormData, value: string | ProposalType) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear related errors
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  }, [errors]);
+  if (step === 'type') {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">Select Proposal Type</h2>
+          <p className="text-gray-600 mt-2">Choose the type of proposal you want to create</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {proposalTypes.map((type) => (
+            <Card 
+              key={type.id}
+              className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-blue-300"
+              onClick={() => handleTypeSelect(type.id)}
+            >
+              <CardContent className="pt-6">
+                <div className="text-center space-y-3">
+                  <div className={`p-3 rounded-full inline-block ${type.color}`}>
+                    <type.icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">{type.name}</h3>
+                  <p className="text-sm text-gray-600">{type.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  /**
-   * Get proposal type info
-   */
-  const getProposalTypeInfo = useCallback((type: ProposalType) => {
-    switch (type) {
-      case ProposalType.DEPOSIT_AAVE:
-        return {
-          title: 'Deposit to Aave',
-          description: 'Invest USDC in Aave lending protocol to earn yield',
-          icon: ArrowUpIcon,
-          color: 'text-green-600'
-        };
-      case ProposalType.WITHDRAW_AAVE:
-        return {
-          title: 'Withdraw from Aave',
-          description: 'Withdraw USDC from Aave lending protocol',
-          icon: ArrowDownIcon,
-          color: 'text-blue-600'
-        };
-      case ProposalType.TRANSFER:
-        return {
-          title: 'Transfer Funds',
-          description: 'Send USDC to another address',
-          icon: SendIcon,
-          color: 'text-purple-600'
-        };
-      default:
-        return {
-          title: 'Unknown',
-          description: 'Unknown proposal type',
-          icon: AlertCircleIcon,
-          color: 'text-gray-600'
-        };
-    }
-  }, []);
-
-  const currentTypeInfo = getProposalTypeInfo(formData.type);
-  const IconComponent = currentTypeInfo.icon;
-
-  return (
-    <Card className={cn("w-full max-w-lg mx-auto", className)}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DollarSignIcon className="w-5 h-5 text-green-600" />
-          Create Investment Proposal
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* Proposal Type Selection */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-gray-700">
-              Proposal Type
+  if (step === 'details') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => setStep('type')}>
+            ← Back
+          </Button>
+          <h2 className="text-xl font-bold text-gray-900">Proposal Details</h2>
+          <div />
+        </div>
+        
+        <div className="space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FileTextIcon className="w-4 h-4 inline mr-1" />
+              Title
             </label>
-            
-            <div className="grid grid-cols-1 gap-3">
-              {[ProposalType.DEPOSIT_AAVE, ProposalType.WITHDRAW_AAVE, ProposalType.TRANSFER].map((type) => {
-                const typeInfo = getProposalTypeInfo(type);
-                const TypeIcon = typeInfo.icon;
-                const isSelected = formData.type === type;
-                
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => handleFieldChange('type', type)}
-                    className={cn(
-                      "flex items-center gap-3 p-3 border rounded-lg text-left transition-all",
-                      isSelected 
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" 
-                        : "border-gray-200 hover:border-gray-300"
-                    )}
-                  >
-                    <TypeIcon className={cn("w-5 h-5", typeInfo.color)} />
-                    <div>
-                      <div className="font-medium text-gray-900">{typeInfo.title}</div>
-                      <div className="text-sm text-gray-600">{typeInfo.description}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g., Deploy 50k USDC to Aave Strategy"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              maxLength={100}
+            />
           </div>
-
-          {/* Amount Input */}
-          <div className="space-y-2">
-            <label htmlFor="amount" className="text-sm font-medium text-gray-700">
-              Amount (USDC)
-            </label>
-            <div className="relative">
-              <DollarSignIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={formData.amount}
-                onChange={(e) => handleFieldChange('amount', e.target.value)}
-                className={cn(
-                  "pl-10",
-                  errors.amount && "border-red-500 focus:ring-red-500"
-                )}
-              />
-            </div>
-            {errors.amount && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
-                <AlertCircleIcon className="w-4 h-4" />
-                {errors.amount}
-              </p>
-            )}
-          </div>
-
-          {/* Target Address (for transfers) */}
-          {formData.type === ProposalType.TRANSFER && (
-            <div className="space-y-2">
-              <label htmlFor="target" className="text-sm font-medium text-gray-700">
-                Target Address
-              </label>
-              <Input
-                id="target"
-                placeholder="0x..."
-                value={formData.target || ''}
-                onChange={(e) => handleFieldChange('target', e.target.value)}
-                className={errors.target ? "border-red-500 focus:ring-red-500" : ""}
-              />
-              {errors.target && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircleIcon className="w-4 h-4" />
-                  {errors.target}
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Description */}
-          <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium text-gray-700">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Description
             </label>
-            <Textarea
-              id="description"
-              placeholder="Explain the purpose of this proposal..."
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Provide detailed explanation of the proposal..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={4}
-              value={formData.description}
-              onChange={(e) => handleFieldChange('description', e.target.value)}
-              className={errors.description ? "border-red-500 focus:ring-red-500" : ""}
+              maxLength={1000}
             />
-            <div className="flex justify-between items-center">
-              {errors.description ? (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircleIcon className="w-4 h-4" />
-                  {errors.description}
-                </p>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  {formData.description.length}/500 characters
-                </p>
-              )}
-            </div>
           </div>
 
-          {/* Current Proposal Summary */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <InfoIcon className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-gray-700">Proposal Summary</span>
-            </div>
-            <div className="space-y-1 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <IconComponent className={cn("w-4 h-4", currentTypeInfo.color)} />
-                <span>{currentTypeInfo.title}</span>
-              </div>
-              {formData.amount && (
-                <div>Amount: ${formData.amount} USDC</div>
-              )}
-              {formData.type === ProposalType.TRANSFER && formData.target && (
-                <div>To: {formData.target.slice(0, 10)}...{formData.target.slice(-8)}</div>
-              )}
-            </div>
+          {/* Amount */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <DollarSignIcon className="w-4 h-4 inline mr-1" />
+              Amount (USDC)
+            </label>
+            <input
+              type="number"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              placeholder="0.00"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              min="0"
+              step="0.01"
+            />
           </div>
 
-          {/* General Error */}
-          {errors.general && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-600 flex items-center gap-1">
-                <AlertCircleIcon className="w-4 h-4" />
-                {errors.general}
-              </p>
+          {/* Strategy (for deposit/strategy types) */}
+          {(form.type === 'deposit' || form.type === 'strategy') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <SettingsIcon className="w-4 h-4 inline mr-1" />
+                Strategy
+              </label>
+              <select
+                value={form.strategy || ''}
+                onChange={(e) => setForm({ ...form, strategy: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a strategy...</option>
+                {strategies.map((strategy) => (
+                  <option key={strategy} value={strategy}>
+                    {strategy}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            {onCancel && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={isLoading || isSubmitting}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            )}
-            
-            <Button
-              type="submit"
-              disabled={isLoading || isSubmitting || Object.keys(validateForm()).length > 0}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
+          {/* Voting Duration */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <CalendarIcon className="w-4 h-4 inline mr-1" />
+              Voting Duration (days)
+            </label>
+            <select
+              value={form.duration || 7}
+              onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              {isLoading || isSubmitting ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Creating...
-                </div>
-              ) : (
-                'Create Proposal'
-              )}
-            </Button>
+              <option value={1}>1 day</option>
+              <option value={3}>3 days</option>
+              <option value={7}>7 days</option>
+              <option value={14}>14 days</option>
+            </select>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+
+        <div className="flex space-x-3">
+          <Button variant="outline" onClick={onCancel} className="flex-1">
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => setStep('review')} 
+            disabled={!isFormValid()}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            Review Proposal
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Review step
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" onClick={() => setStep('details')}>
+          ← Back
+        </Button>
+        <h2 className="text-xl font-bold text-gray-900">Review Proposal</h2>
+        <div />
+      </div>
+      
+      <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <CheckCircleIcon className="w-5 h-5 text-blue-600 mr-2" />
+              <span className="font-medium text-blue-900">Proposal Summary</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-blue-700 font-medium">Type</p>
+                <p className="text-blue-900 capitalize">{form.type}</p>
+              </div>
+              <div>
+                <p className="text-sm text-blue-700 font-medium">Amount</p>
+                <p className="text-blue-900">{formatUSD(form.amount)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-blue-700 font-medium">Duration</p>
+                <p className="text-blue-900">{form.duration} days</p>
+              </div>
+              {form.strategy && (
+                <div>
+                  <p className="text-sm text-blue-700 font-medium">Strategy</p>
+                  <p className="text-blue-900">{form.strategy}</p>
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <p className="text-sm text-blue-700 font-medium mb-1">Title</p>
+              <p className="text-blue-900 font-medium">{form.title}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm text-blue-700 font-medium mb-1">Description</p>
+              <p className="text-blue-900 text-sm leading-relaxed">{form.description}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <AlertTriangleIcon className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5 mr-2" />
+          <div className="text-sm text-yellow-800">
+            <p className="font-medium mb-1">Important Notes:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Once created, proposals cannot be edited</li>
+              <li>The proposal will be open for voting for {form.duration} days</li>
+              <li>Execution requires majority approval and quorum</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex space-x-3">
+        <Button variant="outline" onClick={onCancel} className="flex-1" disabled={loading}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSubmit} 
+          disabled={loading || !isFormValid()}
+          className="flex-1 bg-blue-600 hover:bg-blue-700"
+        >
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              Creating...
+            </>
+          ) : (
+            'Create Proposal'
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }

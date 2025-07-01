@@ -75,82 +75,114 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
   const [showCreateProposal, setShowCreateProposal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'pending' | 'completed'>('all');
 
-  // Mock data for demonstration - in real app, this would come from API
+  //  Load real data from API
   useEffect(() => {
     const loadGroupData = async () => {
       setLoading(true);
-      
-      // Mock group data
-      const mockGroupData: GroupData = {
-        id: groupId,
-        name: 'DeFi Yield Hunters',
-        description: 'A group focused on maximizing yield through diversified DeFi strategies on Base network.',
-        memberCount: 12,
-        totalInvestment: '245750.00',
-        currentValue: '267842.50',
-        totalReturn: '22092.50',
-        returnPercentage: 8.99,
-        treasuryAddress: '0x742d35Cc6732C0532925a3b8D1C6c91DbC72a5Ea',
-        createdAt: Date.now() - (30 * 24 * 60 * 60 * 1000), // 30 days ago
-        lastActivity: Date.now() - (2 * 60 * 60 * 1000), // 2 hours ago
-        userRole: 'admin',
-        userVotingPower: 15.5
-      };
-
-      // Mock proposals
-      const mockProposals: ActiveProposal[] = [
-        {
-          id: 'prop-1',
-          title: 'Deposit into Aave USDC Strategy',
-          description: 'Deposit 50,000 USDC into Aave lending pool to generate yield at current 4.2% APY.',
-          amount: '50000',
-          type: 'deposit',
-          status: 'active',
-          votesFor: 8,
-          votesAgainst: 1,
-          totalVotes: 9,
-          quorum: 6,
-          endTime: Date.now() + (2 * 24 * 60 * 60 * 1000), // 2 days from now
-          proposer: '0x742d35Cc6732C0532925a3b8D1C6c91DbC72a5Ea',
-          userVoted: true,
-          userVote: 'for'
-        },
-        {
-          id: 'prop-2',
-          title: 'Withdraw from Underperforming Strategy',
-          description: 'Withdraw 25,000 USDC from the Curve pool that has been underperforming.',
-          amount: '25000',
-          type: 'withdraw',
-          status: 'pending',
-          votesFor: 3,
-          votesAgainst: 0,
-          totalVotes: 3,
-          quorum: 6,
-          endTime: Date.now() + (5 * 24 * 60 * 60 * 1000), // 5 days from now
-          proposer: '0x845d35Cc6732C0532925a3b8D1C6c91DbC72a5Eb',
-          userVoted: false
-        },
-        {
-          id: 'prop-3',
-          title: 'Implement New Yield Strategy',
-          description: 'Deploy funds to Aerodrome Finance for LP farming with estimated 12% APY.',
-          amount: '75000',
-          type: 'strategy',
-          status: 'passed',
-          votesFor: 10,
-          votesAgainst: 2,
-          totalVotes: 12,
-          quorum: 6,
-          endTime: Date.now() - (24 * 60 * 60 * 1000), // 1 day ago
-          proposer: '0x945d35Cc6732C0532925a3b8D1C6c91DbC72a5Ec',
-          userVoted: true,
-          userVote: 'for'
+      try {
+        // Load group data from API
+        const groupResponse = await fetch(`/api/groups?id=${groupId}`);
+        if (!groupResponse.ok) {
+          throw new Error('Failed to load group data');
         }
-      ];
+        const groupResult = await groupResponse.json();
+        const group = groupResult.group;
 
-      setGroupData(mockGroupData);
-      setProposals(mockProposals);
+        // Load analytics for the group
+        const analyticsResponse = await fetch(`/api/analytics?groupId=${groupId}`);
+        let analytics = null;
+        if (analyticsResponse.ok) {
+          analytics = await analyticsResponse.json();
+        }
+
+        // Transform API data to component format
+        const groupData: GroupData = {
+          id: group.id,
+          name: group.name || 'Investment Group',
+          description: group.description || 'A collaborative investment group on Base network.',
+          memberCount: group.memberCount || 1,
+          totalInvestment: group.totalFunds || '0',
+          currentValue: group.totalFunds || '0', // In real app, calculate current value from strategies
+          totalReturn: '0', // Calculate from current vs initial value
+          returnPercentage: 0, // Calculate percentage return
+          treasuryAddress: group.treasuryAddress || '0x0000000000000000000000000000000000000000',
+          createdAt: group.createdAt ? new Date(group.createdAt).getTime() : Date.now(),
+          lastActivity: Date.now() - (2 * 60 * 60 * 1000), // Mock last activity
+          userRole: 'member', // In real app, determine from group membership
+          userVotingPower: 10.0 // In real app, get from member data
+        };
+
+        setGroupData(groupData);
+
+        // Load proposals for the group
+        const proposalsResponse = await fetch(`/api/proposals?groupId=${groupId}`);
+        if (proposalsResponse.ok) {
+          const proposalsResult = await proposalsResponse.json();
+          const apiProposals = proposalsResult.proposals || [];
+
+          // Transform API proposals to component format
+          const transformedProposals: ActiveProposal[] = apiProposals.map((proposal: any) => ({
+            id: proposal.id,
+            title: proposal.title,
+            description: proposal.description,
+            amount: proposal.requestedAmount || '0',
+            type: mapStrategyToType(proposal.strategy),
+            status: mapApiStatusToComponentStatus(proposal.status),
+            votesFor: proposal.approvalVotes || 0,
+            votesAgainst: proposal.rejectionVotes || 0,
+            totalVotes: (proposal.approvalVotes || 0) + (proposal.rejectionVotes || 0),
+            quorum: proposal.requiredVotes || 5,
+            endTime: proposal.deadline ? new Date(proposal.deadline).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000),
+            proposer: proposal.proposedBy || '0x0000000000000000000000000000000000000000',
+            userVoted: false, // In real app, check if current user voted
+            userVote: undefined
+          }));
+
+          setProposals(transformedProposals);
+        }
+
+      } catch (error) {
+        console.error('Failed to load group data:', error);
+        // Fallback to minimal data structure to prevent crashes
+        const fallbackGroupData: GroupData = {
+          id: groupId,
+          name: 'Investment Group',
+          description: 'Unable to load group details.',
+          memberCount: 1,
+          totalInvestment: '0',
+          currentValue: '0',
+          totalReturn: '0',
+          returnPercentage: 0,
+          treasuryAddress: '0x0000000000000000000000000000000000000000',
+          createdAt: Date.now(),
+          lastActivity: Date.now(),
+          userRole: 'member',
+          userVotingPower: 0
+        };
+        setGroupData(fallbackGroupData);
+        setProposals([]);
+      } finally {
       setLoading(false);
+      }
+    };
+
+    // Helper functions to map API data to component format
+    const mapStrategyToType = (strategy: string): ActiveProposal['type'] => {
+      if (strategy?.toLowerCase().includes('withdraw')) return 'withdraw';
+      if (strategy?.toLowerCase().includes('governance')) return 'governance';
+      if (strategy?.toLowerCase().includes('strategy')) return 'strategy';
+      return 'deposit';
+    };
+
+    const mapApiStatusToComponentStatus = (status: string): ActiveProposal['status'] => {
+      switch (status?.toLowerCase()) {
+        case 'active': return 'active';
+        case 'pending': return 'pending';
+        case 'approved': return 'passed';
+        case 'rejected': return 'failed';
+        case 'executed': return 'executed';
+        default: return 'pending';
+      }
     };
 
     loadGroupData();
@@ -531,11 +563,13 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
                 </Button>
               </div>
               <ProposalCreation
+                groupId={groupId}
                 treasuryAddress={groupData.treasuryAddress as `0x${string}`}
                 onSuccess={(txHash) => {
                   console.log('Proposal created:', txHash);
                   setShowCreateProposal(false);
-                  // Refresh proposals
+                  // Refresh proposals by reloading the component
+                  window.location.reload();
                 }}
                 onCancel={() => setShowCreateProposal(false)}
               />
