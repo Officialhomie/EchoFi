@@ -165,7 +165,7 @@ export async function GET() {
 /**
  * Enhanced balance fetching with timeout
  */
-async function getBalanceWithTimeout(walletProvider: any, timeoutMs = 8000): Promise<string> {
+async function getBalanceWithTimeout(walletProvider: WalletProvider, timeoutMs = 8000): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error(`Balance fetch timeout after ${timeoutMs}ms`));
