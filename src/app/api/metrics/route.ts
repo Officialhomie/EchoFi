@@ -197,10 +197,10 @@ async function generatePrometheusMetrics(): Promise<string> {
   return prometheusMetrics;
 }
 
-function calculateTotalRequests(metrics: any): number {
+function calculateTotalRequests(metrics: SystemMetricsData): number {
   // Calculate total requests from network metrics
   if (typeof metrics.network === 'object' && metrics.network !== null) {
-    return Object.values(metrics.network).reduce((total: number, serviceMetrics: any) => {
+    return Object.values(metrics.network).reduce((total: number, serviceMetrics: MetricsServiceData) => {
       return total + (serviceMetrics?.requests || 0);
     }, 0);
   }
