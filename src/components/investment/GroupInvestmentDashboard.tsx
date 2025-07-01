@@ -12,7 +12,6 @@ import {
   PlusIcon,
   FilterIcon,
   ArrowUpIcon,
-  ArrowDownIcon,
   ChevronRightIcon,
   ActivityIcon,
   CrownIcon,

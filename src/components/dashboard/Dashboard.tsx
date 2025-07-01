@@ -19,7 +19,8 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   BotIcon,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLinkIcon
 } from 'lucide-react';
 import { 
   PortfolioData, 
@@ -27,10 +28,19 @@ import {
   BalanceResponse,
   BalanceAsset
 } from '@/types';
+import { GroupInvestmentDashboard } from '../investment/GroupInvestmentDashboard';
 
 interface DashboardProps {
   onViewGroups: () => void;
   onJoinGroup: (groupId: string, groupName: string) => void;
+}
+
+// Add state for current view
+type DashboardView = 'main' | 'group-investment';
+
+interface DashboardState {
+  currentView: DashboardView;
+  selectedGroupId?: string;
 }
 
 // Define proper types for group processing instead of using 'any'
@@ -216,6 +226,9 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   const [performanceAnalysis, setPerformanceAnalysis] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showAgentDetails, setShowAgentDetails] = useState(false);
+  const [dashboardState, setDashboardState] = useState<DashboardState>({
+    currentView: 'main'
+  });
 
   const loadPortfolio = useCallback(async () => {
     if (!agentInitialized) {
@@ -574,6 +587,16 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
     return () => clearInterval(interval);
   }, [loadGroups, isLoading]);
 
+    // Handlers for navigation
+    const handleJoinGroup = (groupId: string, groupName: string) => {
+      setDashboardState({
+        currentView: 'group-investment',
+        selectedGroupId: groupId
+      });
+    };
+  
+    const handleBackToDashboard = () => {}
+
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto space-y-6">
@@ -599,6 +622,16 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
   // Calculate totals from real data
   const totalActiveProposals = groups.reduce((sum, group) => sum + group.activeProposals, 0);
   const totalProposals = groups.reduce((sum, group) => sum + group.totalProposals, 0);
+
+  // Render Group Investment Dashboard if selected
+  if (dashboardState.currentView === 'group-investment' && dashboardState.selectedGroupId) {
+    return (
+      <GroupInvestmentDashboard
+        groupId={dashboardState.selectedGroupId}
+        onBack={handleBackToDashboard}
+      />
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -784,21 +817,34 @@ export function Dashboard({ onViewGroups, onJoinGroup }: DashboardProps) {
                 {groups.slice(0, 3).map((group) => (
                   <div
                     key={group.id}
-                    className="p-3 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors cursor-pointer"
-                    onClick={() => onJoinGroup(group.id, group.name)}
+                    className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer bg-white/50"
+                    onClick={() => handleJoinGroup(group.id, group.name)}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{group.name}</h4>
-                        <p className="text-sm text-gray-600">
+                    <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <h4 className="font-semibold text-gray-900">{group.name}</h4>
+                          <ExternalLinkIcon className="w-4 h-4 text-blue-500 ml-2" />
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
                           {group.memberCount} members • {group.activeProposals} active proposals
                         </p>
-                        <p className="text-xs text-gray-500">
-                          Last activity {getRelativeTime(group.lastActivity)}
-                        </p>
+                        <div className="flex items-center text-xs text-gray-500">
+                          <span>Last activity {getRelativeTime(group.lastActivity)}</span>
+                          {!/^0(\.0+)?$/.test(group.totalFunds) && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span>Treasury: {formatUSD(group.totalFunds)}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        Open →
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="ml-4 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        Open Dashboard →
                       </Button>
                     </div>
                   </div>
