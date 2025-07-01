@@ -94,7 +94,7 @@ export function BasicGroupChat({
         streamCleanup();
       }
     };
-  }, [conversation.id, getMessages, streamMessages]);
+  }, [conversation.id, getMessages, streamMessages, streamCleanup]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
