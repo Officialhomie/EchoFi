@@ -267,6 +267,12 @@ export class NetworkManager {
    */
   async healthCheck(url: string): Promise<boolean> {
     try {
+      // Check if this is an RPC endpoint that needs JSON-RPC health check
+      if (this.isRpcEndpoint(url)) {
+        return await this.rpcHealthCheck(url);
+      }
+      
+      // For regular HTTP endpoints, use HEAD request
       const response = await this.fetchWithRetry(url, 
         { method: 'HEAD' }, 
         { retries: 1, timeout: 5000 }
@@ -274,6 +280,45 @@ export class NetworkManager {
       return true;
     } catch (error) {
       console.warn(`🏥 [NETWORK] Health check failed for ${url}:`, error);
+      return false;
+    }
+  }
+
+ /**
+ * Check if URL is an RPC endpoint
+ */
+  private isRpcEndpoint(url: string): boolean {
+    return url.includes('base.org') || 
+            url.includes('rpc') || 
+            url.includes('publicnode.com') || 
+            url.includes('blockpi.network');
+  }
+
+  /**
+   * Perform health check for RPC endpoints using JSON-RPC
+   */
+  private async rpcHealthCheck(url: string): Promise<boolean> {
+    try {
+      // Use a simple JSON-RPC call to check if the endpoint is responding
+      const rpcPayload = {
+        jsonrpc: '2.0',
+        method: 'eth_blockNumber',
+        params: [],
+        id: 1
+      };
+
+      const response = await this.fetchWithRetry(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(rpcPayload),
+      }, { retries: 1, timeout: 5000 });
+
+      // If we get any response (even an error), the RPC endpoint is alive
+      return true;
+    } catch (error) {
+      console.warn(`🏥 [NETWORK] RPC health check failed for ${url}:`, error);
       return false;
     }
   }

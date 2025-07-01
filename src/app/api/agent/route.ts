@@ -292,11 +292,24 @@ async function handleGetBalance() {
   try {
     console.log('💰 Fetching wallet balance...');
     
-    // Check if blockchain service is available
-    if (!canUseService('blockchain')) {
+    // In development mode, be more lenient with service availability
+    const developmentMode = process.env.NODE_ENV === 'development';
+    const blockchainAvailable = canUseService('blockchain');
+    
+    console.log(`🔍 Balance request check:`, {
+      blockchainAvailable,
+      developmentMode,
+      gracefulDegradation: FEATURE_FLAGS.gracefulDegradation
+    });
+    
+    // Check if blockchain service is available, but allow development mode override
+    if (!blockchainAvailable && !developmentMode) {
       console.warn('⚠️ Blockchain service unavailable, checking for cached data...');
-      // In a real implementation, you might return cached balance here
       throw new Error('Blockchain service temporarily unavailable. Please try again later.');
+    }
+
+    if (!blockchainAvailable && developmentMode) {
+      console.warn('⚠️ Blockchain service marked unavailable, but proceeding in development mode');
     }
 
     // Use fallback mode if service is degraded
@@ -317,7 +330,7 @@ async function handleGetBalance() {
       balanceWei: balanceWei.toString(),
       currency: 'ETH',
       network: walletProvider.getNetwork().networkId,
-      source: shouldUseFallback('blockchain') ? 'fallback' : 'primary',
+      source: (!blockchainAvailable && developmentMode) ? 'development-override' : shouldUseFallback('blockchain') ? 'fallback' : 'primary',
       timestamp: new Date().toISOString()
     };
     
