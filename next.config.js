@@ -20,10 +20,12 @@ const nextConfig = {
   },
   
   // Keep AgentKit server-side only
-  serverComponentsExternalPackages: [
-    '@coinbase/agentkit',
-    '@coinbase/agentkit-langchain',
-  ],
+  experimental: {
+    serverComponentsExternalPackages: [
+      '@coinbase/agentkit',
+      '@coinbase/agentkit-langchain',
+    ],
+  },
 
   // Transpile XMTP for browser compatibility
   transpilePackages: [
