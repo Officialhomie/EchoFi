@@ -168,9 +168,9 @@ export async function POST(request: NextRequest) {
 
       case 'clear_cache':
         if (service) {
-          cacheManager.clearCache(service);
+          cacheManager.deleteByTag(service);
         } else {
-          cacheManager.clearCache();
+          cacheManager.clear();
         }
         return NextResponse.json({ 
           success: true, 
