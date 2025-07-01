@@ -4,7 +4,7 @@ import { investmentGroups, groupMembers, proposals } from '@/lib/db-enhanced';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { recordMetric, recordError } from '@/lib/monitoring';
 import { getCachedOrFetch, CACHE_TAGS } from '@/lib/cache-manager';
-import { isNetworkError, getNetworkErrorMessage } from '@/lib/network-utils';
+import { isNetworkError } from '@/lib/network-utils';
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
