@@ -364,7 +364,7 @@ async function handleGetBalance() {
 /**
  * Enhanced balance fetching with retry logic and timeout
  */
-async function getBalanceWithRetry(walletProvider: any, maxRetries = 3): Promise<string> {
+async function getBalanceWithRetry(walletProvider: WalletProvider, maxRetries = 3): Promise<string> {
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
