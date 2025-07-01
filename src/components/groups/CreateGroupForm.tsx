@@ -59,7 +59,7 @@ interface FormErrors {
 // =============================================================================
 
 export function CreateGroupForm({ onSuccess, onCancel, className }: CreateGroupFormProps) {
-  const { address, isConnected } = useWallet();
+  const { isConnected } = useWallet();
   const { isInitialized: isXMTPReady, initializeXMTP, error: xmtpError } = useXMTP();
   const {
     createInvestmentGroup,
