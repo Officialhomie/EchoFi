@@ -32,7 +32,6 @@ import { GroupInvestmentDashboard } from '../investment/GroupInvestmentDashboard
 
 interface DashboardProps {
   onViewGroups: () => void;
-  onJoinGroup: (groupId: string, groupName: string) => void;
 }
 
 // Add state for current view
