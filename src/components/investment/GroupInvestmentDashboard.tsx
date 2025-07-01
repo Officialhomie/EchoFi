@@ -80,74 +80,67 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
     const loadGroupData = async () => {
       setLoading(true);
       try {
-        // Load group data from API
-        const groupResponse = await fetch(`/api/groups?id=${groupId}`);
+        // Load group details from API
+        const groupResponse = await fetch(`/api/groups/${groupId}`);
         if (!groupResponse.ok) {
-          throw new Error('Failed to load group data');
+          throw new Error('Failed to fetch group details');
         }
-        const groupResult = await groupResponse.json();
-        const group = groupResult.group;
-
-        // Load analytics for the group
-        const analyticsResponse = await fetch(`/api/analytics?groupId=${groupId}`);
-        let analytics = null;
-        if (analyticsResponse.ok) {
-          analytics = await analyticsResponse.json();
+        const groupData = await groupResponse.json();
+        
+        // Load proposals for this group
+        const proposalsResponse = await fetch(`/api/proposals?groupId=${groupId}`);
+        if (!proposalsResponse.ok) {
+          throw new Error('Failed to fetch proposals');
         }
-
-        // Transform API data to component format
-        const groupData: GroupData = {
-          id: group.id,
-          name: group.name || 'Investment Group',
-          description: group.description || 'A collaborative investment group on Base network.',
-          memberCount: group.memberCount || 1,
-          totalInvestment: group.totalFunds || '0',
-          currentValue: group.totalFunds || '0', // In real app, calculate current value from strategies
-          totalReturn: '0', // Calculate from current vs initial value
-          returnPercentage: 0, // Calculate percentage return
-          treasuryAddress: group.treasuryAddress || '0x0000000000000000000000000000000000000000',
-          createdAt: group.createdAt ? new Date(group.createdAt).getTime() : Date.now(),
-          lastActivity: Date.now() - (2 * 60 * 60 * 1000), // Mock last activity
-          userRole: 'member', // In real app, determine from group membership
-          userVotingPower: 10.0 // In real app, get from member data
+        const proposalsData = await proposalsResponse.json();
+        
+        // Transform API data to match our interface
+        const transformedGroupData: GroupData = {
+          id: groupData.group.id,
+          name: groupData.group.name,
+          description: groupData.group.description || 'Investment group focused on DeFi strategies',
+          memberCount: groupData.group.memberCount || 1,
+          totalInvestment: groupData.group.totalFunds || '0',
+          currentValue: groupData.group.totalFunds || '0', // For now, same as totalFunds
+          totalReturn: '0', // Calculate from performance data
+          returnPercentage: 0, // Calculate from performance data
+          treasuryAddress: groupData.group.treasuryAddress || '0x0000000000000000000000000000000000000000',
+          createdAt: new Date(groupData.group.createdAt).getTime(),
+          lastActivity: new Date(groupData.group.updatedAt || groupData.group.createdAt).getTime(),
+          userRole: 'member', // Default to member - should be determined by user's membership
+          userVotingPower: 10.0 // Default voting power - should come from membership data
         };
 
-        setGroupData(groupData);
+        // Transform proposals data
+        const transformedProposals: ActiveProposal[] = (proposalsData.proposals || []).map((proposal: any): ActiveProposal => ({
+          id: proposal.id,
+          title: proposal.title,
+          description: proposal.description,
+          amount: proposal.requestedAmount,
+          type: proposal.strategy.toLowerCase().includes('deposit') ? 'deposit' : 
+                proposal.strategy.toLowerCase().includes('withdraw') ? 'withdraw' : 
+                proposal.strategy.toLowerCase().includes('strategy') ? 'strategy' : 'governance',
+          status: proposal.status,
+          votesFor: proposal.approvalVotes || 0,
+          votesAgainst: proposal.rejectionVotes || 0,
+          totalVotes: (proposal.approvalVotes || 0) + (proposal.rejectionVotes || 0),
+          quorum: proposal.requiredVotes || 5,
+          endTime: new Date(proposal.deadline).getTime(),
+          proposer: proposal.proposedBy,
+          userVoted: false, // Will be determined by checking votes API
+          userVote: undefined
+        }));
 
-        // Load proposals for the group
-        const proposalsResponse = await fetch(`/api/proposals?groupId=${groupId}`);
-        if (proposalsResponse.ok) {
-          const proposalsResult = await proposalsResponse.json();
-          const apiProposals = proposalsResult.proposals || [];
-
-          // Transform API proposals to component format
-          const transformedProposals: ActiveProposal[] = apiProposals.map((proposal: any) => ({
-            id: proposal.id,
-            title: proposal.title,
-            description: proposal.description,
-            amount: proposal.requestedAmount || '0',
-            type: mapStrategyToType(proposal.strategy),
-            status: mapApiStatusToComponentStatus(proposal.status),
-            votesFor: proposal.approvalVotes || 0,
-            votesAgainst: proposal.rejectionVotes || 0,
-            totalVotes: (proposal.approvalVotes || 0) + (proposal.rejectionVotes || 0),
-            quorum: proposal.requiredVotes || 5,
-            endTime: proposal.deadline ? new Date(proposal.deadline).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000),
-            proposer: proposal.proposedBy || '0x0000000000000000000000000000000000000000',
-            userVoted: false, // In real app, check if current user voted
-            userVote: undefined
-          }));
-
-          setProposals(transformedProposals);
-        }
+        setGroupData(transformedGroupData);
+        setProposals(transformedProposals);
 
       } catch (error) {
         console.error('Failed to load group data:', error);
-        // Fallback to minimal data structure to prevent crashes
+        // Use fallback data on error
         const fallbackGroupData: GroupData = {
           id: groupId,
           name: 'Investment Group',
-          description: 'Unable to load group details.',
+          description: 'Loading group information...',
           memberCount: 1,
           totalInvestment: '0',
           currentValue: '0',
@@ -157,7 +150,7 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
           createdAt: Date.now(),
           lastActivity: Date.now(),
           userRole: 'member',
-          userVotingPower: 0
+          userVotingPower: 10.0
         };
         setGroupData(fallbackGroupData);
         setProposals([]);
@@ -166,24 +159,6 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
       }
     };
 
-    // Helper functions to map API data to component format
-    const mapStrategyToType = (strategy: string): ActiveProposal['type'] => {
-      if (strategy?.toLowerCase().includes('withdraw')) return 'withdraw';
-      if (strategy?.toLowerCase().includes('governance')) return 'governance';
-      if (strategy?.toLowerCase().includes('strategy')) return 'strategy';
-      return 'deposit';
-    };
-
-    const mapApiStatusToComponentStatus = (status: string): ActiveProposal['status'] => {
-      switch (status?.toLowerCase()) {
-        case 'active': return 'active';
-        case 'pending': return 'pending';
-        case 'approved': return 'passed';
-        case 'rejected': return 'failed';
-        case 'executed': return 'executed';
-        default: return 'pending';
-      }
-    };
 
     loadGroupData();
   }, [groupId]);

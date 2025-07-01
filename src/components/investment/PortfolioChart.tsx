@@ -44,50 +44,69 @@ export function PortfolioChart({ groupId, detailed = false }: PortfolioChartProp
       setLoading(true);
       
       try {
-        // Mock data for demonstration - in real app would fetch from API
-        const mockData: ChartData[] = [];
-        const baseValue = 250000;
-        const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : timeframe === '90d' ? 90 : 365;
+        // Try to fetch real analytics data first
+        const analyticsResponse = await fetch(`/api/analytics?groupId=${groupId}&timeframe=${timeframe}`);
+
+        let useRealData = false;
+        let apiData = null;
         
-        for (let i = days; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          
-          // Simulate realistic portfolio growth with some volatility
-          const trend = (days - i) / days * 0.1; // 10% growth over period
-          const volatility = (Math.random() - 0.5) * 0.05; // ±2.5% daily volatility
-          const value = baseValue * (1 + trend + volatility);
-          const change = i === 0 ? 0 : (value - mockData[mockData.length - 1]?.value || value) / (mockData[mockData.length - 1]?.value || value) * 100;
-          
-          mockData.push({
-            date: date.toISOString().split('T')[0],
-            value,
-            change
-          });
+        if (analyticsResponse.ok) {
+          apiData = await analyticsResponse.json();
+          useRealData = apiData && apiData.chartData && apiData.chartData.length > 0;
         }
         
-        setChartData(mockData);
-        
-        // Calculate performance metrics
-        const currentValue = mockData[mockData.length - 1]?.value || baseValue;
-        const value24h = mockData[mockData.length - 2]?.value || baseValue;
-        const value7d = mockData[mockData.length - 8]?.value || baseValue;
-        const value30d = mockData[mockData.length - 31]?.value || baseValue;
-        
-        const metrics: PerformanceMetrics = {
-          totalValue: currentValue.toFixed(2),
-          change24h: ((currentValue - value24h) / value24h) * 100,
-          change7d: ((currentValue - value7d) / value7d) * 100,
-          change30d: ((currentValue - value30d) / value30d) * 100,
-          maxDrawdown: -5.2, // Mock value
-          sharpeRatio: 1.8, // Mock value
-          volatility: 12.4 // Mock value
-        };
-        
-        setPerformance(metrics);
-        
+        if (useRealData) {
+          // Use real API data
+          setChartData(apiData.chartData);
+          setPerformance(apiData.performance);
+        } else {
+          // Fallback to mock data for demonstration
+          const mockData: ChartData[] = [];
+          const baseValue = 250000;
+          const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : timeframe === '90d' ? 90 : 365;
+          
+          for (let i = days; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            
+            // Simulate realistic portfolio growth with some volatility
+            const trend = (days - i) / days * 0.1; // 10% growth over period
+            const volatility = (Math.random() - 0.5) * 0.05; // ±2.5% daily volatility
+            const value = baseValue * (1 + trend + volatility);
+            const change = i === 0 ? 0 : (value - mockData[mockData.length - 1]?.value || value) / (mockData[mockData.length - 1]?.value || value) * 100;
+            
+            mockData.push({
+              date: date.toISOString().split('T')[0],
+              value,
+              change
+            });
+          }
+          
+          setChartData(mockData);
+          
+          // Calculate performance metrics from mock data
+          const currentValue = mockData[mockData.length - 1]?.value || baseValue;
+          const value24h = mockData[mockData.length - 2]?.value || baseValue;
+          const value7d = mockData[mockData.length - 8]?.value || baseValue;
+          const value30d = mockData[mockData.length - 31]?.value || baseValue;
+          
+          const metrics: PerformanceMetrics = {
+            totalValue: currentValue.toFixed(2),
+            change24h: ((currentValue - value24h) / value24h) * 100,
+            change7d: ((currentValue - value7d) / value7d) * 100,
+            change30d: ((currentValue - value30d) / value30d) * 100,
+            maxDrawdown: -5.2, // Mock value
+            sharpeRatio: 1.8, // Mock value
+            volatility: 12.4 // Mock value
+          };
+          
+          setPerformance(metrics);
+        }
       } catch (error) {
         console.error('Failed to load chart data:', error);
+        // Set empty data on error
+        setChartData([]);
+        setPerformance(null);
       } finally {
         setLoading(false);
       }

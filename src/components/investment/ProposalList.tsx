@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useWallet } from '@/hooks/useWallet';
 import { 
   VoteIcon,
   TimerIcon,
@@ -53,6 +54,7 @@ interface ProposalListProps {
 
 export function ProposalList({ proposals, groupData, onProposalClick }: ProposalListProps) {
   const [votingProposal, setVotingProposal] = useState<string | null>(null);
+  const { address } = useWallet();
 
   // Get proposal type icon and color
   const getProposalTypeIcon = (type: ActiveProposal['type']) => {
@@ -129,7 +131,7 @@ export function ProposalList({ proposals, groupData, onProposalClick }: Proposal
       },
       body: JSON.stringify({
         proposalId,
-        voterAddress: 'current-user-address', // Should come from wallet context
+        voterAddress: address || 'unknown', // Use connected wallet address
         vote: vote === 'for' ? 'approve' : 'reject',
         votingPower: groupData.userVotingPower.toString()
       })
