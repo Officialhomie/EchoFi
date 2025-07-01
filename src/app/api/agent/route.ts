@@ -449,12 +449,25 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
     
     console.log(`📊 Analyzing performance for timeframe: ${timeframe}`);
     
-    // Check service availability
+    // Check service availability with more detailed logging
     const coinbaseAvailable = canUseService('coinbase');
     const blockchainAvailable = canUseService('blockchain');
     
-    if (!coinbaseAvailable && !blockchainAvailable) {
+    console.log(`🔍 Service availability check:`, {
+      coinbase: coinbaseAvailable,
+      blockchain: blockchainAvailable,
+      gracefulDegradation: FEATURE_FLAGS.gracefulDegradation
+    });
+    
+    // In development, be more lenient with service availability
+    const developmentMode = process.env.NODE_ENV === 'development';
+    
+    if (!coinbaseAvailable && !blockchainAvailable && !developmentMode) {
       throw new Error('Analysis services temporarily unavailable. Please try again later.');
+    }
+
+    if (!coinbaseAvailable && !blockchainAvailable && developmentMode) {
+      console.warn('⚠️ Services marked as unavailable, but proceeding in development mode');
     }
 
     // Get current agent status with error handling
@@ -472,8 +485,8 @@ async function handleAnalyzePerformance(params: AgentActionParams) {
         chainId: network.chainId
       };
 
-      // Try to get balance if blockchain service is available
-      if (blockchainAvailable) {
+      // Try to get balance if blockchain service is available OR in development mode
+      if (blockchainAvailable || developmentMode) {
         try {
           const balanceWei = await getBalanceWithRetry(walletProvider, 2); // Fewer retries for analysis
           const balance = `${formatEther(BigInt(balanceWei))} ETH`;
