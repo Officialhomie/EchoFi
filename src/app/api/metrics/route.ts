@@ -207,21 +207,21 @@ function calculateTotalRequests(metrics: SystemMetricsData): number {
   return 0;
 }
 
-function calculateErrorRate(metrics: any): number {
-  const totalErrors = metrics.errors.reduce((sum: number, error: any) => sum + error.count, 0);
+function calculateErrorRate(metrics: SystemMetricsData): number {
+  const totalErrors = metrics.errors.reduce((sum: number, error) => sum + error.count, 0);
   const totalRequests = calculateTotalRequests(metrics);
   
   if (totalRequests === 0) return 0;
   return (totalErrors / totalRequests) * 100;
 }
 
-function calculateAverageResponseTime(metrics: any): number {
-  const responseTimeMetrics = metrics.performance.filter((m: any) => 
+function calculateAverageResponseTime(metrics: SystemMetricsData): number {
+  const responseTimeMetrics = metrics.performance.filter((m) => 
     m.name.includes('response_time') && m.unit === 'ms'
   );
   
   if (responseTimeMetrics.length === 0) return 0;
   
-  const totalTime = responseTimeMetrics.reduce((sum: number, metric: any) => sum + metric.value, 0);
+  const totalTime = responseTimeMetrics.reduce((sum: number, metric) => sum + metric.value, 0);
   return totalTime / responseTimeMetrics.length;
 }
