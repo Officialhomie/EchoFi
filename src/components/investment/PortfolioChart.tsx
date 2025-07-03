@@ -7,7 +7,6 @@ import {
   TrendingDownIcon,
   BarChart3Icon,
   CalendarIcon,
-  DollarSignIcon,
   ActivityIcon
 } from 'lucide-react';
 import { formatUSD, formatPercentage } from '@/lib/utils';
@@ -145,7 +144,7 @@ export function PortfolioChart({ groupId, detailed = false }: PortfolioChartProp
             {['7d', '30d', '90d', '1y'].map((period) => (
               <button
                 key={period}
-                onClick={() => setTimeframe(period as any)}
+                onClick={() => setTimeframe(period as '7d' | '30d' | '90d' | '1y')}
                 className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                   timeframe === period
                     ? 'bg-white text-blue-600 shadow-sm'

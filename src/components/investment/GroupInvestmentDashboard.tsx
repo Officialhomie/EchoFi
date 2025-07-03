@@ -26,6 +26,7 @@ import { PortfolioChart } from './PortfolioChart';
 import { ProposalList } from './ProposalList';
 import { InvestmentMetrics } from './InvestmentMetrics';
 import { ProposalCreation } from './ProposalCreation';
+import type { ExecutionResult } from '@/types/investment';
 
 // Types for Group Investment Dashboard
 interface GroupData {
@@ -59,7 +60,7 @@ interface ActiveProposal {
   proposer: string;
   userVoted: boolean;
   userVote?: 'for' | 'against';
-  executionData?: any;
+  executionData?: ExecutionResult;
 }
 
 interface GroupInvestmentDashboardProps {
@@ -112,23 +113,24 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
         };
 
         // Transform proposals data
-        const transformedProposals: ActiveProposal[] = (proposalsData.proposals || []).map((proposal: any): ActiveProposal => ({
-          id: proposal.id,
-          title: proposal.title,
-          description: proposal.description,
-          amount: proposal.requestedAmount,
-          type: proposal.strategy.toLowerCase().includes('deposit') ? 'deposit' : 
-                proposal.strategy.toLowerCase().includes('withdraw') ? 'withdraw' : 
-                proposal.strategy.toLowerCase().includes('strategy') ? 'strategy' : 'governance',
-          status: proposal.status,
-          votesFor: proposal.approvalVotes || 0,
-          votesAgainst: proposal.rejectionVotes || 0,
-          totalVotes: (proposal.approvalVotes || 0) + (proposal.rejectionVotes || 0),
-          quorum: proposal.requiredVotes || 5,
-          endTime: new Date(proposal.deadline).getTime(),
-          proposer: proposal.proposedBy,
+        const transformedProposals: ActiveProposal[] = (proposalsData.proposals || []).map((proposal: Record<string, unknown>): ActiveProposal => ({
+          id: proposal.id as string,
+          title: proposal.title as string,
+          description: proposal.description as string,
+          amount: proposal.requestedAmount as string,
+          type: typeof proposal.strategy === 'string' && proposal.strategy.toLowerCase().includes('deposit') ? 'deposit' : 
+                typeof proposal.strategy === 'string' && proposal.strategy.toLowerCase().includes('withdraw') ? 'withdraw' : 
+                typeof proposal.strategy === 'string' && proposal.strategy.toLowerCase().includes('strategy') ? 'strategy' : 'governance',
+          status: (proposal.status as ActiveProposal['status']) ?? 'pending',
+          votesFor: typeof proposal.approvalVotes === 'number' ? proposal.approvalVotes : 0,
+          votesAgainst: typeof proposal.rejectionVotes === 'number' ? proposal.rejectionVotes : 0,
+          totalVotes: (typeof proposal.approvalVotes === 'number' ? proposal.approvalVotes : 0) + (typeof proposal.rejectionVotes === 'number' ? proposal.rejectionVotes : 0),
+          quorum: typeof proposal.requiredVotes === 'number' ? proposal.requiredVotes : 5,
+          endTime: proposal.deadline ? new Date(proposal.deadline as string).getTime() : Date.now(),
+          proposer: proposal.proposedBy as string,
           userVoted: false, // Will be determined by checking votes API
-          userVote: undefined
+          userVote: undefined,
+          executionData: proposal.execution as ExecutionResult | undefined
         }));
 
         setGroupData(transformedGroupData);
@@ -278,7 +280,7 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'proposals' | 'analytics' | 'settings')}
                 className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === tab.id
                     ? 'bg-white text-blue-600 shadow-sm'
@@ -440,7 +442,7 @@ export function GroupInvestmentDashboard({ groupId, onBack }: GroupInvestmentDas
                   {['all', 'active', 'pending', 'completed'].map((filterOption) => (
                     <button
                       key={filterOption}
-                      onClick={() => setFilter(filterOption as any)}
+                      onClick={() => setFilter(filterOption as 'all' | 'active' | 'pending' | 'completed')}
                       className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                         filter === filterOption
                           ? 'bg-blue-600 text-white'

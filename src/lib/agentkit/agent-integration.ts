@@ -126,7 +126,7 @@ interface CommandExecutionResult {
   description?: string;
   network?: string;
   error?: string;
-  [key: string]: any; // Allow for flexible properties
+  [key: string]: unknown; // Allow for flexible properties with safer typing
 }
 
 // ✅ FIX: Proper typing for restored state structure
@@ -514,16 +514,15 @@ export class EchoFiAgent {
     this.persistenceManager.setStateRestoredCallback(async (restoredState: any) => {
       console.log('🔄 [AGENT] Applying restored state to agent');
       
-      const state = restoredState as RestoredAgentState;
       // Restore global agent state
-      this.globalState = state.globalState || this.globalState;
-      this.groupStates = state.groupStates || {};
-      this.stateVersion = state.version || 1;
+      this.globalState = restoredState.globalState || this.globalState;
+      this.groupStates = restoredState.groupStates || {};
+      this.stateVersion = restoredState.version || 1;
       this.recoveredFromState = true;
       this.recoveryTimestamp = new Date();
       
       // Restore pending commands
-      for (const command of state.pendingCommands) {
+      for (const command of restoredState.pendingCommands) {
         this.pendingCommands.set(command.commandId, {
           type: command.commandType as InvestmentCommand['type'],
           amount: command.parsedCommand?.amount,
@@ -539,7 +538,7 @@ export class EchoFiAgent {
       console.log('✅ [AGENT] State restoration completed', {
         groupStates: Object.keys(this.groupStates).length,
         pendingCommands: this.pendingCommands.size,
-        queuedMessages: state.queuedMessages.length
+        queuedMessages: restoredState.queuedMessages.length
       });
     });
 
@@ -657,26 +656,6 @@ export class EchoFiAgent {
       
       return;
     }
-    
-    // ✅ FIX: Properly typed mock message instead of using 'as unknown as DecodedMessage'
-    const mockMessage: DecodedMessage = {
-      content: `Restored command: ${command.type}`,
-      senderAddress: command.sender,
-      contentType: { typeId: 'text/plain', encoding: 'UTF-8' } as any,
-      conversationId: 'restored-command',
-      deliveryStatus: 'sent',
-      id: `restored-${Date.now()}`,
-      sent: new Date(),
-      timestamp: new Date(),
-      // Add any other required DecodedMessage properties with sensible defaults
-      error: undefined,
-      encodedContent: new Uint8Array(),
-      fallback: 'fallback',
-      kind: 'text',
-      parameters: {},
-      senderInboxId: 'mock-inbox-id',
-      sentAtNs: BigInt(Date.now() * 1_000_000)
-    } as unknown as DecodedMessage;
     
     // Find the group ID from group states or use default
     const groupId = this.findGroupIdForCommand(command) || 'unknown';

@@ -13,9 +13,9 @@ import fs from "fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { formatEther } from "viem";
-import { networkManager, NetworkError, isNetworkError } from '../network-utils';
 import { serviceHealthMonitor, canUseService, shouldUseFallback } from '../service-health';
 import { FEATURE_FLAGS } from '../network-config';
+import { isNetworkError } from '../network-utils';
 
 /**
  * WalletData type for persisting wallet information
@@ -65,6 +65,36 @@ function validateEnvironmentVariables(): void {
       `Please ensure these are set in your .env file for AgentKit functionality.`
     );
   }
+}
+
+/**
+ * Enhanced wallet balance fetching with retry logic and timeout handling
+ */
+async function getWalletBalanceWithRetry(walletProvider: WalletProvider, maxRetries = 3): Promise<bigint> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`💰 [WALLET] Fetching balance (attempt ${attempt + 1}/${maxRetries})`);
+      // Use a promise with timeout to avoid hanging
+      const balancePromise = walletProvider.getBalance();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Balance fetch timeout')), 8000); // 8 second timeout
+      });
+      const balance = await Promise.race([balancePromise, timeoutPromise]);
+      console.log(`✅ [WALLET] Balance fetched successfully on attempt ${attempt + 1}`);
+      return BigInt(balance);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`⚠️ [WALLET] Balance fetch attempt ${attempt + 1} failed:`, getErrorMessage(lastError));
+      // Don't retry on the last attempt
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
+        console.log(`⏳ [WALLET] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw new Error(`Failed to fetch wallet balance after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**
@@ -193,7 +223,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
     let balanceStr = 'Unable to fetch';
     try {
       const balance = await getWalletBalanceWithRetry(walletProvider);
-      const formattedBalance = formatEther(BigInt(balance));
+      const formattedBalance = formatEther(balance);
       balanceStr = `${formattedBalance} ETH`;
       console.log(`   Current balance: ${balanceStr}`);
     } catch (balanceError) {
@@ -337,47 +367,10 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
         `Please check your .env file and ensure all required variables are set.`
       );
     }
-    
     // Generic error fallback
     throw new Error(
       `Failed to initialize AgentKit: ${getErrorMessage(error)}. ` +
       `The system will attempt to recover automatically. If this persists, please check your configuration.`
     );
   }
-}
-
-/**
- * Enhanced wallet balance fetching with retry logic and timeout handling
- */
-async function getWalletBalanceWithRetry(walletProvider: WalletProvider, maxRetries = 3): Promise<string> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      console.log(`💰 [WALLET] Fetching balance (attempt ${attempt + 1}/${maxRetries})`);
-      
-      // Use a promise with timeout to avoid hanging
-      const balancePromise = walletProvider.getBalance();
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Balance fetch timeout')), 8000); // 8 second timeout
-      });
-      
-      const balance = await Promise.race([balancePromise, timeoutPromise]);
-      console.log(`✅ [WALLET] Balance fetched successfully on attempt ${attempt + 1}`);
-      return balance;
-      
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.warn(`⚠️ [WALLET] Balance fetch attempt ${attempt + 1} failed:`, getErrorMessage(lastError));
-      
-      // Don't retry on the last attempt
-      if (attempt < maxRetries - 1) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
-        console.log(`⏳ [WALLET] Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  
-  throw new Error(`Failed to fetch wallet balance after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }

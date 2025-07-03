@@ -20,6 +20,7 @@ import {
   ThumbsDownIcon
 } from 'lucide-react';
 import { formatUSD, formatPercentage, getRelativeTime, formatAddress } from '@/lib/utils';
+import type { ExecutionResult } from '@/types/investment';
 
 interface ActiveProposal {
   id: string;
@@ -36,7 +37,7 @@ interface ActiveProposal {
   proposer: string;
   userVoted: boolean;
   userVote?: 'for' | 'against';
-  executionData?: any;
+  executionData?: ExecutionResult;
 }
 
 interface GroupData {

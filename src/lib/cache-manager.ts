@@ -11,7 +11,7 @@ export interface CacheOptions {
   stale?: boolean; // Allow serving stale data while revalidating
 }
 
-export interface CacheEntry<T = any> {
+export interface CacheEntry<T = unknown> {
   data: T;
   timestamp: Date;
   ttl: number;
@@ -271,7 +271,7 @@ export class CacheManager {
   /**
    * Warm up cache with predefined data
    */
-  warmup(entries: Array<{ key: string; value: any; options?: CacheOptions }>): void {
+  warmup(entries: Array<{ key: string; value: unknown; options?: CacheOptions }>): void {
     console.log(`🔥 [CACHE] Warming up cache with ${entries.length} entries...`);
     
     entries.forEach(({ key, value, options }) => {
@@ -284,8 +284,8 @@ export class CacheManager {
   /**
    * Export cache data for persistence
    */
-  export(): Record<string, any> {
-    const exported: Record<string, any> = {};
+  export(): Record<string, unknown> {
+    const exported: Record<string, unknown> = {};
     
     for (const [key, entry] of this.cache.entries()) {
       // Only export non-expired entries
@@ -307,28 +307,44 @@ export class CacheManager {
   /**
    * Import cache data from persistence
    */
-  import(data: Record<string, any>): number {
+  import(data: Record<string, unknown>): number {
     let importedCount = 0;
-    
-    for (const [key, entryData] of Object.entries(data)) {
+    for (const [key, entryDataRaw] of Object.entries(data)) {
       try {
-        const timestamp = new Date(entryData.timestamp);
-        const age = Date.now() - timestamp.getTime();
-        
-        // Only import if not expired
-        if (age < entryData.ttl) {
-          this.set(key, entryData.data, {
-            ttl: entryData.ttl - age, // Adjust TTL for age
-            tags: entryData.tags,
-            priority: entryData.priority,
-          });
-          importedCount++;
+        // Type guard: ensure entryData is an object with expected properties
+        if (
+          typeof entryDataRaw === 'object' && entryDataRaw !== null &&
+          'timestamp' in entryDataRaw &&
+          'ttl' in entryDataRaw &&
+          'data' in entryDataRaw &&
+          'tags' in entryDataRaw &&
+          'priority' in entryDataRaw
+        ) {
+          const entryData = entryDataRaw as {
+            timestamp: string;
+            ttl: number;
+            data: unknown;
+            tags: string[];
+            priority: 'low' | 'medium' | 'high';
+          };
+          const timestamp = new Date(entryData.timestamp);
+          const age = Date.now() - timestamp.getTime();
+          // Only import if not expired
+          if (age < entryData.ttl) {
+            this.set(key, entryData.data, {
+              ttl: entryData.ttl - age, // Adjust TTL for age
+              tags: entryData.tags,
+              priority: entryData.priority,
+            });
+            importedCount++;
+          }
+        } else {
+          throw new Error('Invalid entry data format');
         }
       } catch (error) {
         console.warn(`⚠️ [CACHE] Failed to import entry ${key}:`, error);
       }
     }
-    
     console.log(`📥 [CACHE] Imported ${importedCount} cache entries`);
     return importedCount;
   }
